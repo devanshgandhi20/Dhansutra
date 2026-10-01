@@ -27,14 +27,16 @@ class FinanceService:
         user_txs = db.query(Transaction).filter(Transaction.user_id == user_id).all()
         summaries: List[AccountBalanceSummary] = []
 
+        # In calculate_account_balances in services.py:
         for account in accounts:
-            # 1. For Investment accounts, prioritize current_market_value
+            # 1. For Investment accounts, prioritize a non-zero current_market_value, then starting_balance
             if account.type == AccountType.INVESTMENT:
-                balance = (
-                    account.current_market_value
-                    if account.current_market_value is not None
-                    else account.starting_balance
-                )
+                if account.current_market_value is not None and account.current_market_value > Decimal("0.00"):
+                    balance = account.current_market_value
+                elif account.starting_balance is not None and account.starting_balance > Decimal("0.00"):
+                    balance = account.starting_balance
+                else:
+                    balance = Decimal("0.00")
             else:
                 # 2. Standard cash/bank accounts use starting balance + transactions
                 account_inflows = sum(
@@ -46,7 +48,6 @@ class FinanceService:
                     Decimal("0.00"),
                 )
 
-                # Transfers in and out
                 transfers_in = sum(
                     (t.amount for t in user_txs if t.to_account_id == account.id and t.type == TransactionType.TRANSFER),
                     Decimal("0.00"),
@@ -64,12 +65,16 @@ class FinanceService:
                     - transfers_out
                 )
 
+            # Convert type to raw string value (e.g., 'INVESTMENT') to guarantee clean JSON serialization
+            raw_type = account.type.value if hasattr(account.type, 'value') else str(account.type)
+
             summaries.append(
                 AccountBalanceSummary(
                     id=account.id,
                     name=account.name,
-                    type=account.type,
+                    type=raw_type,
                     current_balance=Decimal(str(balance or "0.00")),
+                    current_market_value=account.current_market_value
                 )
             )
 

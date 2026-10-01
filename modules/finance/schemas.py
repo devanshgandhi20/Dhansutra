@@ -78,6 +78,10 @@ class AccountBalanceSummary(BaseModel):
     name: str
     type: AccountType
     current_balance: Decimal
+    current_market_value: Optional[Decimal] = None
+
+    class Config:
+        from_attributes = True
 
 
 class DashboardSummaryResponse(BaseModel):
