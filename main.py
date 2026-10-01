@@ -20,6 +20,12 @@ from modules.redis.rate_limiter import check_rate_limit
 from modules.finance.router import router as finance_router
 from modules.finance.imports import router as imports_router
 
+from core.database import engine, Base
+import modules.users.models  # Registers User
+import modules.finance.models  # Registers finance models
+
+Base.metadata.create_all(bind=engine)
+
 templates = Jinja2Templates(directory="templates")
 
 app = FastAPI(title="DhanSutra API")
