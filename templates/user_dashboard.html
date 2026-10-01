@@ -1428,23 +1428,28 @@
         }
 
         function renderAccountCards(accountSummaries = []) {
-            const container = document.getElementById('accountsSummaryContainer');
-            container.innerHTML = accountSummaries.map(a => {
-                const isLiability = a.type === 'CREDIT_CARD';
-                return `
-                    <div class="account-card ${a.type}">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
-                            <span class="pill">${a.type}</span>
-                        </div>
-                        <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
-                            ${formatINR(a.current_balance)}
-                        </div>
-                        <span class="caption-text">Reconciled Balance</span>
-                    </div>
-                `;
-            }).join('');
-        }
+    const container = document.getElementById('accountsSummaryContainer');
+    container.innerHTML = accountSummaries.map(a => {
+        const isLiability = a.type === 'CREDIT_CARD';
+        // Fallback to current_market_value or starting_balance for INVESTMENT types
+        const displayBalance = (a.type === 'INVESTMENT' && (a.current_market_value !== undefined && a.current_market_value !== null))
+            ? a.current_market_value
+            : a.current_balance;
+
+        return `
+            <div class="account-card ${a.type}">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
+                    <span class="pill">${a.type}</span>
+                </div>
+                <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
+                    ${formatINR(displayBalance)}
+                </div>
+                <span class="caption-text">Reconciled Balance</span>
+            </div>
+        `;
+    }).join('');
+}
 
         function renderRankedOutflows() {
             const container = document.getElementById('rankedOutflowContainer');
