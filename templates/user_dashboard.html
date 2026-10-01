@@ -815,6 +815,7 @@
             </div>
 
             <form id="formTransaction">
+                <input type="hidden" id="txEditingId" value="">
                 <div class="form-row">
                     <div class="form-group">
                         <label for="txAmount">Amount (₹)</label>
@@ -888,6 +889,7 @@
             <div id="txDetailContent"></div>
             <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
                 <button type="button" class="btn btn-ghost" onclick="closeModal('txDetailModal')">Close</button>
+                <button type="button" class="btn btn-secondary" id="btnDetailEdit">✏️ Edit</button>
                 <button type="button" class="btn btn-destructive" id="btnDetailDelete">🗑️ Delete</button>
             </div>
         </div>
@@ -1128,6 +1130,13 @@
                     body: JSON.stringify(payload)
                 });
             },
+            async updateTransaction(id, payload) {
+                return await this.req(`/api/finance/transactions/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            },
             async createTransfer(payload) {
                 return await this.req('/api/finance/transfers', {
                     method: 'POST',
@@ -1219,7 +1228,6 @@
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
 
-        // Updated formatINR: Supports exact 2 decimal places instead of rounding to whole numbers
         function formatINR(v) {
             const num = Number(v) || 0;
             return new Intl.NumberFormat('en-IN', { 
@@ -1391,7 +1399,7 @@
             const select = document.getElementById('txCategory');
             const targetType = currentFormType.toUpperCase();
             const list = categories.filter(c => (c.type || '').toUpperCase() === targetType);
-            select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷️️')} ${sanitize(c.name)}</option>`).join('');
+            select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷')} ${sanitize(c.name)}</option>`).join('');
         }
 
         function updateNoteSuggestions() {
@@ -1728,6 +1736,11 @@
                 </div>
             `;
 
+            document.getElementById('btnDetailEdit').onclick = () => {
+                closeModal('txDetailModal');
+                openTransactionModal(t);
+            };
+
             document.getElementById('btnDetailDelete').onclick = () => {
                 closeModal('txDetailModal');
                 confirmAction('Delete Transaction', `Permanently delete "${sanitize(t.description)}"?`, async () => {
@@ -1740,8 +1753,43 @@
             openModal('txDetailModal');
         }
 
+        function openTransactionModal(editingTx = null) {
+            document.getElementById('formTransaction').reset();
+            populateSelects();
+
+            if (editingTx) {
+                document.getElementById('lblTxModalTitle').textContent = 'Edit Transaction';
+                document.getElementById('btnTxSubmit').textContent = 'Update Transaction';
+                document.getElementById('txEditingId').value = editingTx.id;
+
+                const txType = (editingTx.type || 'expense').toLowerCase();
+                setFormType(txType);
+
+                document.getElementById('txAmount').value = editingTx.amount;
+                document.getElementById('txDate').value = editingTx.date;
+                document.getElementById('txDescription').value = editingTx.description || '';
+
+                if (txType === 'transfer') {
+                    if (editingTx.from_account_id) document.getElementById('txFromAccount').value = editingTx.from_account_id;
+                    if (editingTx.to_account_id) document.getElementById('txToAccount').value = editingTx.to_account_id;
+                } else {
+                    if (editingTx.account_id) document.getElementById('txAccount').value = editingTx.account_id;
+                    if (editingTx.category_id) document.getElementById('txCategory').value = editingTx.category_id;
+                }
+            } else {
+                document.getElementById('lblTxModalTitle').textContent = 'Add Transaction';
+                document.getElementById('btnTxSubmit').textContent = 'Save Transaction';
+                document.getElementById('txEditingId').value = '';
+                setFormType('expense');
+                document.getElementById('txDate').valueAsDate = new Date();
+            }
+
+            openModal('modalTransaction');
+        }
+
         async function handleTransactionSubmit(e) {
             e.preventDefault();
+            const editId = document.getElementById('txEditingId').value;
             const amount = parseFloat(document.getElementById('txAmount').value);
             const date = document.getElementById('txDate').value;
             const description = document.getElementById('txDescription').value.trim();
@@ -1753,23 +1801,25 @@
                     showToast('Source and destination cannot be identical', 'error');
                     return;
                 }
-                const res = await API.createTransfer({ amount, date, description, from_account_id, to_account_id });
+                const payload = { amount, date, description, from_account_id, to_account_id, type: 'TRANSFER' };
+                const res = editId ? await API.updateTransaction(editId, payload) : await API.createTransfer(payload);
                 if (!res || !res.ok) {
                     const err = res ? await res.json() : {};
-                    showToast(err.detail || 'Transfer failed', 'error');
+                    showToast(err.detail || 'Transfer operation failed', 'error');
                     return;
                 }
             } else {
                 const account_id = parseInt(document.getElementById('txAccount').value);
                 const category_id = parseInt(document.getElementById('txCategory').value);
-                const res = await API.createTransaction({
+                const payload = {
                     type: currentFormType.toUpperCase(),
                     amount,
                     date,
                     description,
                     account_id,
                     category_id
-                });
+                };
+                const res = editId ? await API.updateTransaction(editId, payload) : await API.createTransaction(payload);
                 if (!res || !res.ok) {
                     const err = res ? await res.json() : {};
                     showToast(err.detail || 'Failed to save transaction', 'error');
@@ -1780,7 +1830,7 @@
             openAccordions.add(date);
             closeModal('modalTransaction');
             await refreshData();
-            showToast('✓ Transaction saved');
+            showToast(editId ? '✓ Transaction updated' : '✓ Transaction saved');
         }
 
         function renderBudgetsUI(rawBudgets = []) {
@@ -2177,13 +2227,6 @@
             closeModal('modalSettings');
             renderCategoryManagerList();
             openModal('modalCategory');
-        }
-
-        function openTransactionModal() {
-            setFormType('expense');
-            document.getElementById('formTransaction').reset();
-            document.getElementById('txDate').valueAsDate = new Date();
-            openModal('modalTransaction');
         }
 
         function openSettingsModal() { openModal('modalSettings'); }
