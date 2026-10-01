@@ -608,7 +608,7 @@
             <div class="card hero-networth-card">
                 <div>
                     <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Total Net Worth</span>
-                    <div class="hero-title" style="margin: 4px 0;" id="heroNetWorth">₹0</div>
+                    <div class="hero-title" style="margin: 4px 0;" id="heroNetWorth">₹0.00</div>
                     <span class="caption-text" id="heroNetWorthFormula">Liquid Assets + Investments - Outstanding Liabilities</span>
                 </div>
                 <div class="delta-indicator delta-positive" id="netWorthDeltaBadge">
@@ -619,17 +619,17 @@
             <div class="metrics-triad">
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Monthly Inflow</span>
-                    <div class="card-value amount-pos" id="valMonthlyIncome">₹0</div>
+                    <div class="card-value amount-pos" id="valMonthlyIncome">₹0.00</div>
                     <span class="caption-text">Earned income & returns</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Expenses</span>
-                    <div class="card-value amount-neg" id="valMonthlyExpense">₹0</div>
+                    <div class="card-value amount-neg" id="valMonthlyExpense">₹0.00</div>
                     <span class="caption-text">Operating lifestyle outflow</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Monthly Cash Flow</span>
-                    <div class="card-value amount-neutral" id="valMonthlySurplus">₹0</div>
+                    <div class="card-value amount-neutral" id="valMonthlySurplus">₹0.00</div>
                     <span class="caption-text">Unallocated free surplus</span>
                 </div>
             </div>
@@ -673,12 +673,12 @@
                             <span class="pill" id="efRunwayPill">0.0 Mo</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                            <div class="card-value" id="efCurrentTotal">₹0</div>
-                            <span class="caption-text" id="efTargetTotal">of ₹1,50,000 Target</span>
+                            <div class="card-value" id="efCurrentTotal">₹0.00</div>
+                            <span class="caption-text" id="efTargetTotal">of ₹1,50,000.00 Target</span>
                         </div>
                         <div class="progress-track" role="progressbar" aria-label="Emergency Fund Progress"><div class="progress-fill" id="efProgressBar" style="width: 0%;"></div></div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-                            <span class="caption-text" id="efBurnText">Essential monthly burn: ₹0</span>
+                            <span class="caption-text" id="efBurnText">Essential monthly burn: ₹0.00</span>
                             <button class="btn btn-secondary btn-pill" style="padding: 0.3rem 0.75rem; font-size: 11px;" onclick="openGoalContributionModal()">+ Add Funds</button>
                         </div>
                     </div>
@@ -737,21 +737,21 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="section-title">Spending Budgets</h2>
-                    <span class="caption-text" id="lblDailySafeSpend">Safe: ₹0/day</span>
+                    <span class="caption-text" id="lblDailySafeSpend">Safe: ₹0.00/day</span>
                 </div>
 
                 <div class="metrics-triad" style="margin-bottom: 1.25rem;">
                     <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
                         <span class="caption-text">Total Budget Cap</span>
-                        <div class="card-value" id="budgetTotalLimit">₹0</div>
+                        <div class="card-value" id="budgetTotalLimit">₹0.00</div>
                     </div>
                     <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
                         <span class="caption-text">Actual Spent</span>
-                        <div class="card-value amount-neg" id="budgetTotalSpent">₹0</div>
+                        <div class="card-value amount-neg" id="budgetTotalSpent">₹0.00</div>
                     </div>
                     <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
                         <span class="caption-text">Remaining</span>
-                        <div class="card-value amount-pos" id="budgetTotalRemaining">₹0</div>
+                        <div class="card-value amount-pos" id="budgetTotalRemaining">₹0.00</div>
                     </div>
                 </div>
 
@@ -778,7 +778,7 @@
                         </div>
                         <div class="form-group">
                             <label for="goalTarget">Target Amount (₹)</label>
-                            <input type="number" id="goalTarget" class="form-control" min="1" required>
+                            <input type="number" id="goalTarget" class="form-control" step="any" min="0.01" required>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1030,7 +1030,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="goalFundAmount">Amount (₹)</label>
-                    <input type="number" id="goalFundAmount" class="form-control" min="1" step="any" placeholder="0.00" required>
+                    <input type="number" id="goalFundAmount" class="form-control" min="0.01" step="any" placeholder="0.00" required>
                 </div>
                 <div class="form-group">
                     <label for="goalFundDate">Date</label>
@@ -1219,8 +1219,15 @@
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
 
+        // Updated formatINR: Supports exact 2 decimal places instead of rounding to whole numbers
         function formatINR(v) {
-            return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0);
+            const num = Number(v) || 0;
+            return new Intl.NumberFormat('en-IN', { 
+                style: 'currency', 
+                currency: 'INR', 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+            }).format(num);
         }
 
         function pad(n) { return String(n).padStart(2, '0'); }
@@ -1384,7 +1391,7 @@
             const select = document.getElementById('txCategory');
             const targetType = currentFormType.toUpperCase();
             const list = categories.filter(c => (c.type || '').toUpperCase() === targetType);
-            select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷️')} ${sanitize(c.name)}</option>`).join('');
+            select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷️️')} ${sanitize(c.name)}</option>`).join('');
         }
 
         function updateNoteSuggestions() {
@@ -1494,8 +1501,8 @@
                 let delta = '—';
                 let cls = '';
                 if (prevAmt > 0 && currAmt > 0) {
-                    const diff = Math.round(((currAmt - prevAmt) / prevAmt) * 100);
-                    delta = (diff > 0 ? '+' : '') + diff + '%';
+                    const diff = ((currAmt - prevAmt) / prevAmt) * 100;
+                    delta = (diff > 0 ? '+' : '') + diff.toFixed(1) + '%';
                     cls = (diff > 20) ? 'amount-neg' : (diff < -15) ? 'amount-pos' : '';
                 } else if (currAmt > 0 && prevAmt === 0) {
                     delta = 'New';
@@ -1785,7 +1792,7 @@
             const daysInMo = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
             const currDay = (now.getMonth() === selectedMonth.getMonth()) ? now.getDate() : 1;
             const daysLeft = Math.max(daysInMo - currDay + 1, 1);
-            const safeDaily = remaining > 0 ? Math.round(remaining / daysLeft) : 0;
+            const safeDaily = remaining > 0 ? (remaining / daysLeft) : 0;
 
             document.getElementById('budgetTotalLimit').textContent = formatINR(totalCap);
             document.getElementById('budgetTotalSpent').textContent = formatINR(totalSpent);
@@ -1822,7 +1829,7 @@
                 return `
                     <div style="display:grid; grid-template-columns: 1fr 140px; align-items:center; gap: 0.5rem;">
                         <label class="caption-text" style="font-weight:600;">${sanitize(cat.name)}</label>
-                        <input type="number" class="form-control" data-cid="${cat.id}" value="${val}">
+                        <input type="number" step="any" min="0" class="form-control" data-cid="${cat.id}" value="${val}">
                     </div>
                 `;
             }).join('');
@@ -1946,7 +1953,7 @@
             c.innerHTML = accounts.map(a => `
                 <div style="display:grid; grid-template-columns: 1fr 140px; align-items:center; gap:0.5rem;">
                     <label class="caption-text" style="font-weight:600;">${sanitize(a.name)}</label>
-                    <input type="number" class="form-control" data-aid="${a.id}" value="${a.starting_balance}">
+                    <input type="number" step="any" class="form-control" data-aid="${a.id}" value="${a.starting_balance}">
                 </div>
             `).join('');
             openModal('modalAccounts');
@@ -1972,7 +1979,7 @@
             c.innerHTML = invs.map(a => `
                 <div class="form-group">
                     <label>${sanitize(a.name)} Market Value (₹)</label>
-                    <input type="number" class="form-control" data-vid="${a.id}" value="${a.current_market_value || a.starting_balance}">
+                    <input type="number" step="any" min="0" class="form-control" data-vid="${a.id}" value="${a.current_market_value || a.starting_balance}">
                 </div>
             `).join('');
             openModal('modalValuations');
@@ -1998,173 +2005,174 @@
         }
 
         async function fetchGmailTransactions() {
-    const url = document.getElementById('gmailScriptUrl').value.trim();
-    if (!url) {
-        showToast('Please enter Google Apps Script URL', 'error');
-        return;
-    }
-    localStorage.setItem('dhanSutraGmailScript', url);
-    showToast('Fetching from Axis Bank alerts...');
-
-    const cb = 'dhanSutraJsonp_' + Date.now();
-    const s = document.createElement('script');
-    s.src = `${url}${url.includes('?') ? '&' : '?'}callback=${cb}`;
-
-    window[cb] = async function(response) {
-            delete window[cb];
-            if (s.parentNode) document.body.removeChild(s);
-
-            const incoming = Array.isArray(response) 
-                ? response 
-                : (response && Array.isArray(response.transactions) ? response.transactions : []);
-
-            if (response && response.error) {
-                showToast('Script Error: ' + response.error, 'error');
+            const url = document.getElementById('gmailScriptUrl').value.trim();
+            if (!url) {
+                showToast('Please enter Google Apps Script URL', 'error');
                 return;
             }
+            localStorage.setItem('dhanSutraGmailScript', url);
+            showToast('Fetching from Axis Bank alerts...');
 
-            if (!incoming.length) {
-                showToast('No transactions found', 'error');
-                return;
-            }
+            const cb = 'dhanSutraJsonp_' + Date.now();
+            const s = document.createElement('script');
+            s.src = `${url}${url.includes('?') ? '&' : '?'}callback=${cb}`;
 
-            // 1. Ensure target Axis account exists
-            let axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis')) 
-                           || accounts.find(a => a.type === 'BANK') 
-                           || accounts[0];
+            window[cb] = async function(response) {
+                delete window[cb];
+                if (s.parentNode) document.body.removeChild(s);
 
-            // 2. Refresh & ensure valid Income and Expense categories
-            categories = await API.getCategories();
-            let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
-            let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
+                const incoming = Array.isArray(response) 
+                    ? response 
+                    : (response && Array.isArray(response.transactions) ? response.transactions : []);
 
-            if (!incCat) {
-                const createdInc = await API.createCategory({ name: 'Salary & Income', type: 'INCOME', icon: '💰' });
+                if (response && response.error) {
+                    showToast('Script Error: ' + response.error, 'error');
+                    return;
+                }
+
+                if (!incoming.length) {
+                    showToast('No transactions found', 'error');
+                    return;
+                }
+
+                // 1. Ensure target Axis account exists
+                let axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis')) 
+                               || accounts.find(a => a.type === 'BANK') 
+                               || accounts[0];
+
+                // 2. Refresh & ensure valid Income and Expense categories
                 categories = await API.getCategories();
-                incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME') || createdInc;
-            }
+                let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
+                let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
 
-            if (!expCat) {
-                const createdExp = await API.createCategory({ name: 'General Outflow', type: 'EXPENSE', icon: '🛒' });
-                categories = await API.getCategories();
-                expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE') || createdExp;
-            }
+                if (!incCat) {
+                    const createdInc = await API.createCategory({ name: 'Salary & Income', type: 'INCOME', icon: '💰' });
+                    categories = await API.getCategories();
+                    incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME') || createdInc;
+                }
 
-            // 3. Map transactions with guaranteed explicit uppercase type & correct category ID
-            const formatted = incoming.map(item => {
-                const isIncome = String(item.type).toLowerCase() === 'income';
-                const assignedCat = isIncome ? incCat : expCat;
+                if (!expCat) {
+                    const createdExp = await API.createCategory({ name: 'General Outflow', type: 'EXPENSE', icon: '🛒' });
+                    categories = await API.getCategories();
+                    expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE') || createdExp;
+                }
 
-                return {
-                    source_id: String(item.sourceId || item.id || `axis_${item.date}_${item.amount}`),
-                    type: isIncome ? 'INCOME' : 'EXPENSE',
-                    date: item.date || new Date().toISOString().split('T')[0],
-                    amount: Math.abs(parseFloat(item.amount) || 0),
-                    description: item.description || (isIncome ? 'Direct Credit' : 'Bank Outflow'),
-                    account_id: axisAccount ? axisAccount.id : accounts[0]?.id,
-                    category_id: assignedCat ? assignedCat.id : null
-                };
-            }).filter(item => item.amount > 0);
+                // 3. Map transactions with guaranteed explicit uppercase type & correct category ID
+                const formatted = incoming.map(item => {
+                    const isIncome = String(item.type).toLowerCase() === 'income';
+                    const assignedCat = isIncome ? incCat : expCat;
 
-            // Send to stage
-            const backendStaged = await API.stageReceipts(formatted);
+                    return {
+                        source_id: String(item.sourceId || item.id || `axis_${item.date}_${item.amount}`),
+                        type: isIncome ? 'INCOME' : 'EXPENSE',
+                        date: item.date || new Date().toISOString().split('T')[0],
+                        amount: Math.abs(parseFloat(item.amount) || 0),
+                        description: item.description || (isIncome ? 'Direct Credit' : 'Bank Outflow'),
+                        account_id: axisAccount ? axisAccount.id : accounts[0]?.id,
+                        category_id: assignedCat ? assignedCat.id : null
+                    };
+                }).filter(item => item.amount > 0);
 
-            // Map using source_id rather than positional index
-const formattedMap = new Map(formatted.map(item => [item.source_id, item]));
+                // Send to stage
+                const backendStaged = await API.stageReceipts(formatted);
 
-stagedSync = (backendStaged || []).map(t => {
-    const orig = formattedMap.get(t.source_id) || {};
-    return {
-        ...t,
-        type: orig.type || t.type || 'EXPENSE',
-        category_id: orig.category_id || t.category_id,
-        account_id: orig.account_id || t.account_id
-    };
-});
+                // Map using source_id rather than positional index
+                const formattedMap = new Map(formatted.map(item => [item.source_id, item]));
 
-            document.getElementById('stagingCount').textContent = stagedSync.length;
-            const list = document.getElementById('stagingItemsList');
-            
-            list.innerHTML = stagedSync.map((t, idx) => {
-                const isInc = String(t.type).toUpperCase() === 'INCOME';
-                return `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                            <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
-                            <div>
-                                <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
-                                    ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
-                                </span>
-                                <div class="caption-text" style="font-size:12px; margin-top:2px;">${t.date} · ${sanitize(t.description)}</div>
-                            </div>
-                        </label>
-                        <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">
-                            ${isInc ? '+' : '-'}${formatINR(t.amount)}
-                        </span>
-                    </div>
-                `;
-            }).join('');
-            
-            document.getElementById('gmailStagingWrap').style.display = 'block';
-        };
+                stagedSync = (backendStaged || []).map(t => {
+                    const orig = formattedMap.get(t.source_id) || {};
+                    return {
+                        ...t,
+                        type: orig.type || t.type || 'EXPENSE',
+                        category_id: orig.category_id || t.category_id,
+                        account_id: orig.account_id || t.account_id
+                    };
+                });
 
-    s.onerror = () => {
-        delete window[cb];
-        if (s.parentNode) document.body.removeChild(s);
-        showToast('Failed to connect to Google Apps Script', 'error');
-    };
+                document.getElementById('stagingCount').textContent = stagedSync.length;
+                const list = document.getElementById('stagingItemsList');
+                
+                list.innerHTML = stagedSync.map((t, idx) => {
+                    const isInc = String(t.type).toUpperCase() === 'INCOME';
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
+                                <div>
+                                    <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
+                                        ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
+                                    </span>
+                                    <div class="caption-text" style="font-size:12px; margin-top:2px;">${t.date} · ${sanitize(t.description)}</div>
+                                </div>
+                            </label>
+                            <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">
+                                ${isInc ? '+' : '-'}${formatINR(t.amount)}
+                            </span>
+                        </div>
+                    `;
+                }).join('');
+                
+                document.getElementById('gmailStagingWrap').style.display = 'block';
+            };
 
-    document.body.appendChild(s);
-}
-        async function commitStagedTransactions() {
-    const checked = document.querySelectorAll('.chk-stage:checked');
-    const toCommit = [];
-    checked.forEach(c => {
-        const item = stagedSync[Number(c.dataset.idx)];
-        if (item) toCommit.push(item);
-    });
+            s.onerror = () => {
+                delete window[cb];
+                if (s.parentNode) document.body.removeChild(s);
+                showToast('Failed to connect to Google Apps Script', 'error');
+            };
 
-    if (!toCommit.length) {
-        showToast('No items selected', 'error');
-        return;
-    }
-
-    showToast('Saving transactions...');
-
-    // 1. Ensure latest category maps
-    categories = await API.getCategories();
-    let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
-    let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
-
-    // 2. Resolve default Axis account
-    const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
-                     || accounts.find(a => a.type === 'BANK')
-                     || accounts[0];
-
-    // 3. Save each transaction directly to /api/finance/transactions
-    // This bypasses receipt-import routers that force transaction_type='EXPENSE'
-    let successCount = 0;
-    for (const item of toCommit) {
-        const isInc = String(item.type || '').toUpperCase() === 'INCOME';
-        const payload = {
-            type: isInc ? 'INCOME' : 'EXPENSE',
-            amount: Math.abs(parseFloat(item.amount)),
-            date: item.date,
-            description: item.description,
-            account_id: item.account_id || (axisAccount ? axisAccount.id : accounts[0]?.id),
-            category_id: isInc ? (incCat ? incCat.id : item.category_id) : (expCat ? expCat.id : item.category_id)
-        };
-
-        const res = await API.createTransaction(payload);
-        if (res && res.ok) {
-            successCount++;
+            document.body.appendChild(s);
         }
-    }
 
-    closeModal('modalGmail');
-    await refreshData();
-    showToast(`Successfully saved ${successCount} transactions`);
-}
+        async function commitStagedTransactions() {
+            const checked = document.querySelectorAll('.chk-stage:checked');
+            const toCommit = [];
+            checked.forEach(c => {
+                const item = stagedSync[Number(c.dataset.idx)];
+                if (item) toCommit.push(item);
+            });
+
+            if (!toCommit.length) {
+                showToast('No items selected', 'error');
+                return;
+            }
+
+            showToast('Saving transactions...');
+
+            // 1. Ensure latest category maps
+            categories = await API.getCategories();
+            let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
+            let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
+
+            // 2. Resolve default Axis account
+            const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
+                             || accounts.find(a => a.type === 'BANK')
+                             || accounts[0];
+
+            // 3. Save each transaction directly to /api/finance/transactions
+            let successCount = 0;
+            for (const item of toCommit) {
+                const isInc = String(item.type || '').toUpperCase() === 'INCOME';
+                const payload = {
+                    type: isInc ? 'INCOME' : 'EXPENSE',
+                    amount: Math.abs(parseFloat(item.amount)),
+                    date: item.date,
+                    description: item.description,
+                    account_id: item.account_id || (axisAccount ? axisAccount.id : accounts[0]?.id),
+                    category_id: isInc ? (incCat ? incCat.id : item.category_id) : (expCat ? expCat.id : item.category_id)
+                };
+
+                const res = await API.createTransaction(payload);
+                if (res && res.ok) {
+                    successCount++;
+                }
+            }
+
+            closeModal('modalGmail');
+            await refreshData();
+            showToast(`Successfully saved ${successCount} transactions`);
+        }
+
         function openCategoryModal() {
             closeModal('modalSettings');
             renderCategoryManagerList();
