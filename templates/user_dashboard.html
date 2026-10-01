@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DhanSutra - Heritage Wealth & Money Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-sand: #fbf9f5;
+            --surface: #ffffff;
+            --surface-subtle: #f8f5ee;
+            --surface-hover: #f1ebdE;
+            --palace-teal: #0d424f;
+            --palace-teal-dark: #07252c;
+            --saffron: #d95d08;
+            --saffron-light: #f38335;
+            --gold: #b5891a;
+            --gold-light: #fdf5df;
+            --terracotta: #b91c1c;
+            --emerald: #15803d;
+            --text-main: #192028;
+            --text-muted: #576575;
+            --border: #e4dccf;
+            --border-subtle: #eee7db;
+            --shadow: 0 4px 20px rgba(13, 66, 79, 0.06);
+            --shadow-modal: 0 20px 45px rgba(0, 0, 0, 0.28);
+            --radius-card: 16px;
+            --radius-btn: 8px;
+            --radius-pill: 999px;
+        }
+
+        body.dark {
+            --bg-sand: #090e13;
+            --surface: #121820;
+            --surface-subtle: #17202b;
+            --surface-hover: #1e2a38;
+            --palace-teal: #38bdf8;
+            --palace-teal-dark: #07252c;
+            --saffron: #f97316;
+            --saffron-light: #fb923c;
+            --gold: #fbbf24;
+            --gold-light: #fdf5df;
+            --terracotta: #f87171;
+            --emerald: #34d399;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #242f3d;
+            --border-subtle: #1a232f;
+            --shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+            --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.7);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-sand);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding-bottom: 95px;
+            transition: background-color 0.2s ease, color 0.2s ease;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+            outline: 2.5px solid var(--palace-teal) !important;
+            outline-offset: 2px !important;
+        }
+
+        h1, h2, h3, .brand-text { font-family: 'Cinzel', serif; }
+        .hero-title { font-size: 30px; font-weight: 700; line-height: 1.15; }
+        .section-title { font-size: 18px; font-weight: 600; }
+        .card-value { font-size: 24px; font-weight: 700; font-feature-settings: "tnum"; }
+        .body-text { font-size: 14px; font-weight: 400; }
+        .caption-text { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+
+        header {
+            background: linear-gradient(135deg, var(--palace-teal-dark), #0d424f);
+            color: #ffffff;
+            padding: 1.5rem 1.25rem 3.25rem;
+            position: relative;
+            border-bottom: 3.5px solid var(--saffron);
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--saffron), var(--gold));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+            flex-shrink: 0;
+        }
+
+        .subtitle {
+            font-size: 0.8rem;
+            color: var(--gold-light);
+            letter-spacing: 0.5px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.65rem;
+            align-items: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 0.55rem 1.15rem;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: var(--radius-btn);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--saffron), var(--gold));
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(217, 93, 8, 0.25);
+        }
+        .btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text-main);
+            border-color: var(--border);
+        }
+        .btn-secondary:hover { background: var(--surface-hover); }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+        }
+        .btn-ghost:hover { background: var(--surface-hover); color: var(--text-main); }
+
+        .btn-destructive {
+            background: var(--terracotta);
+            color: #ffffff;
+        }
+        .btn-destructive:hover { filter: brightness(1.08); }
+
+        .btn-pill { border-radius: var(--radius-pill); }
+
+        .desktop-nav {
+            display: flex;
+            justify-content: center;
+            gap: 0.4rem;
+            margin-top: 1.25rem;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .nav-link {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 0.4rem 1rem;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .nav-link.active, .nav-link:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: -2.2rem auto 0;
+            padding: 0 1.25rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-card);
+            padding: 1.4rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 1.25rem;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px dashed var(--border);
+        }
+
+        .hero-networth-card {
+            background: var(--surface);
+            border: 1.5px solid var(--gold);
+            padding: 1.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-networth-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 6px;
+            background: linear-gradient(180deg, var(--gold), var(--saffron));
+        }
+
+        .delta-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0.35rem 0.75rem;
+            border-radius: var(--radius-pill);
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .delta-positive { background: rgba(21, 128, 61, 0.12); color: var(--emerald); }
+
+        .metrics-triad {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .accounts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 0.85rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .account-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: var(--shadow);
+            position: relative;
+            transition: transform 0.15s ease, border-color 0.15s;
+        }
+        .account-card:hover { transform: translateY(-2px); border-color: var(--palace-teal); }
+        .account-card.CREDIT_CARD { border-left: 4px solid var(--terracotta); }
+        .account-card.BANK, .account-card.CASH, .account-card.GOAL_RESERVE { border-left: 4px solid var(--palace-teal); }
+        .account-card.INVESTMENT { border-left: 4px solid var(--gold); }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        @media (max-width: 920px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .desktop-nav { display: none; }
+            .hero-networth-card { flex-direction: column; align-items: flex-start; gap: 0.85rem; }
+        }
+
+        .accordion-group {
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            background: var(--surface);
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--surface-subtle);
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s ease;
+        }
+        .accordion-header:hover { background: var(--surface-hover); }
+
+        .accordion-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .accordion-arrow {
+            display: inline-block;
+            transition: transform 0.2s ease;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .accordion-group.open .accordion-arrow {
+            transform: rotate(90deg);
+        }
+
+        .accordion-content {
+            display: none;
+            padding: 0.5rem;
+            background: var(--surface);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .accordion-group.open .accordion-content {
+            display: block;
+        }
+
+        .ledger-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 0.85rem;
+            border-radius: 8px;
+            background: var(--surface-subtle);
+            margin-bottom: 0.4rem;
+            border: 1px solid var(--border-subtle);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ledger-row:hover { background: var(--surface-hover); border-color: var(--border); }
+        .ledger-row:last-child { margin-bottom: 0; }
+
+        .row-left { display: flex; align-items: center; gap: 12px; }
+        .row-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .amount-pos { color: var(--emerald); font-weight: 700; }
+        .amount-neg { color: var(--terracotta); font-weight: 700; }
+        .amount-neutral { color: var(--palace-teal); font-weight: 700; }
+
+        .progress-track {
+            height: 8px;
+            background: var(--surface-subtle);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+            margin: 6px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--palace-teal), var(--gold));
+            border-radius: inherit;
+        }
+        .progress-fill.warn { background: linear-gradient(90deg, var(--saffron), var(--terracotta)); }
+
+        .pill {
+            padding: 0.25rem 0.65rem;
+            border-radius: var(--radius-pill);
+            font-size: 11px;
+            font-weight: 700;
+            background: var(--surface-subtle);
+            color: var(--palace-teal);
+            border: 1px solid var(--border-subtle);
+        }
+        .pill.warning { background: rgba(217, 93, 8, 0.12); color: var(--saffron); border-color: rgba(217, 93, 8, 0.2); }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 0.85rem;
+        }
+        .form-group { margin-bottom: 0.85rem; }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-control, select {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            padding: 0.65rem 2.2rem 0.65rem 0.85rem;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-btn);
+            font-family: inherit;
+            font-size: 13.5px;
+            font-weight: 500;
+            background-color: var(--surface);
+            color: var(--text-main);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            box-sizing: border-box;
+            display: inline-block;
+            vertical-align: middle;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23576575' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 14px 14px;
+            cursor: pointer;
+        }
+
+        body.dark select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+
+        select option {
+            background-color: var(--surface);
+            color: var(--text-main);
+            padding: 0.6rem;
+            font-size: 13.5px;
+        }
+
+        .form-control:focus, select:focus {
+            border-color: var(--palace-teal);
+            box-shadow: 0 0 0 3px rgba(13, 66, 79, 0.12);
+            outline: none !important;
+        }
+
+        body.dark .form-control:focus, body.dark select:focus {
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+        }
+
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            align-items: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .filter-bar input, .filter-bar select {
+            flex: 1 1 180px;
+            min-width: 140px;
+            max-width: 100%;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2.2rem 1rem;
+            color: var(--text-muted);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(9, 14, 19, 0.65);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 1rem;
+        }
+
+        #modalConfirm { z-index: 3000; }
+        .modal-overlay.active { display: flex; }
+
+        .modal-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-card);
+            padding: 1.5rem;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-modal);
+            animation: modalPop 0.15s ease;
+        }
+        @keyframes modalPop { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        #toastContainer {
+            position: fixed;
+            bottom: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            pointer-events: auto;
+            background: #192028;
+            color: #ffffff;
+            padding: 0.65rem 1.2rem;
+            border-radius: var(--radius-pill);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            font-size: 13px;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .toast.error { border-color: var(--terracotta); background: #2b1111; }
+        .toast.success { border-color: var(--emerald); }
+
+        .mobile-bottom-nav {
+            display: none;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            padding: 0.5rem 0;
+            z-index: 1000;
+            justify-content: space-around;
+        }
+        .mob-item {
+            background: transparent;
+            border: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            font-size: 11px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+        .mob-item.active { color: var(--palace-teal); font-weight: 700; }
+
+        @media (max-width: 920px) {
+            .mobile-bottom-nav { display: flex; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-top">
+            <div class="brand">
+                <div class="brand-icon" aria-hidden="true">🏛️</div>
+                <div>
+                    <h1 class="brand-text" style="color: #ffffff; font-size: 22px;">DHANSUTRA</h1>
+                    <p class="subtitle">Heritage Wealth & Money Manager</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="openTransactionModal()" aria-label="Add Transaction">+ Add Transaction</button>
+                <button class="btn btn-secondary btn-pill" onclick="openSettingsModal()" aria-label="Open System Settings">⚙️ Settings</button>
+                <a href="/auth/logout" class="btn btn-ghost btn-pill" style="color: rgba(255, 255, 255, 0.85); text-decoration: none;">🚪 Logout</a>
+            </div>
+        </div>
+        <nav class="desktop-nav" aria-label="Primary Navigation">
+            <button class="nav-link active" onclick="switchTab('dashboard')">Dashboard</button>
+            <button class="nav-link" onclick="switchTab('ledger')">Ledger</button>
+            <button class="nav-link" onclick="switchTab('budgets')">Budgets</button>
+            <button class="nav-link" onclick="switchTab('goals')">Goals & Emergency</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- ==================== DASHBOARD TAB ==================== -->
+        <section id="tab-dashboard" aria-labelledby="heroNetWorth">
+            <div class="card hero-networth-card">
+                <div>
+                    <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Total Net Worth</span>
+                    <div class="hero-title" style="margin: 4px 0;" id="heroNetWorth">₹0</div>
+                    <span class="caption-text" id="heroNetWorthFormula">Liquid Assets + Investments - Outstanding Liabilities</span>
+                </div>
+                <div class="delta-indicator delta-positive" id="netWorthDeltaBadge">
+                    <span>↑ Server-Reconciled</span>
+                </div>
+            </div>
+
+            <div class="metrics-triad">
+                <div class="card" style="margin: 0; padding: 1.15rem;">
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Monthly Inflow</span>
+                    <div class="card-value amount-pos" id="valMonthlyIncome">₹0</div>
+                    <span class="caption-text">Earned income & returns</span>
+                </div>
+                <div class="card" style="margin: 0; padding: 1.15rem;">
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Expenses</span>
+                    <div class="card-value amount-neg" id="valMonthlyExpense">₹0</div>
+                    <span class="caption-text">Operating lifestyle outflow</span>
+                </div>
+                <div class="card" style="margin: 0; padding: 1.15rem;">
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Monthly Cash Flow</span>
+                    <div class="card-value amount-neutral" id="valMonthlySurplus">₹0</div>
+                    <span class="caption-text">Unallocated free surplus</span>
+                </div>
+            </div>
+
+            <h2 class="section-title" style="margin-bottom: 0.75rem;">Accounts & Investment Positions</h2>
+            <div class="accounts-grid" id="accountsSummaryContainer"></div>
+
+            <div class="dashboard-grid">
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="section-title">Where Did My Money Go?</h2>
+                        </div>
+                        <div id="rankedOutflowContainer"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="section-title">Month-over-Month Delta</h2>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table style="width:100%; border-collapse: collapse;" class="caption-text">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+                                        <th style="padding: 6px 0;">Category</th>
+                                        <th id="lblPrevMo">Last</th>
+                                        <th id="lblCurrMo">This</th>
+                                        <th>Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableMoMBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="card" style="border: 1px solid var(--gold);">
+                        <div class="card-header">
+                            <h2 class="section-title">Emergency Fund Runway</h2>
+                            <span class="pill" id="efRunwayPill">0.0 Mo</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <div class="card-value" id="efCurrentTotal">₹0</div>
+                            <span class="caption-text" id="efTargetTotal">of ₹1,50,000 Target</span>
+                        </div>
+                        <div class="progress-track" role="progressbar" aria-label="Emergency Fund Progress"><div class="progress-fill" id="efProgressBar" style="width: 0%;"></div></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                            <span class="caption-text" id="efBurnText">Essential monthly burn: ₹0</span>
+                            <button class="btn btn-secondary btn-pill" style="padding: 0.3rem 0.75rem; font-size: 11px;" onclick="openGoalContributionModal()">+ Add Funds</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="section-title">Financial Health Quotient</h2>
+                            <span class="pill" id="healthGradePill">Evaluating</span>
+                        </div>
+                        <div class="hero-title" style="margin-bottom: 0.75rem;" id="healthScoreDisplay">-- / 100</div>
+
+                        <div style="margin-bottom: 0.5rem;">
+                            <div style="display: flex; justify-content: space-between;" class="caption-text">
+                                <span>Savings Rate (>20%)</span><span id="lblSavingsRate">0%</span>
+                            </div>
+                            <div class="progress-track"><div class="progress-fill" id="barSavingsRate" style="width: 0%;"></div></div>
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <div style="display: flex; justify-content: space-between;" class="caption-text">
+                                <span>Budget Discipline (&lt;85%)</span><span id="lblBudgetUsage">0%</span>
+                            </div>
+                            <div class="progress-track"><div class="progress-fill" id="barBudgetUsage" style="width: 0%;"></div></div>
+                        </div>
+                        <div id="healthInsightsContainer" style="margin-top: 0.75rem;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== LEDGER TAB ==================== -->
+        <section id="tab-ledger" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Transaction Ledger</h2>
+                    <button class="btn btn-primary" onclick="openTransactionModal()">+ Add Transaction</button>
+                </div>
+
+                <div class="filter-bar">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search description or category..." aria-label="Search ledger">
+                    <select id="monthSelector" class="form-control" aria-label="Filter by month"></select>
+                    <select id="accountFilter" class="form-control" aria-label="Filter by account"></select>
+                    <select id="typeFilter" class="form-control" aria-label="Filter by transaction type">
+                        <option value="all">All Types</option>
+                        <option value="expense">Expenses (-)</option>
+                        <option value="income">Incomes (+)</option>
+                        <option value="transfer">Transfers (⇄)</option>
+                    </select>
+                </div>
+
+                <div id="ledgerRowsContainer"></div>
+            </div>
+        </section>
+
+        <!-- ==================== BUDGETS TAB ==================== -->
+        <section id="tab-budgets" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Spending Budgets</h2>
+                    <span class="caption-text" id="lblDailySafeSpend">Safe: ₹0/day</span>
+                </div>
+
+                <div class="metrics-triad" style="margin-bottom: 1.25rem;">
+                    <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
+                        <span class="caption-text">Total Budget Cap</span>
+                        <div class="card-value" id="budgetTotalLimit">₹0</div>
+                    </div>
+                    <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
+                        <span class="caption-text">Actual Spent</span>
+                        <div class="card-value amount-neg" id="budgetTotalSpent">₹0</div>
+                    </div>
+                    <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
+                        <span class="caption-text">Remaining</span>
+                        <div class="card-value amount-pos" id="budgetTotalRemaining">₹0</div>
+                    </div>
+                </div>
+
+                <div id="budgetCategoryRows"></div>
+                <div id="budgetEditorFields" style="display: grid; gap: 0.5rem; margin-top: 1rem;"></div>
+                <button type="button" id="saveBudgetBtn" class="btn btn-secondary" style="margin-top: 1rem;" onclick="saveBudgetLimits()">Save Budget Caps</button>
+            </div>
+        </section>
+
+        <!-- ==================== GOALS TAB ==================== -->
+        <section id="tab-goals" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Savings Targets & Portfolios</h2>
+                </div>
+                <div id="goalsContainer"></div>
+
+                <form id="formNewGoal" style="margin-top: 1.5rem; border-top: 1px dashed var(--border); padding-top: 1.25rem;">
+                    <h3 class="section-title" style="font-size: 14px; margin-bottom: 0.75rem;">Create New Target</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="goalName">Target Name</label>
+                            <input type="text" id="goalName" class="form-control" placeholder="e.g. Emergency Fund, Sovereign Gold" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="goalTarget">Target Amount (₹)</label>
+                            <input type="number" id="goalTarget" class="form-control" min="1" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="goalDue">Target Date</label>
+                        <input type="date" id="goalDue" class="form-control">
+                    </div>
+                    <button type="submit" class="btn btn-primary">+ Create Target</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <!-- Mobile Navigation -->
+    <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
+        <button class="mob-item active" onclick="switchTab('dashboard', this)"><span>🏠</span><span>Home</span></button>
+        <button class="mob-item" onclick="switchTab('ledger', this)"><span>📋</span><span>Ledger</span></button>
+        <button class="mob-item" onclick="switchTab('budgets', this)"><span>💰</span><span>Budget</span></button>
+        <button class="mob-item" onclick="switchTab('goals', this)"><span>🎯</span><span>Goals</span></button>
+        <button class="mob-item" onclick="openSettingsModal()"><span>⚙️</span><span>Settings</span></button>
+    </nav>
+
+    <!-- Modal: Add / Edit Transaction -->
+    <div class="modal-overlay" id="modalTransaction" role="dialog" aria-modal="true" aria-labelledby="lblTxModalTitle">
+        <div class="modal-box">
+            <div class="card-header">
+                <h3 class="section-title" id="lblTxModalTitle">Add Transaction</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalTransaction')" aria-label="Close dialog">✕</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; background: var(--surface-subtle); padding: 4px; border-radius: 8px; margin-bottom: 1rem;">
+                <button type="button" class="btn" id="tabTxExpense" style="background: var(--terracotta); color: #fff;" onclick="setFormType('expense')">Expense (-)</button>
+                <button type="button" class="btn btn-ghost" id="tabTxIncome" onclick="setFormType('income')">Income (+)</button>
+                <button type="button" class="btn btn-ghost" id="tabTxTransfer" onclick="setFormType('transfer')">Transfer (⇄)</button>
+            </div>
+
+            <form id="formTransaction">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="txAmount">Amount (₹)</label>
+                        <input type="number" id="txAmount" class="form-control" step="any" min="0.01" placeholder="0.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="txDate">Date</label>
+                        <input type="date" id="txDate" class="form-control" required>
+                    </div>
+                </div>
+
+                <div id="groupStandardFields">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="txCategory">Category</label>
+                            <select id="txCategory" class="form-control"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="txAccount">Account</label>
+                            <select id="txAccount" class="form-control"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="groupTransferFields" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="txFromAccount">From Account</label>
+                            <select id="txFromAccount" class="form-control"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="txToAccount">To Account</label>
+                            <select id="txToAccount" class="form-control"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="txDescription">Description</label>
+                    <input type="text" id="txDescription" class="form-control" list="noteSuggestions" placeholder="e.g. Swiggy, House Rent, SIP" required autocomplete="off">
+                    <datalist id="noteSuggestions"></datalist>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('modalTransaction')">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btnTxSubmit">Save Transaction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmation Dialogue -->
+    <div class="modal-overlay" id="modalConfirm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <div class="modal-box">
+            <h3 class="section-title" id="confirmTitle" style="color: var(--terracotta);">Confirm Action</h3>
+            <p class="body-text" id="confirmMessage" style="margin: 0.75rem 0 1.25rem; color: var(--text-muted);"></p>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('modalConfirm')">Cancel</button>
+                <button type="button" class="btn btn-destructive" id="btnConfirmAction">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Transaction Details -->
+    <div class="modal-overlay" id="txDetailModal" role="dialog" aria-modal="true" aria-labelledby="txDetailTitle">
+        <div class="modal-box">
+            <div class="card-header">
+                <h3 class="section-title" id="txDetailTitle">Transaction Details</h3>
+                <button class="btn btn-ghost" onclick="closeModal('txDetailModal')" aria-label="Close dialog">✕</button>
+            </div>
+            <div id="txDetailContent"></div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('txDetailModal')">Close</button>
+                <button type="button" class="btn btn-destructive" id="btnDetailDelete">🗑️ Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Settings Hub -->
+    <div class="modal-overlay" id="modalSettings" role="dialog" aria-modal="true" aria-labelledby="settingsHeading">
+        <div class="modal-box" style="max-width: 540px;">
+            <div class="card-header">
+                <h3 class="section-title" id="settingsHeading">System Settings</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalSettings')" aria-label="Close settings">✕</button>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Accounts & Balances</span>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openAccountsModal()">
+                        <span>Manage Accounts & Opening Balances</span><span>➔</span>
+                    </button>
+                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openValuationsModal()">
+                        <span>Update Market Values</span><span>➔</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Categories</span>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openCategoryModal()">
+                        <span>Manage Custom Categories</span><span>➔</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Integrations</span>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openGmailModal()">
+                        <span>Gmail Receipt Sync (Backend Staged)</span><span>➔</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Data & Archives</span>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="window.location.href='/api/finance/imports/export/csv'">
+                        <span>Export CSV Statement</span><span>➔</span>
+                    </button>
+                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="window.location.href='/api/finance/imports/export/json'">
+                        <span>Download JSON Database Archive</span><span>➔</span>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Appearance</span>
+                <div style="margin-top: 0.5rem;">
+                    <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="toggleTheme()">
+                        <span>Toggle Dark / Light Theme</span><span>🌙</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Category Manager -->
+    <div class="modal-overlay" id="modalCategory" role="dialog" aria-modal="true" aria-labelledby="catModalTitle">
+        <div class="modal-box" style="max-width: 520px;">
+            <div class="card-header">
+                <h3 class="section-title" id="catModalTitle">Manage Categories</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalCategory')" aria-label="Close dialog">✕</button>
+            </div>
+
+            <form id="formNewCat" style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--border); padding-bottom: 1.25rem;">
+                <div class="caption-text" style="font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">Create New Category</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="newCatType">Type</label>
+                        <select id="newCatType" class="form-control">
+                            <option value="expense">Expense</option>
+                            <option value="income">Income</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="newCatIcon">Icon (Emoji)</label>
+                        <input type="text" id="newCatIcon" class="form-control" placeholder="e.g. 🐶" maxlength="2">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="newCatName">Category Name</label>
+                    <input type="text" id="newCatName" class="form-control" placeholder="e.g. Pet Care, Subscriptions" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">+ Create Category</button>
+            </form>
+
+            <div>
+                <div class="caption-text" style="font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">Existing Categories</div>
+                <div id="categoryListContainer" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Accounts & Opening Balances -->
+    <div class="modal-overlay" id="modalAccounts" role="dialog" aria-modal="true" aria-labelledby="accModalTitle">
+        <div class="modal-box">
+            <div class="card-header">
+                <h3 class="section-title" id="accModalTitle">Accounts</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalAccounts')" aria-label="Close dialog">✕</button>
+            </div>
+            <div id="accountsConfigContainer" style="display: grid; gap: 0.5rem; margin-bottom: 1rem;"></div>
+            <button class="btn btn-primary" style="width: 100%;" onclick="saveAccountConfigurations()">Save Opening Balances</button>
+        </div>
+    </div>
+
+    <!-- Modal: Market Valuations -->
+    <div class="modal-overlay" id="modalValuations" role="dialog" aria-modal="true" aria-labelledby="valModalTitle">
+        <div class="modal-box">
+            <div class="card-header">
+                <h3 class="section-title" id="valModalTitle">Update Market Values</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalValuations')" aria-label="Close dialog">✕</button>
+            </div>
+            <p class="caption-text" style="margin-bottom: 1rem;">Valuation updates track capital appreciation without creating false cash-flow transactions.</p>
+            <div id="valuationsInputsContainer" style="display: grid; gap: 0.75rem;"></div>
+            <button class="btn btn-primary" style="width: 100%; margin-top: 1rem;" onclick="saveValuations()">Save Market Values</button>
+        </div>
+    </div>
+
+    <!-- Modal: Fund Goal -->
+    <div class="modal-overlay" id="modalGoalFund" role="dialog" aria-modal="true" aria-labelledby="lblGoalFundTitle">
+        <div class="modal-box">
+            <div class="card-header">
+                <h3 class="section-title" id="lblGoalFundTitle">Add Funds to Target</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalGoalFund')" aria-label="Close dialog">✕</button>
+            </div>
+            <div class="form-group">
+                <label for="goalFundSource">Source Account</label>
+                <select id="goalFundSource" class="form-control"></select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="goalFundAmount">Amount (₹)</label>
+                    <input type="number" id="goalFundAmount" class="form-control" min="1" step="any" placeholder="0.00" required>
+                </div>
+                <div class="form-group">
+                    <label for="goalFundDate">Date</label>
+                    <input type="date" id="goalFundDate" class="form-control" required>
+                </div>
+            </div>
+            <button class="btn btn-primary" style="width: 100%;" onclick="submitGoalContribution()">Confirm Fund Transfer</button>
+        </div>
+    </div>
+
+    <!-- Modal: Gmail Sync -->
+    <div class="modal-overlay" id="modalGmail" role="dialog" aria-modal="true" aria-labelledby="gmailModalTitle">
+        <div class="modal-box" style="max-width: 580px;">
+            <div class="card-header">
+                <h3 class="section-title" id="gmailModalTitle">Gmail Cloud Sync</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalGmail')" aria-label="Close dialog">✕</button>
+            </div>
+            <div class="form-group">
+                <label for="gmailScriptUrl">Apps Script Endpoint URL</label>
+                <input type="text" id="gmailScriptUrl" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <button class="btn btn-primary" onclick="fetchGmailTransactions()">Fetch Incoming Receipts</button>
+            </div>
+
+            <div id="gmailStagingWrap" style="display: none;">
+                <span class="caption-text" style="font-weight: 700; margin-bottom: 0.5rem;">Review Detected Receipts (<span id="stagingCount">0</span>)</span>
+                <div id="stagingItemsList" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; margin-bottom: 1rem;"></div>
+                <button class="btn btn-primary" style="width: 100%;" onclick="commitStagedTransactions()">Commit Selected Entries</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer" role="status" aria-live="polite"></div>
+
+    <script>
+        // ==========================================
+        // DHANSUTRA API CLIENT
+        // ==========================================
+        const API = {
+            async req(url, options = {}) {
+                options.headers = options.headers || {};
+                options.headers['x-requested-with'] = 'XMLHttpRequest';
+                const res = await fetch(url, options);
+                if (res.status === 401) {
+                    window.location.href = '/login?error=session_expired';
+                    return null;
+                }
+                return res;
+            },
+            async getAccounts() {
+                const res = await this.req('/api/finance/accounts');
+                return res ? await res.json() : [];
+            },
+            async createAccount(payload) {
+                const res = await this.req('/api/finance/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : null;
+            },
+            async updateAccount(id, payload) {
+                const res = await this.req(`/api/finance/accounts/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : null;
+            },
+            async getCategories() {
+                const res = await this.req('/api/finance/categories');
+                return res ? await res.json() : [];
+            },
+            async createCategory(payload) {
+                const res = await this.req('/api/finance/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : null;
+            },
+            async deleteCategory(id) {
+                return await this.req(`/api/finance/categories/${id}`, { method: 'DELETE' });
+            },
+            async getTransactions(params = {}) {
+                const q = new URLSearchParams(params).toString();
+                const res = await this.req(`/api/finance/transactions?${q}`);
+                return res ? await res.json() : [];
+            },
+            async createTransaction(payload) {
+                return await this.req('/api/finance/transactions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            },
+            async createTransfer(payload) {
+                return await this.req('/api/finance/transfers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            },
+            async deleteTransaction(id) {
+                return await this.req(`/api/finance/transactions/${id}`, { method: 'DELETE' });
+            },
+            async getBudgets(month) {
+                const res = await this.req(`/api/finance/budgets?month=${month}`);
+                return res ? await res.json() : [];
+            },
+            async getBudgetStatus(month) {
+                const res = await this.req(`/api/finance/budgets/status?month=${month}`);
+                return res ? await res.json() : [];
+            },
+            async setBudget(payload) {
+                const res = await this.req('/api/finance/budgets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : null;
+            },
+            async getGoals() {
+                const res = await this.req('/api/finance/goals');
+                return res ? await res.json() : [];
+            },
+            async createGoal(payload) {
+                const res = await this.req('/api/finance/goals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : null;
+            },
+            async contributeGoal(id, payload) {
+                const res = await this.req(`/api/finance/goals/${id}/contribute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : null;
+            },
+            async getDashboardSummary(dateStr) {
+                const q = dateStr ? `?date=${dateStr}` : '';
+                const res = await this.req(`/api/finance/dashboard/summary${q}`);
+                return res ? await res.json() : null;
+            },
+            async stageReceipts(payload) {
+                const res = await this.req('/api/finance/imports/stage-receipts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : [];
+            },
+            async commitReceipts(payload) {
+                const res = await this.req('/api/finance/imports/commit-receipts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return res ? await res.json() : [];
+            }
+        };
+
+        // ==========================================
+        // STATE MANAGEMENT
+        // ==========================================
+        let accounts = [];
+        let categories = [];
+        let transactions = [];
+        let goals = [];
+        let budgets = [];
+        let dashboardData = null;
+
+        let currentFormType = 'expense';
+        let selectedMonth = startOfMonth(new Date());
+        let selectedGoalId = null;
+        let stagedSync = [];
+        let openAccordions = new Set();
+        let lastFocusedElement = null;
+
+        function sanitize(str) {
+            if (typeof str !== 'string') return String(str || '');
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
+        function formatINR(v) {
+            return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0);
+        }
+
+        function pad(n) { return String(n).padStart(2, '0'); }
+        function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+        function formatMonthStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
+        function parseMonthInput(v) { const [y, m] = v.split('-').map(Number); return new Date(y, m - 1, 1); }
+        function getFutureDate(m) { const d = new Date(); d.setMonth(d.getMonth() + m); return d.toISOString().split('T')[0]; }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            applyTheme();
+            initMonthSelector();
+            document.getElementById('txDate').valueAsDate = new Date();
+            document.getElementById('goalFundDate').valueAsDate = new Date();
+            document.getElementById('goalDue').value = getFutureDate(6);
+
+            await bootstrapData();
+
+            document.getElementById('formTransaction').addEventListener('submit', handleTransactionSubmit);
+            document.getElementById('formNewGoal').addEventListener('submit', handleGoalSubmit);
+            document.getElementById('formNewCat').addEventListener('submit', handleCategorySubmit);
+
+            document.getElementById('searchInput').addEventListener('input', renderLedger);
+            document.getElementById('monthSelector').addEventListener('change', async e => {
+                selectedMonth = parseMonthInput(e.target.value);
+                await refreshData();
+            });
+            document.getElementById('accountFilter').addEventListener('change', renderLedger);
+            document.getElementById('typeFilter').addEventListener('change', renderLedger);
+
+            window.addEventListener('keydown', e => {
+                if (e.key === 'Escape') {
+                    const activeModal = document.querySelector('.modal-overlay.active');
+                    if (activeModal) closeModal(activeModal.id);
+                }
+            });
+        });
+
+        async function bootstrapData() {
+            accounts = await API.getAccounts();
+            if (accounts.length === 0) {
+                const seedAccounts = [
+                    { name: 'Axis Bank', type: 'BANK', starting_balance: 0 },
+                    { name: 'Cash in Hand', type: 'CASH', starting_balance: 0 },
+                    { name: 'Credit Card', type: 'CREDIT_CARD', starting_balance: 0 },
+                    { name: 'Mutual Funds', type: 'INVESTMENT', starting_balance: 0, current_market_value: 0 },
+                    { name: 'Goal & Reserves', type: 'GOAL_RESERVE', starting_balance: 0 }
+                ];
+                for (const a of seedAccounts) {
+                    await API.createAccount(a);
+                }
+                accounts = await API.getAccounts();
+            }
+
+            categories = await API.getCategories();
+            if (categories.length === 0) {
+                const seedCategories = [
+                    { name: 'Salary & Wages', type: 'INCOME', icon: '💼' },
+                    { name: 'House Rent', type: 'EXPENSE', icon: '🏠' },
+                    { name: 'Groceries', type: 'EXPENSE', icon: '🛒' },
+                    { name: 'Dining Out', type: 'EXPENSE', icon: '🍽️' },
+                    { name: 'Fuel & Transit', type: 'EXPENSE', icon: '🚗' },
+                    { name: 'Utilities', type: 'EXPENSE', icon: '⚡' }
+                ];
+                for (const c of seedCategories) {
+                    await API.createCategory(c);
+                }
+                categories = await API.getCategories();
+            }
+
+            await refreshData();
+        }
+
+        async function refreshData() {
+            const mStr = formatMonthStr(selectedMonth);
+            const [txs, g, bStatus, bList, summary] = await Promise.all([
+                API.getTransactions(),
+                API.getGoals(),
+                API.getBudgetStatus(mStr),
+                API.getBudgets(mStr),
+                API.getDashboardSummary(new Date().toISOString().split('T')[0])
+            ]);
+
+            transactions = txs;
+            goals = g;
+            budgets = bStatus;
+            dashboardData = summary;
+
+            populateSelects();
+            updateNoteSuggestions();
+            renderUI(bList);
+        }
+
+        function switchTab(tabId, btn) {
+            ['dashboard', 'ledger', 'budgets', 'goals'].forEach(t => {
+                const el = document.getElementById('tab-' + t);
+                if (el) el.style.display = (t === tabId) ? 'block' : 'none';
+            });
+            document.querySelectorAll('.desktop-nav .nav-link').forEach(l => l.classList.toggle('active', l.textContent.toLowerCase().includes(tabId)));
+            if (btn) {
+                document.querySelectorAll('.mob-item').forEach(i => i.classList.remove('active'));
+                btn.classList.add('active');
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function initMonthSelector() {
+            const el = document.getElementById('monthSelector');
+            const now = new Date();
+            const start = new Date(now.getFullYear() - 1, 0, 1);
+            const opts = [];
+            for (let d = new Date(start); d <= new Date(now.getFullYear() + 1, 11, 1); d.setMonth(d.getMonth() + 1)) {
+                opts.push(new Date(d));
+            }
+            el.innerHTML = opts.map(m => `<option value="${formatMonthStr(m)}">${m.toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</option>`).join('');
+            el.value = formatMonthStr(selectedMonth);
+        }
+
+        function populateSelects() {
+            const accSelect = document.getElementById('txAccount');
+            const fromSelect = document.getElementById('txFromAccount');
+            const toSelect = document.getElementById('txToAccount');
+            const filterSelect = document.getElementById('accountFilter');
+            const goalSource = document.getElementById('goalFundSource');
+
+            const accOpts = accounts.map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('');
+            accSelect.innerHTML = accOpts;
+            fromSelect.innerHTML = accOpts;
+            toSelect.innerHTML = accOpts;
+            filterSelect.innerHTML = '<option value="all">All Accounts</option>' + accOpts;
+
+            goalSource.innerHTML = accounts.filter(a => a.type !== 'CREDIT_CARD').map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('');
+            updateCategoryDropdown();
+        }
+
+        function setFormType(type) {
+            currentFormType = type.toLowerCase();
+            const buttons = {
+                expense: document.getElementById('tabTxExpense'),
+                income: document.getElementById('tabTxIncome'),
+                transfer: document.getElementById('tabTxTransfer')
+            };
+
+            Object.keys(buttons).forEach(k => {
+                if (k === currentFormType) {
+                    buttons[k].className = 'btn';
+                    buttons[k].style.background = (k === 'expense') ? 'var(--terracotta)' : (k === 'income') ? 'var(--emerald)' : 'var(--palace-teal)';
+                    buttons[k].style.color = '#ffffff';
+                } else {
+                    buttons[k].className = 'btn btn-ghost';
+                    buttons[k].style.background = 'transparent';
+                    buttons[k].style.color = 'var(--text-muted)';
+                }
+            });
+
+            document.getElementById('groupStandardFields').style.display = (currentFormType === 'transfer') ? 'none' : 'block';
+            document.getElementById('groupTransferFields').style.display = (currentFormType === 'transfer') ? 'block' : 'none';
+            updateCategoryDropdown();
+        }
+
+        function updateCategoryDropdown() {
+            const select = document.getElementById('txCategory');
+            const targetType = currentFormType.toUpperCase();
+            const list = categories.filter(c => (c.type || '').toUpperCase() === targetType);
+            select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷️')} ${sanitize(c.name)}</option>`).join('');
+        }
+
+        function updateNoteSuggestions() {
+            const datalist = document.getElementById('noteSuggestions');
+            if (!datalist) return;
+            const uniqueNotes = Array.from(new Set(transactions.map(t => t.description))).filter(Boolean);
+            datalist.innerHTML = uniqueNotes.map(note => `<option value="${sanitize(note)}"></option>`).join('');
+        }
+
+        function renderUI(rawBudgets = []) {
+            if (dashboardData) {
+                document.getElementById('heroNetWorth').textContent = formatINR(dashboardData.net_worth);
+                document.getElementById('valMonthlyIncome').textContent = formatINR(dashboardData.monthly_income);
+                document.getElementById('valMonthlyExpense').textContent = formatINR(dashboardData.monthly_expense);
+                document.getElementById('valMonthlySurplus').textContent = formatINR(dashboardData.monthly_savings);
+                renderAccountCards(dashboardData.accounts);
+                renderHealthScore(dashboardData.savings_rate, dashboardData.monthly_income, dashboardData.monthly_expense);
+            }
+
+            renderRankedOutflows();
+            renderMoMComparison();
+            renderEmergencyRunway();
+            renderLedger();
+            renderBudgetsUI(rawBudgets);
+            renderGoals();
+        }
+
+        function renderAccountCards(accountSummaries = []) {
+            const container = document.getElementById('accountsSummaryContainer');
+            container.innerHTML = accountSummaries.map(a => {
+                const isLiability = a.type === 'CREDIT_CARD';
+                return `
+                    <div class="account-card ${a.type}">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
+                            <span class="pill">${a.type}</span>
+                        </div>
+                        <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
+                            ${formatINR(a.current_balance)}
+                        </div>
+                        <span class="caption-text">Reconciled Balance</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderRankedOutflows() {
+            const container = document.getElementById('rankedOutflowContainer');
+            const mStr = formatMonthStr(selectedMonth);
+            const expenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.date || '').startsWith(mStr));
+            const totalSpent = expenses.reduce((s, t) => s + Number(t.amount), 0);
+
+            const catMap = {};
+            expenses.forEach(t => {
+                const c = categories.find(cat => cat.id === t.category_id);
+                const name = c ? c.name : 'Uncategorized';
+                catMap[name] = (catMap[name] || 0) + Number(t.amount);
+            });
+            const sorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+
+            if (!sorted.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p class="body-text" style="font-weight:600;">No expenses yet</p>
+                        <span class="caption-text">Outflow hierarchy will appear here.</span>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = sorted.slice(0, 5).map(([cat, amt], idx) => {
+                const pct = totalSpent > 0 ? Math.round((amt / totalSpent) * 100) : 0;
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.6rem 0.8rem; background: var(--surface-subtle); border-radius: 8px; margin-bottom: 0.5rem;">
+                        <span><strong>#${idx + 1}</strong> 🏷️ ${sanitize(cat)}</span>
+                        <span><strong>${formatINR(amt)}</strong> <span class="caption-text">(${pct}%)</span></span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderMoMComparison() {
+            const tbody = document.getElementById('tableMoMBody');
+            const prevMoDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
+            document.getElementById('lblPrevMo').textContent = prevMoDate.toLocaleString('en-IN', { month: 'short' });
+            document.getElementById('lblCurrMo').textContent = selectedMonth.toLocaleString('en-IN', { month: 'short' });
+
+            const currStr = formatMonthStr(selectedMonth);
+            const prevStr = formatMonthStr(prevMoDate);
+
+            const currExpenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.date || '').startsWith(currStr));
+            const prevExpenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.date || '').startsWith(prevStr));
+
+            const catIds = Array.from(new Set([...currExpenses.map(t => t.category_id), ...prevExpenses.map(t => t.category_id)]));
+
+            if (!catIds.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1.5rem;" class="caption-text">No comparative transactions found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = catIds.map(cid => {
+                const c = categories.find(cat => cat.id === cid);
+                const name = c ? c.name : 'Uncategorized';
+                const currAmt = currExpenses.filter(t => t.category_id === cid).reduce((s, t) => s + Number(t.amount), 0);
+                const prevAmt = prevExpenses.filter(t => t.category_id === cid).reduce((s, t) => s + Number(t.amount), 0);
+
+                let delta = '—';
+                let cls = '';
+                if (prevAmt > 0 && currAmt > 0) {
+                    const diff = Math.round(((currAmt - prevAmt) / prevAmt) * 100);
+                    delta = (diff > 0 ? '+' : '') + diff + '%';
+                    cls = (diff > 20) ? 'amount-neg' : (diff < -15) ? 'amount-pos' : '';
+                } else if (currAmt > 0 && prevAmt === 0) {
+                    delta = 'New';
+                }
+
+                return `
+                    <tr style="border-bottom: 1px solid var(--border-subtle);">
+                        <td style="padding: 6px 0;">${sanitize(name)}</td>
+                        <td>${formatINR(prevAmt)}</td>
+                        <td>${formatINR(currAmt)}</td>
+                        <td class="${cls}">${delta}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderEmergencyRunway() {
+            const ef = goals.find(g => (g.name || '').toLowerCase().includes('emergency')) || goals[0];
+            if (!ef) return;
+
+            const saved = Number(ef.saved_amount || 0);
+            const target = Number(ef.target_amount || 150000);
+            const pct = Math.min(Math.round((saved / target) * 100), 100);
+
+            const burn = (dashboardData && dashboardData.monthly_expense > 0) ? Number(dashboardData.monthly_expense) : (target / 6);
+            const runwayMonths = (saved / Math.max(burn, 1)).toFixed(1);
+
+            document.getElementById('efCurrentTotal').textContent = formatINR(saved);
+            document.getElementById('efTargetTotal').textContent = `of ${formatINR(target)} Target`;
+            document.getElementById('efProgressBar').style.width = `${pct}%`;
+            document.getElementById('efRunwayPill').textContent = `${runwayMonths} Mo Runway`;
+            document.getElementById('efBurnText').textContent = `Monthly burn: ${formatINR(burn)}`;
+        }
+
+        function renderHealthScore(savingsRate, income, expenses) {
+            const totalBudget = budgets.reduce((s, b) => s + Number(b.limit_amount || 0), 0);
+            const budgetUsage = totalBudget > 0 ? Math.round((expenses / totalBudget) * 100) : 0;
+
+            let score = 0;
+            if (savingsRate >= 20) score += 40; else score += Math.round((savingsRate / 20) * 40);
+            if (budgetUsage <= 85) score += 40; else score += Math.max(40 - (budgetUsage - 85), 0);
+            score += 20;
+
+            document.getElementById('healthScoreDisplay').textContent = `${Math.min(score, 100)} / 100`;
+            const pill = document.getElementById('healthGradePill');
+            pill.textContent = (score >= 75) ? 'Strong' : (score >= 50) ? 'Stable' : 'Needs Review';
+            pill.className = (score >= 50) ? 'pill' : 'pill warning';
+
+            document.getElementById('lblSavingsRate').textContent = `${savingsRate}%`;
+            document.getElementById('barSavingsRate').style.width = `${Math.min(savingsRate, 100)}%`;
+            document.getElementById('lblBudgetUsage').textContent = `${budgetUsage}%`;
+            document.getElementById('barBudgetUsage').style.width = `${Math.min(budgetUsage, 100)}%`;
+        }
+
+        function renderLedger() {
+            const container = document.getElementById('ledgerRowsContainer');
+            const search = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+            const accountFilter = document.getElementById('accountFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value.toLowerCase();
+            const mStr = formatMonthStr(selectedMonth);
+
+            const filtered = transactions.filter(t => {
+                const txDateStr = String(t.date || '');
+                const matchesMonth = txDateStr.startsWith(mStr);
+                const txTypeLower = (t.type || '').toLowerCase();
+                const matchesType = (typeFilter === 'all') || txTypeLower === typeFilter;
+                
+                let matchesAccount = (accountFilter === 'all');
+                if (!matchesAccount) {
+                    const aId = Number(accountFilter);
+                    matchesAccount = (txTypeLower === 'transfer') 
+                        ? (t.from_account_id === aId || t.to_account_id === aId) 
+                        : (t.account_id === aId);
+                }
+                const cat = categories.find(c => c.id === t.category_id);
+                const catName = cat ? cat.name.toLowerCase() : '';
+                const desc = (t.description || '').toLowerCase();
+                const matchesSearch = !search || desc.includes(search) || catName.includes(search);
+
+                return matchesMonth && matchesType && matchesAccount && matchesSearch;
+            });
+
+            if (!filtered.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p class="body-text" style="font-weight:600;">No transactions found</p>
+                        <span class="caption-text">There are no records matching your query for this month.</span>
+                    </div>
+                `;
+                return;
+            }
+
+            const grouped = {};
+            filtered.forEach(t => {
+                const dateKey = String(t.date);
+                if (!grouped[dateKey]) grouped[dateKey] = [];
+                grouped[dateKey].push(t);
+            });
+
+            let html = '';
+            Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a)).forEach(dateKey => {
+                const dayTxList = grouped[dateKey];
+                const isOpen = search.length > 0 || openAccordions.has(dateKey);
+
+                let dailyNet = 0;
+                dayTxList.forEach(t => {
+                    const tType = (t.type || '').toUpperCase();
+                    if (tType === 'INCOME') dailyNet += Number(t.amount);
+                    else if (tType === 'EXPENSE') dailyNet -= Number(t.amount);
+                });
+
+                html += `
+                    <div class="accordion-group ${isOpen ? 'open' : ''}">
+                        <div class="accordion-header" onclick="toggleDateAccordion('${dateKey}')">
+                            <div class="accordion-header-left">
+                                <span class="accordion-arrow">▶</span>
+                                <span>${dateKey}</span>
+                                <span class="caption-text">(${dayTxList.length})</span>
+                            </div>
+                            <div style="font-size: 13px; font-weight: 700;" class="${dailyNet >= 0 ? 'amount-pos' : 'amount-neg'}">
+                                ${dailyNet >= 0 ? '+' : ''}${formatINR(dailyNet)}
+                            </div>
+                        </div>
+                        <div class="accordion-content">
+                `;
+
+                dayTxList.forEach(t => {
+                    let sign = '-';
+                    let cls = 'amount-neg';
+                    let icon = '🛒';
+                    let subtext = '';
+                    const tType = (t.type || '').toUpperCase();
+
+                    if (tType === 'INCOME') {
+                        sign = '+';
+                        cls = 'amount-pos';
+                        icon = '💼';
+                        const c = categories.find(cat => cat.id === t.category_id);
+                        const acc = accounts.find(a => a.id === t.account_id);
+                        subtext = `${sanitize(c?.name || 'Income')} · ${sanitize(acc?.name || 'Account')}`;
+                    } else if (tType === 'EXPENSE') {
+                        const c = categories.find(cat => cat.id === t.category_id);
+                        const acc = accounts.find(a => a.id === t.account_id);
+                        icon = c?.icon || '🛒';
+                        subtext = `${sanitize(c?.name || 'Expense')} · ${sanitize(acc?.name || 'Account')}`;
+                    } else {
+                        sign = '⇄';
+                        cls = 'amount-neutral';
+                        icon = '🔁';
+                        const fAcc = accounts.find(a => a.id === t.from_account_id);
+                        const tAcc = accounts.find(a => a.id === t.to_account_id);
+                        subtext = `${sanitize(fAcc?.name || 'Src')} ➔ ${sanitize(tAcc?.name || 'Dst')}`;
+                    }
+
+                    html += `
+                        <div class="ledger-row" onclick="inspectTransaction(${t.id})">
+                            <div class="row-left">
+                                <div class="row-icon">${icon}</div>
+                                <div>
+                                    <div style="font-weight:600;">${sanitize(t.description)}</div>
+                                    <div class="caption-text">${subtext}</div>
+                                </div>
+                            </div>
+                            <div class="${cls}">${sign} ${formatINR(t.amount)}</div>
+                        </div>
+                    `;
+                });
+
+                html += `</div></div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function toggleDateAccordion(dateKey) {
+            if (openAccordions.has(dateKey)) openAccordions.delete(dateKey);
+            else openAccordions.add(dateKey);
+            renderLedger();
+        }
+
+        function inspectTransaction(id) {
+            const t = transactions.find(item => item.id === id);
+            if (!t) return;
+
+            const tType = (t.type || '').toUpperCase();
+            let accInfo = '';
+            if (tType === 'TRANSFER') {
+                const fAcc = accounts.find(a => a.id === t.from_account_id);
+                const tAcc = accounts.find(a => a.id === t.to_account_id);
+                accInfo = `${fAcc ? fAcc.name : 'Account'} ➔ ${tAcc ? tAcc.name : 'Account'}`;
+            } else {
+                const acc = accounts.find(a => a.id === t.account_id);
+                accInfo = acc ? acc.name : 'Account';
+            }
+
+            const cat = categories.find(c => c.id === t.category_id);
+            const catName = cat ? cat.name : (tType === 'TRANSFER' ? 'Transfer' : 'Uncategorized');
+
+            document.getElementById('txDetailContent').innerHTML = `
+                <div style="display:flex; justify-content:space-between; padding:0.6rem 0; border-bottom:1px solid var(--border-subtle);">
+                    <span class="caption-text">Amount</span>
+                    <span style="font-size:1.25rem; font-weight:700;">${formatINR(t.amount)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:0.6rem 0; border-bottom:1px solid var(--border-subtle);">
+                    <span class="caption-text">Description</span>
+                    <span style="font-weight:600;">${sanitize(t.description)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:0.6rem 0; border-bottom:1px solid var(--border-subtle);">
+                    <span class="caption-text">Type</span>
+                    <span class="pill">${sanitize(tType)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:0.6rem 0; border-bottom:1px solid var(--border-subtle);">
+                    <span class="caption-text">Category</span>
+                    <span style="font-weight:600;">${sanitize(catName)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:0.6rem 0; border-bottom:1px solid var(--border-subtle);">
+                    <span class="caption-text">Account / Route</span>
+                    <span style="font-weight:600;">${sanitize(accInfo)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:0.6rem 0;">
+                    <span class="caption-text">Date</span>
+                    <span style="font-weight:600;">${t.date}</span>
+                </div>
+            `;
+
+            document.getElementById('btnDetailDelete').onclick = () => {
+                closeModal('txDetailModal');
+                confirmAction('Delete Transaction', `Permanently delete "${sanitize(t.description)}"?`, async () => {
+                    await API.deleteTransaction(t.id);
+                    await refreshData();
+                    showToast('✓ Transaction deleted');
+                });
+            };
+
+            openModal('txDetailModal');
+        }
+
+        async function handleTransactionSubmit(e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('txAmount').value);
+            const date = document.getElementById('txDate').value;
+            const description = document.getElementById('txDescription').value.trim();
+
+            if (currentFormType === 'transfer') {
+                const from_account_id = parseInt(document.getElementById('txFromAccount').value);
+                const to_account_id = parseInt(document.getElementById('txToAccount').value);
+                if (from_account_id === to_account_id) {
+                    showToast('Source and destination cannot be identical', 'error');
+                    return;
+                }
+                const res = await API.createTransfer({ amount, date, description, from_account_id, to_account_id });
+                if (!res || !res.ok) {
+                    const err = res ? await res.json() : {};
+                    showToast(err.detail || 'Transfer failed', 'error');
+                    return;
+                }
+            } else {
+                const account_id = parseInt(document.getElementById('txAccount').value);
+                const category_id = parseInt(document.getElementById('txCategory').value);
+                const res = await API.createTransaction({
+                    type: currentFormType.toUpperCase(),
+                    amount,
+                    date,
+                    description,
+                    account_id,
+                    category_id
+                });
+                if (!res || !res.ok) {
+                    const err = res ? await res.json() : {};
+                    showToast(err.detail || 'Failed to save transaction', 'error');
+                    return;
+                }
+            }
+
+            openAccordions.add(date);
+            closeModal('modalTransaction');
+            await refreshData();
+            showToast('✓ Transaction saved');
+        }
+
+        function renderBudgetsUI(rawBudgets = []) {
+            const totalCap = budgets.reduce((s, b) => s + Number(b.limit_amount || 0), 0);
+            const totalSpent = budgets.reduce((s, b) => s + Number(b.spent_amount || 0), 0);
+            const remaining = totalCap - totalSpent;
+
+            const now = new Date();
+            const daysInMo = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
+            const currDay = (now.getMonth() === selectedMonth.getMonth()) ? now.getDate() : 1;
+            const daysLeft = Math.max(daysInMo - currDay + 1, 1);
+            const safeDaily = remaining > 0 ? Math.round(remaining / daysLeft) : 0;
+
+            document.getElementById('budgetTotalLimit').textContent = formatINR(totalCap);
+            document.getElementById('budgetTotalSpent').textContent = formatINR(totalSpent);
+            document.getElementById('budgetTotalRemaining').textContent = formatINR(remaining);
+            document.getElementById('lblDailySafeSpend').textContent = `Safe daily allowance: ${formatINR(safeDaily)}/day (${daysLeft}d left)`;
+
+            const rowsContainer = document.getElementById('budgetCategoryRows');
+            const activeBudgets = budgets.filter(b => Number(b.limit_amount) > 0);
+
+            if (!activeBudgets.length) {
+                rowsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <p class="body-text" style="font-weight:600;">No budgets configured</p>
+                        <span class="caption-text">Set category limits below to track monthly spending.</span>
+                    </div>
+                `;
+            } else {
+                rowsContainer.innerHTML = activeBudgets.map(b => `
+                    <div style="margin-bottom: 0.85rem;">
+                        <div style="display:flex; justify-content:space-between;" class="caption-text">
+                            <span style="font-weight:600;">${sanitize(b.category_name)}</span>
+                            <span>${formatINR(b.spent_amount)} / ${formatINR(b.limit_amount)}</span>
+                        </div>
+                        <div class="progress-track"><div class="progress-fill ${b.usage_percentage >= 90 ? 'warn' : ''}" style="width:${Math.min(b.usage_percentage, 100)}%;"></div></div>
+                    </div>
+                `).join('');
+            }
+
+            const expCategories = categories.filter(c => (c.type || '').toUpperCase() === 'EXPENSE');
+            const editor = document.getElementById('budgetEditorFields');
+            editor.innerHTML = expCategories.map(cat => {
+                const b = rawBudgets.find(item => item.category_id === cat.id);
+                const val = b ? b.limit_amount : 0;
+                return `
+                    <div style="display:grid; grid-template-columns: 1fr 140px; align-items:center; gap: 0.5rem;">
+                        <label class="caption-text" style="font-weight:600;">${sanitize(cat.name)}</label>
+                        <input type="number" class="form-control" data-cid="${cat.id}" value="${val}">
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function saveBudgetLimits() {
+            const mStr = formatMonthStr(selectedMonth);
+            const inputs = document.querySelectorAll('#budgetEditorFields input');
+            for (const inp of inputs) {
+                const category_id = parseInt(inp.dataset.cid);
+                const limit_amount = parseFloat(inp.value) || 0;
+                if (limit_amount >= 0) {
+                    await API.setBudget({ category_id, month: mStr, limit_amount });
+                }
+            }
+            await refreshData();
+            showToast('✓ Budget limits saved');
+        }
+
+        function renderGoals() {
+            const container = document.getElementById('goalsContainer');
+            if (!goals.length) {
+                container.innerHTML = `<div class="empty-state"><p class="body-text">No savings targets created yet.</p></div>`;
+                return;
+            }
+
+            container.innerHTML = goals.map(g => {
+                const pct = Math.min(Math.round((Number(g.saved_amount || 0) / Number(g.target_amount || 1)) * 100), 100);
+                return `
+                    <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700;">${sanitize(g.name)}</span>
+                            <span class="pill">${pct}%</span>
+                        </div>
+                        <div class="caption-text" style="margin: 4px 0;">
+                            ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)} target · Due ${g.target_date || 'Ongoing'}
+                        </div>
+                        <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
+                            <button class="btn btn-secondary btn-pill" style="padding:0.25rem 0.65rem; font-size:11px;" onclick="openGoalContributionModal(${g.id})">+ Add Funds</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openGoalContributionModal(id = null) {
+            selectedGoalId = id || (goals[0] ? goals[0].id : null);
+            if (!selectedGoalId) return;
+            const g = goals.find(x => x.id === selectedGoalId);
+            document.getElementById('lblGoalFundTitle').textContent = `Add Funds: ${g ? g.name : 'Target'}`;
+            document.getElementById('goalFundAmount').value = '';
+            openModal('modalGoalFund');
+        }
+
+        async function submitGoalContribution() {
+            const amount = parseFloat(document.getElementById('goalFundAmount').value);
+            const date = document.getElementById('goalFundDate').value;
+            const account_id = parseInt(document.getElementById('goalFundSource').value);
+
+            if (isNaN(amount) || amount <= 0 || !date || !account_id || !selectedGoalId) {
+                showToast('Specify valid amount, account, and date', 'error');
+                return;
+            }
+
+            await API.contributeGoal(selectedGoalId, { account_id, amount, date, note: 'Fund allocation' });
+            closeModal('modalGoalFund');
+            await refreshData();
+            showToast('✓ Funds allocated to goal');
+        }
+
+        async function handleGoalSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('goalName').value.trim();
+            const target_amount = parseFloat(document.getElementById('goalTarget').value);
+            const target_date = document.getElementById('goalDue').value || null;
+
+            await API.createGoal({ name, target_amount, target_date });
+            document.getElementById('formNewGoal').reset();
+            await refreshData();
+            showToast('✓ Goal created');
+        }
+
+        async function handleCategorySubmit(e) {
+            e.preventDefault();
+            const type = document.getElementById('newCatType').value.toUpperCase();
+            const name = document.getElementById('newCatName').value.trim();
+            const icon = document.getElementById('newCatIcon').value.trim() || '🏷️';
+
+            await API.createCategory({ name, type, icon });
+            document.getElementById('formNewCat').reset();
+            categories = await API.getCategories();
+            populateSelects();
+            renderCategoryManagerList();
+            showToast('✓ Category created');
+        }
+
+        function renderCategoryManagerList() {
+            const container = document.getElementById('categoryListContainer');
+            container.innerHTML = categories.map(cat => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: var(--surface-subtle); border-radius: 8px;">
+                    <div>${cat.icon || '🏷️'} <strong>${sanitize(cat.name)}</strong> (${cat.type})</div>
+                    <div>
+                        ${cat.is_system ? '<span class="caption-text">Default</span>' : `<button class="btn btn-destructive btn-pill" style="padding:0.2rem 0.5rem; font-size:10px;" onclick="deleteCategory(${cat.id})">Delete</button>`}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function deleteCategory(id) {
+            await API.deleteCategory(id);
+            categories = await API.getCategories();
+            populateSelects();
+            renderCategoryManagerList();
+            showToast('✓ Category deleted');
+        }
+
+        function openAccountsModal() {
+            closeModal('modalSettings');
+            const c = document.getElementById('accountsConfigContainer');
+            c.innerHTML = accounts.map(a => `
+                <div style="display:grid; grid-template-columns: 1fr 140px; align-items:center; gap:0.5rem;">
+                    <label class="caption-text" style="font-weight:600;">${sanitize(a.name)}</label>
+                    <input type="number" class="form-control" data-aid="${a.id}" value="${a.starting_balance}">
+                </div>
+            `).join('');
+            openModal('modalAccounts');
+        }
+
+        async function saveAccountConfigurations() {
+            const inputs = document.querySelectorAll('#accountsConfigContainer input');
+            for (const inp of inputs) {
+                const aid = parseInt(inp.dataset.aid);
+                const starting_balance = parseFloat(inp.value) || 0;
+                await API.updateAccount(aid, { starting_balance });
+            }
+            accounts = await API.getAccounts();
+            closeModal('modalAccounts');
+            await refreshData();
+            showToast('✓ Balances updated');
+        }
+
+        function openValuationsModal() {
+            closeModal('modalSettings');
+            const c = document.getElementById('valuationsInputsContainer');
+            const invs = accounts.filter(a => a.type === 'INVESTMENT');
+            c.innerHTML = invs.map(a => `
+                <div class="form-group">
+                    <label>${sanitize(a.name)} Market Value (₹)</label>
+                    <input type="number" class="form-control" data-vid="${a.id}" value="${a.current_market_value || a.starting_balance}">
+                </div>
+            `).join('');
+            openModal('modalValuations');
+        }
+
+        async function saveValuations() {
+            const inputs = document.querySelectorAll('#valuationsInputsContainer input');
+            for (const inp of inputs) {
+                const vid = parseInt(inp.dataset.vid);
+                const current_market_value = parseFloat(inp.value) || 0;
+                await API.updateAccount(vid, { current_market_value });
+            }
+            accounts = await API.getAccounts();
+            closeModal('modalValuations');
+            await refreshData();
+            showToast('✓ Valuations updated');
+        }
+
+        function openGmailModal() {
+            closeModal('modalSettings');
+            document.getElementById('gmailScriptUrl').value = localStorage.getItem('dhanSutraGmailScript') || '';
+            openModal('modalGmail');
+        }
+
+        async function fetchGmailTransactions() {
+    const url = document.getElementById('gmailScriptUrl').value.trim();
+    if (!url) {
+        showToast('Please enter Google Apps Script URL', 'error');
+        return;
+    }
+    localStorage.setItem('dhanSutraGmailScript', url);
+    showToast('Fetching from Axis Bank alerts...');
+
+    const cb = 'dhanSutraJsonp_' + Date.now();
+    const s = document.createElement('script');
+    s.src = `${url}${url.includes('?') ? '&' : '?'}callback=${cb}`;
+
+    window[cb] = async function(response) {
+            delete window[cb];
+            if (s.parentNode) document.body.removeChild(s);
+
+            const incoming = Array.isArray(response) 
+                ? response 
+                : (response && Array.isArray(response.transactions) ? response.transactions : []);
+
+            if (response && response.error) {
+                showToast('Script Error: ' + response.error, 'error');
+                return;
+            }
+
+            if (!incoming.length) {
+                showToast('No transactions found', 'error');
+                return;
+            }
+
+            // 1. Ensure target Axis account exists
+            let axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis')) 
+                           || accounts.find(a => a.type === 'BANK') 
+                           || accounts[0];
+
+            // 2. Refresh & ensure valid Income and Expense categories
+            categories = await API.getCategories();
+            let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
+            let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
+
+            if (!incCat) {
+                const createdInc = await API.createCategory({ name: 'Salary & Income', type: 'INCOME', icon: '💰' });
+                categories = await API.getCategories();
+                incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME') || createdInc;
+            }
+
+            if (!expCat) {
+                const createdExp = await API.createCategory({ name: 'General Outflow', type: 'EXPENSE', icon: '🛒' });
+                categories = await API.getCategories();
+                expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE') || createdExp;
+            }
+
+            // 3. Map transactions with guaranteed explicit uppercase type & correct category ID
+            const formatted = incoming.map(item => {
+                const isIncome = String(item.type).toLowerCase() === 'income';
+                const assignedCat = isIncome ? incCat : expCat;
+
+                return {
+                    source_id: String(item.sourceId || item.id || `axis_${item.date}_${item.amount}`),
+                    type: isIncome ? 'INCOME' : 'EXPENSE',
+                    date: item.date || new Date().toISOString().split('T')[0],
+                    amount: Math.abs(parseFloat(item.amount) || 0),
+                    description: item.description || (isIncome ? 'Direct Credit' : 'Bank Outflow'),
+                    account_id: axisAccount ? axisAccount.id : accounts[0]?.id,
+                    category_id: assignedCat ? assignedCat.id : null
+                };
+            }).filter(item => item.amount > 0);
+
+            // Send to stage
+            const backendStaged = await API.stageReceipts(formatted);
+
+            // Map using source_id rather than positional index
+const formattedMap = new Map(formatted.map(item => [item.source_id, item]));
+
+stagedSync = (backendStaged || []).map(t => {
+    const orig = formattedMap.get(t.source_id) || {};
+    return {
+        ...t,
+        type: orig.type || t.type || 'EXPENSE',
+        category_id: orig.category_id || t.category_id,
+        account_id: orig.account_id || t.account_id
+    };
+});
+
+            document.getElementById('stagingCount').textContent = stagedSync.length;
+            const list = document.getElementById('stagingItemsList');
+            
+            list.innerHTML = stagedSync.map((t, idx) => {
+                const isInc = String(t.type).toUpperCase() === 'INCOME';
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
+                            <div>
+                                <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
+                                    ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
+                                </span>
+                                <div class="caption-text" style="font-size:12px; margin-top:2px;">${t.date} · ${sanitize(t.description)}</div>
+                            </div>
+                        </label>
+                        <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">
+                            ${isInc ? '+' : '-'}${formatINR(t.amount)}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('gmailStagingWrap').style.display = 'block';
+        };
+
+    s.onerror = () => {
+        delete window[cb];
+        if (s.parentNode) document.body.removeChild(s);
+        showToast('Failed to connect to Google Apps Script', 'error');
+    };
+
+    document.body.appendChild(s);
+}
+        async function commitStagedTransactions() {
+    const checked = document.querySelectorAll('.chk-stage:checked');
+    const toCommit = [];
+    checked.forEach(c => {
+        const item = stagedSync[Number(c.dataset.idx)];
+        if (item) toCommit.push(item);
+    });
+
+    if (!toCommit.length) {
+        showToast('No items selected', 'error');
+        return;
+    }
+
+    showToast('Saving transactions...');
+
+    // 1. Ensure latest category maps
+    categories = await API.getCategories();
+    let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
+    let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
+
+    // 2. Resolve default Axis account
+    const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
+                     || accounts.find(a => a.type === 'BANK')
+                     || accounts[0];
+
+    // 3. Save each transaction directly to /api/finance/transactions
+    // This bypasses receipt-import routers that force transaction_type='EXPENSE'
+    let successCount = 0;
+    for (const item of toCommit) {
+        const isInc = String(item.type || '').toUpperCase() === 'INCOME';
+        const payload = {
+            type: isInc ? 'INCOME' : 'EXPENSE',
+            amount: Math.abs(parseFloat(item.amount)),
+            date: item.date,
+            description: item.description,
+            account_id: item.account_id || (axisAccount ? axisAccount.id : accounts[0]?.id),
+            category_id: isInc ? (incCat ? incCat.id : item.category_id) : (expCat ? expCat.id : item.category_id)
+        };
+
+        const res = await API.createTransaction(payload);
+        if (res && res.ok) {
+            successCount++;
+        }
+    }
+
+    closeModal('modalGmail');
+    await refreshData();
+    showToast(`Successfully saved ${successCount} transactions`);
+}
+        function openCategoryModal() {
+            closeModal('modalSettings');
+            renderCategoryManagerList();
+            openModal('modalCategory');
+        }
+
+        function openTransactionModal() {
+            setFormType('expense');
+            document.getElementById('formTransaction').reset();
+            document.getElementById('txDate').valueAsDate = new Date();
+            openModal('modalTransaction');
+        }
+
+        function openSettingsModal() { openModal('modalSettings'); }
+
+        function openModal(id) {
+            lastFocusedElement = document.activeElement;
+            const modal = document.getElementById(id);
+            modal.classList.add('active');
+            const focusable = modal.querySelector('button, input, select');
+            if (focusable) focusable.focus();
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('active');
+            if (lastFocusedElement) lastFocusedElement.focus();
+        }
+
+        function confirmAction(title, msg, onConfirm) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = msg;
+            const btn = document.getElementById('btnConfirmAction');
+            btn.onclick = () => {
+                onConfirm();
+                closeModal('modalConfirm');
+            };
+            openModal('modalConfirm');
+        }
+
+        function toggleTheme() {
+            const isDark = document.body.classList.toggle('dark');
+            localStorage.setItem('dhanSutraDark', String(isDark));
+            showToast(`Switched to ${isDark ? 'Dark' : 'Light'} Mode`);
+        }
+
+        function applyTheme() {
+            if (localStorage.getItem('dhanSutraDark') === 'true') {
+                document.body.classList.add('dark');
+            }
+        }
+
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const div = document.createElement('div');
+            div.className = `toast ${type}`;
+            div.textContent = msg;
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 4000);
+        }
+    </script>
+</body>
+</html>

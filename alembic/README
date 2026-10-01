@@ -1,0 +1,12 @@
+Generic single-database configuration.
+
+Almebic is basically git for your database
+
+Whenever you create a new column or table run the following commands:
+
+1. alembic revision --autogenerate -m "your message"
+2. alembic upgrade head
+3. alembic current (-- current migration version)
+4. alembic history (-- migration history)
+5. alembic downgrade (-- downgrade 1 migration)
+6. alembic downgrade base (-- downgrade to base)

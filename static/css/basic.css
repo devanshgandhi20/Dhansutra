@@ -1,0 +1,357 @@
+ body {
+     font-family: 'Poppins', sans-serif;
+     background: linear-gradient(-135deg, #3fbaa8, #34777e);
+     min-height: 100vh;
+ }
+
+ .container-fluid {
+     padding: 25px;
+ }
+
+ .card {
+     border: none;
+     border-radius: 16px;
+     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+     overflow: hidden;
+     background: #fff;
+ }
+
+ .section-header {
+     background: linear-gradient(181deg, #346568, #7f7f7f);
+     color: #fff;
+     font-weight: 600;
+     font-size: 18px;
+     padding: 14px 20px;
+ }
+
+ .section-header-light {
+     background: #f8f9fc;
+     color: #333;
+     border-bottom: 1px solid #eee;
+ }
+
+ .form-label {
+     font-size: 13px;
+     font-weight: 500;
+     color: #555;
+ }
+
+ .form-control,
+ .form-select {
+     border-radius: 25px;
+     height: 42px;
+     border: 1px solid #e0e0e0;
+     padding: 0 15px;
+ }
+
+ .form-control:focus,
+ .form-select:focus {
+     border-color: #57b846;
+     box-shadow: 0 0 10px rgba(87, 184, 70, 0.3);
+ }
+
+ .select2-container--default .select2-selection--single {
+     height: 42px;
+     border-radius: 25px;
+     border: 1px solid #e0e0e0;
+ }
+
+ .btn {
+     border-radius: 25px;
+     font-size: 13px;
+ }
+
+ .btn-primary {
+     background: #57b846;
+     border: none;
+ }
+
+ .btn-primary:hover {
+     background: #333;
+ }
+
+ .table thead {
+     background: linear-gradient(135deg, #4158d0, #c850c0);
+     color: #fff;
+ }
+
+ .table tbody tr:hover {
+     background: #f5f7ff;
+ }
+
+ .badge-active {
+     background: #57b846;
+ }
+
+ .badge-inactive {
+     background: #adb5bd;
+ }
+
+ .table i {
+     cursor: pointer;
+     transition: 0.2s;
+ }
+
+ .fa-edit:hover {
+     color: #4158d0;
+     transform: scale(1.2);
+ }
+
+ .fa-trash:hover {
+     color: red;
+     transform: scale(1.2);
+ }
+
+ .card-footer {
+     background: #f8f9fc;
+ }
+
+ .dataTables_length select {
+     padding-right: 35px !important;
+     background-position: right 10px center !important;
+ }
+
+ .dataTables_length .form-select-sm {
+     height: 38px !important;
+     line-height: 1.5;
+     padding-right: 35px !important;
+ }
+
+ .dataTables_length label {
+     display: flex;
+     align-items: center;
+     gap: 8px;
+ }
+
+ .dataTables_length select option {
+     padding: 5px;
+ }
+
+ /* ============================= */
+ /* MODERN DATATABLE UI (MINIMAL) */
+ /* ============================= */
+
+ /* Wrapper spacing */
+ .dataTables_wrapper {
+     font-size: 14px;
+ }
+
+ /* Top controls (entries + search) */
+ .dataTables_wrapper .row:first-child {
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     margin-bottom: 15px;
+ }
+
+ /* Entries dropdown */
+ .dataTables_length label {
+     display: flex;
+     align-items: center;
+     gap: 8px;
+     color: #555;
+     font-weight: 500;
+ }
+
+ .dataTables_length select {
+     border-radius: 8px;
+     border: 1px solid #ddd;
+     padding: 5px 30px 5px 10px;
+     height: 36px;
+     font-size: 13px;
+ }
+
+ /* Search box */
+ .dataTables_filter label {
+     font-weight: 500;
+     color: #555;
+ }
+
+ .dataTables_filter input {
+     border-radius: 8px;
+     border: 1px solid #ddd;
+     padding: 6px 12px;
+     height: 36px;
+     margin-left: 8px;
+ }
+
+ /* Table */
+ table.dataTable {
+     border-collapse: separate !important;
+     border-spacing: 0;
+ }
+
+ /* Header */
+ table.dataTable thead th {
+     background: #f9fafb;
+     color: #444;
+     font-weight: 600;
+     border-bottom: 1px solid #e5e7eb !important;
+     padding: 12px;
+ }
+
+ /* Body cells */
+ table.dataTable tbody td {
+     padding: 12px;
+     border-bottom: 1px solid #f1f1f1;
+     color: #555;
+ }
+
+ /* Row hover */
+ table.dataTable tbody tr:hover {
+     background: #f9fafb;
+ }
+
+ /* Remove borders */
+ .table-bordered> :not(caption)>*>* {
+     border: none !important;
+ }
+
+ /* Pagination */
+ .dataTables_paginate {
+     margin-top: 15px !important;
+ }
+
+ .dataTables_paginate .pagination {
+     gap: 5px;
+ }
+
+ .dataTables_paginate .page-link {
+     border-radius: 6px !important;
+     border: 1px solid #ddd;
+     color: #555;
+     padding: 5px 10px;
+ }
+
+ .dataTables_paginate .page-item.active .page-link {
+     background: #e5e7eb;
+     border-color: #ddd;
+     color: #000;
+ }
+
+ /* Info text */
+ .dataTables_info {
+     color: #777;
+     font-size: 13px;
+     margin-top: 10px;
+ }
+
+ /* Status badges (minimal) */
+ .badge-active {
+     background: #e6f4ea;
+     color: #1e7e34;
+     font-weight: 500;
+ }
+
+ .badge-inactive {
+     background: #f1f1f1;
+     color: #666;
+     font-weight: 500;
+ }
+
+ /* Action icons */
+ .table i {
+     font-size: 14px;
+     opacity: 0.7;
+ }
+
+ .table i:hover {
+     opacity: 1;
+     transform: scale(1.1);
+ }
+
+ /* Card cleanup */
+ .card {
+     border-radius: 12px;
+     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+ }
+
+ /* Header strip minimal */
+ .section-header-light {
+     background: #fff;
+     border-bottom: 1px solid #eee;
+     font-weight: 600;
+ }
+
+ /* FORM CARD */
+ .form-card {
+     border-radius: 12px;
+     background: #fff;
+ }
+
+ /* FORM GROUP */
+ .form-group {
+     display: flex;
+     flex-direction: column;
+ }
+
+ /* LABEL */
+ .form-label {
+     font-size: 13px;
+     font-weight: 500;
+     margin-bottom: 6px;
+     color: #444;
+ }
+
+ /* REQUIRED STAR */
+ .req {
+     color: #dc3545;
+     font-weight: 600;
+ }
+
+ /* INPUTS */
+ .form-control,
+ .form-select {
+     height: 40px;
+     border-radius: 8px;
+     border: 1px solid #ddd;
+     font-size: 14px;
+     padding: 0 12px;
+ }
+
+ /* FOCUS */
+ .form-control:focus,
+ .form-select:focus {
+     border-color: #999;
+     box-shadow: none;
+ }
+
+ /* SELECT2 FIX */
+ .select2-container .select2-selection--single {
+     height: 40px !important;
+     border-radius: 8px !important;
+     border: 1px solid #ddd !important;
+     display: flex;
+     align-items: center;
+     padding-left: 10px;
+ }
+
+ .select2-selection__arrow {
+     height: 100% !important;
+ }
+
+ /* FOOTER */
+ .form-footer {
+     background: #fafafa;
+     border-top: 1px solid #eee;
+ }
+
+ /* BUTTONS */
+ .btn {
+     border-radius: 8px;
+     font-size: 13px;
+     padding: 6px 16px;
+ }
+
+ .btn-primary {
+     background: #333;
+     border: none;
+ }
+
+ .btn-primary:hover {
+     background: #000;
+ }
+
+ .btn-light {
+     background: #f1f1f1;
+ }

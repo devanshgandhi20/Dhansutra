@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Practice - Modern Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/static/images/icons/favicon.ico" />
+    <link rel="stylesheet" type="text/css" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="/static/fonts/font-awesome-4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" type="text/css" href="/static/vendor/animate/animate.css">
+    <link rel="stylesheet" type="text/css" href="/static/vendor/css-hamburgers/hamburgers.min.css">
+    <link rel="stylesheet" type="text/css" href="/static/vendor/select2/select2.min.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/util.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/main.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+
+<body>
+
+    {% if error %}
+    <script>
+        Swal.fire({
+            icon: 'error',
+            title: 'Login Failed',
+            text: "{{ error }}",
+            confirmButtonColor: '#d33'
+        }).then(() => {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        });
+    </script>
+    {% endif %}
+
+    {% if success %}
+    <script>
+        Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: "{{ success }}",
+            confirmButtonColor: '#d33'
+        }).then(() => {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        });
+    </script>
+    {% endif %}
+
+    <div class="limiter">
+        <div class="container-login100">
+            <div class="wrap-login100">
+                <div class="login100-pic js-tilt" data-tilt>
+                    <img src="/static/images/img-01.png" alt="IMG">
+                </div>
+
+                <form class="login100-form validate-form" id="validate-form" method="post" action="/login">
+                    <span class="login100-form-title">
+                        <i class="fa fa-user fa-fw" aria-hidden="true"></i> Login
+                    </span>
+
+                    <div class="wrap-input100 validate-input" data-validate="Username is required">
+                        <input class="input100" type="text" name="username" id="username" placeholder="Username">
+                        <span class="focus-input100"></span>
+                        <span class="symbol-input100">
+                            <i class="fa fa-envelope" aria-hidden="true"></i>
+                        </span>
+                    </div>
+
+                    <div class="wrap-input100 validate-input" data-validate="Password is required">
+                        <input class="input100" type="password" name="password" id="password" placeholder="Password">
+                        <span class="focus-input100"></span>
+                        <span class="symbol-input100">
+                            <i class="fa fa-lock" aria-hidden="true"></i>
+                        </span>
+                        <span class="toggle-password" onclick="togglePassword()">
+                            <i class="fa fa-eye" id="eyeIcon"></i>
+                        </span>
+                    </div>
+
+                    <div class="container-login100-form-btn">
+                        <button class="login100-form-btn" type="submit">
+                            Login
+                        </button>
+                    </div>
+
+                    <div class="text-center p-t-12">
+                        <span class="txt1">
+                            Forgot
+                        </span>
+                        <a class="txt2" href="forgot_password">
+                            Username / Password?
+                        </a>
+                    </div>
+
+                    <!-- Enhanced Social Login Section with improved Google UI -->
+                    <div class="text-center p-t-120">
+                        <!-- Create account link with icon animation -->
+                        <div>
+                            <a class="txt2 create-account-link" href="signup">
+                                Don’t have an account?
+                                Create one
+                                <i class="fa fa-long-arrow-right m-l-5" aria-hidden="true"></i>
+                            </a>
+                        </div>
+                        
+                        <!-- Divider with OR text -->
+                        <div class="divider">
+                            <span>or continue with</span>
+                        </div>
+                        
+                        <!-- Modern Google Sign-in Button -->
+                        <div class="social-login-wrapper">
+                            <a href="/login/google" class="google-login-btn">
+                                <span class="google-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="20px" height="20px">
+                                        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
+                                        <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
+                                        <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
+                                        <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
+                                    </svg>
+                                </span>
+                                <span>Continue with Google</span>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/vendor/jquery/jquery-3.2.1.min.js"></script>
+    <script src="/static/vendor/bootstrap/js/popper.js"></script>
+    <script src="/static/vendor/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/static/vendor/select2/select2.min.js"></script>
+    <script src="/static/vendor/tilt/tilt.jquery.min.js"></script>
+    <script>
+        $('.js-tilt').tilt({
+            scale: 1.1
+        })
+        
+    </script>
+    <script src="/static/js/main.js"></script>
+    <!-- Ensure main.js doesn't conflict but we load it after our customizations -->
+</body>
+
+</html>
