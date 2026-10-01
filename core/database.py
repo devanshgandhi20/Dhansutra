@@ -1,22 +1,18 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker,declarative_base
 import os
-
-DB_URL = os.getenv(
-    "DB_URL",
-    "postgresql://postgres:postgres@postgres:5432/dhansutra_db"
-)
-
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 from core.config import settings
 
-# Add pool_pre_ping and pool_recycle
+# Resolves DB_URL from settings or directly from the OS environment
+db_url = getattr(settings, "DB_URL", None) or getattr(settings, "DATABASE_URL", None) or os.getenv("DB_URL") or os.getenv("DATABASE_URL")
+
 engine = create_engine(
-    settings.DB_URL,
-    pool_pre_ping=True,      # Tests connection liveness before executing queries
-    pool_recycle=300,        # Automatically recycles connections older than 5 minutes
-    pool_size=5,             # Sensible pool size for free tier
+    db_url,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
     max_overflow=10
 )
-SessionLocal = sessionmaker(autocommit = False, autoflush=False, bind=engine)
 
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
