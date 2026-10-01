@@ -434,3 +434,41 @@ def get_dashboard_summary(
 ):
     target = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else date.today()
     return FinanceService.get_dashboard_summary(db, current_user.id, target)
+
+@router.put("/transactions/{transaction_id}", response_model=TransactionResponse)
+def update_transaction(
+    transaction_id: int,
+    payload: dict,  # Or your schema e.g. TransactionUpdate
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tx = (
+        db.query(Transaction)
+        .filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id)
+        .first()
+    )
+    if not tx:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    # Update fields
+    if "amount" in payload and payload["amount"] is not None:
+        tx.amount = payload["amount"]
+    if "date" in payload and payload["date"]:
+        tx.date = payload["date"]
+    if "description" in payload and payload["description"]:
+        tx.description = payload["description"]
+    if "type" in payload and payload["type"]:
+        raw_type = str(payload["type"]).upper()
+        tx.type = TransactionType[raw_type] if raw_type in TransactionType.__members__ else tx.type
+    if "account_id" in payload:
+        tx.account_id = payload["account_id"]
+    if "category_id" in payload:
+        tx.category_id = payload["category_id"]
+    if "from_account_id" in payload:
+        tx.from_account_id = payload["from_account_id"]
+    if "to_account_id" in payload:
+        tx.to_account_id = payload["to_account_id"]
+
+    db.commit()
+    db.refresh(tx)
+    return tx

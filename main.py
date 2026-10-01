@@ -201,9 +201,16 @@ def user_dashboard(request: Request, current_user: User = Depends(get_current_us
 
 @app.exception_handler(StarletteHTTPException)
 async def auth_exception_handler(request: Request, exc):
+    is_api = request.url.path.startswith("/api/")
     is_fetch = request.headers.get("x-requested-with") == "XMLHttpRequest"
-    if exc.status_code in (401, 403) and is_fetch:
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    
+    # Never redirect API calls or AJAX calls to an HTML page
+    if is_api or is_fetch:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": str(exc.detail)}
+        )
+
     if exc.status_code == 401:
         return RedirectResponse(url=f"/login?error={exc.detail}")
     return RedirectResponse(url="/login")
