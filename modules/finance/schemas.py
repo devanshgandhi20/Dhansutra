@@ -66,7 +66,7 @@ class GoalResponse(GoalBase):
     id: int
     user_id: int
     saved_amount: Decimal
-    created_at: _dt.date
+    created_at: _dt.datetime
     contributions: List[GoalContributionResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -119,7 +119,7 @@ class AccountUpdate(BaseModel):
 class AccountResponse(AccountBase):
     id: int
     user_id: int
-    created_at: _dt.date
+    created_at: _dt.datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -139,7 +139,7 @@ class CategoryResponse(CategoryBase):
     id: int
     user_id: Optional[int] = None
     is_system: bool
-    created_at: _dt.date
+    created_at: _dt.datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -181,7 +181,7 @@ class TransactionResponse(BaseModel):
     to_account_id: Optional[int]
     source: str
     source_id: Optional[str]
-    created_at: _dt.date
+    created_at: _dt.datetime
 
     model_config = ConfigDict(from_attributes=True)
 
