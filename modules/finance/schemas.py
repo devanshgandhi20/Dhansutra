@@ -1,10 +1,9 @@
 from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 from modules.finance.models import AccountType, TransactionType
-from typing import List
 
 # ---------------- BUDGETS ----------------
 class BudgetBase(BaseModel):
@@ -188,7 +187,7 @@ class TransactionResponse(BaseModel):
 
 class TransactionUpdate(BaseModel):
     amount: Optional[Decimal] = None
-    date: Optional[datetime.date] = None
+    date: Optional[date] = None
     description: Optional[str] = None
     type: Optional[TransactionType] = None
     account_id: Optional[int] = None
@@ -196,4 +195,4 @@ class TransactionUpdate(BaseModel):
     from_account_id: Optional[int] = None
     to_account_id: Optional[int] = None
     source_id: Optional[str] = None
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
