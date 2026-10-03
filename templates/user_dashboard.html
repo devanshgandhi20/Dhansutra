@@ -618,24 +618,48 @@
 
             <div class="metrics-triad">
                 <div class="card" style="margin: 0; padding: 1.15rem;">
-                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Monthly Inflow</span>
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Income</span>
                     <div class="card-value amount-pos" id="valMonthlyIncome">₹0.00</div>
-                    <span class="caption-text">Earned income & returns</span>
+                    <span class="caption-text">Money received</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Expenses</span>
                     <div class="card-value amount-neg" id="valMonthlyExpense">₹0.00</div>
-                    <span class="caption-text">Operating lifestyle outflow</span>
+                    <span class="caption-text">Money spent</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
-                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Monthly Cash Flow</span>
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Saved</span>
                     <div class="card-value amount-neutral" id="valMonthlySurplus">₹0.00</div>
-                    <span class="caption-text">Unallocated free surplus</span>
+                    <span class="caption-text">Available after expenses</span>
                 </div>
             </div>
 
             <h2 class="section-title" style="margin-bottom: 0.75rem;">Accounts & Investment Positions</h2>
             <div class="accounts-grid" id="accountsSummaryContainer"></div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Net Worth Trend</h2>
+                    <div id="nwRange" style="display:flex; gap:4px;"></div>
+                </div>
+                <div id="nwChart" style="overflow-x:auto;"></div>
+                <span class="caption-text">Estimated from your transactions; investment revaluations are not included.</span>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div class="card-header"><h2 class="section-title">Assets vs Liabilities</h2></div>
+                    <div id="assetsLiabContainer"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="section-title">Upcoming</h2>
+                        <button class="btn btn-secondary btn-pill" style="padding:0.3rem 0.75rem; font-size:11px;" onclick="openRecurringModal()">+ Recurring</button>
+                    </div>
+                    <span class="caption-text" id="upcomingSummary"></span>
+                    <div id="upcomingContainer" style="margin-top:0.5rem;"></div>
+                </div>
+            </div>
 
             <div class="dashboard-grid">
                 <div>
@@ -761,6 +785,7 @@
                     </div>
                 </div>
 
+                <div class="caption-text" id="lblBudgetProjection" style="margin-bottom:0.75rem;"></div>
                 <div id="budgetCategoryRows"></div>
                 <div id="budgetEditorFields" style="display: grid; gap: 0.5rem; margin-top: 1rem;"></div>
                 <button type="button" id="saveBudgetBtn" class="btn btn-secondary" style="margin-top: 1rem;" onclick="saveBudgetLimits()">Save Budget Caps</button>
@@ -1088,6 +1113,31 @@
         </div>
     </div>
 
+    <!-- Modal: Recurring -->
+    <div class="modal-overlay" id="modalRecurring" role="dialog" aria-modal="true" aria-labelledby="recTitle">
+        <div class="modal-box">
+            <div class="card-header">
+                <h3 class="section-title" id="recTitle">Add Recurring Transaction</h3>
+                <button class="btn btn-ghost" onclick="closeModal('modalRecurring')" aria-label="Close dialog">✕</button>
+            </div>
+            <div class="form-group"><label for="recDesc">Description</label><input type="text" id="recDesc" class="form-control" placeholder="e.g. House Rent, SIP, Netflix" autocomplete="off"></div>
+            <div class="form-row">
+                <div class="form-group"><label for="recAmount">Amount (₹)</label><input type="number" id="recAmount" class="form-control" min="0.01" step="any"></div>
+                <div class="form-group"><label for="recType">Type</label><select id="recType" class="form-control" onchange="fillRecCategories()"><option value="EXPENSE">Expense</option><option value="INCOME">Income</option></select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label for="recAccount">Account</label><select id="recAccount" class="form-control"></select></div>
+                <div class="form-group"><label for="recCategory">Category</label><select id="recCategory" class="form-control"></select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label for="recFreq">Repeats</label><select id="recFreq" class="form-control"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="yearly">Yearly</option></select></div>
+                <div class="form-group"><label for="recNext">Next date</label><input type="date" id="recNext" class="form-control"></div>
+            </div>
+            <p class="caption-text" style="margin-bottom:0.75rem;">Reminders are stored in this browser. Use “Add now” on the dashboard when one is due.</p>
+            <button type="button" class="btn btn-primary" style="width:100%;" onclick="submitRecurring()">Save Recurring</button>
+        </div>
+    </div>
+
     <div id="toastContainer" role="status" aria-live="polite"></div>
 
     <script>
@@ -1302,6 +1352,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             applyTheme();
+            loadRecurring();
             initMonthSelector();
             document.getElementById('txDate').value = todayStr();
             document.getElementById('goalFundDate').value = todayStr();
@@ -1525,6 +1576,9 @@
             document.getElementById('valMonthlyExpense').textContent = formatINR(ms.expense);
             document.getElementById('valMonthlySurplus').textContent = formatINR(ms.savings);
             renderHealthScore(ms.rate, ms.income, ms.expense);
+            renderNetWorthTrend();
+            renderAssetsLiabilities();
+            renderUpcoming();
 
             renderRankedOutflows();
             renderMoMComparison();
@@ -2030,6 +2084,12 @@
             document.getElementById('budgetTotalRemaining').textContent = formatINR(remaining);
             document.getElementById('lblDailySafeSpend').textContent = `Safe daily allowance: ${formatINR(safeDaily)}/day (${daysLeft}d left)`;
 
+            const projEl = document.getElementById('lblBudgetProjection');
+            if (isCurrentMonth && totalSpent > 0) {
+                const projected = (totalSpent / currDay) * daysInMo;
+                projEl.textContent = `Projected month-end spending: ${formatINR(projected)}` + (totalCap > 0 ? (projected > totalCap ? ` — ${formatINR(projected - totalCap)} over your cap ⚠` : ` — within your ${formatINR(totalCap)} cap ✓`) : '');
+            } else projEl.textContent = '';
+
             const rowsContainer = document.getElementById('budgetCategoryRows');
             const activeBudgets = budgets.filter(b => Number(b.limit_amount) > 0);
 
@@ -2045,7 +2105,7 @@
                     <div style="margin-bottom: 0.85rem;">
                         <div style="display:flex; justify-content:space-between;" class="caption-text">
                             <span style="font-weight:600;">${sanitize(b.category_name)}</span>
-                            <span>${formatINR(b.spent_amount)} / ${formatINR(b.limit_amount)}</span>
+                            <span>${formatINR(b.spent_amount)} / ${formatINR(b.limit_amount)}${isCurrentMonth && Number(b.spent_amount) > 0 ? ` · pace ${formatINR((Number(b.spent_amount) / currDay) * daysInMo)}` : ''}</span>
                         </div>
                         <div class="progress-track"><div class="progress-fill ${b.usage_percentage >= 90 ? 'warn' : ''}" style="width:${Math.min(b.usage_percentage, 100)}%;"></div></div>
                     </div>
@@ -2089,6 +2149,7 @@
 
             container.innerHTML = goals.map(g => {
                 const pct = Math.min(Math.round((Number(g.saved_amount || 0) / (Number(g.target_amount) || 1)) * 100), 100);
+                const need = goalNeedText(g);
                 return `
                     <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -2099,6 +2160,7 @@
                             ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)} target · Due ${sanitize(g.target_date || 'Ongoing')}
                         </div>
                         <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+                        <div class="caption-text" style="margin-top:4px;">${need}</div>
                         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
                             <button class="btn btn-secondary btn-pill" style="padding:0.25rem 0.65rem; font-size:11px;" onclick="openGoalContributionModal('${sanitize(g.id)}')">+ Add Funds</button>
                         </div>
@@ -2278,6 +2340,155 @@
                 } finally { btn.disabled = false; }
             };
             openModal('modalCatDelete');
+        }
+
+        function goalNeedText(g) {
+            const remaining = Math.max((Number(g.target_amount) || 0) - (Number(g.saved_amount) || 0), 0);
+            if (remaining <= 0) return '🎉 Target reached';
+            if (!g.target_date) return `${formatINR(remaining)} still to go`;
+            const end = new Date(g.target_date + 'T00:00:00');
+            const months = Math.ceil((end - new Date()) / (30.44 * 864e5));
+            if (months <= 0) return `Past due — ${formatINR(remaining)} still to go`;
+            return `${formatINR(remaining)} to go · save ${formatINR(remaining / months)}/month for ${months} month${months > 1 ? 's' : ''}`;
+        }
+
+        // ---------- Net worth trend (back-calculated from today's net worth and transaction history) ----------
+        let nwMonths = 6;
+        function setNwRange(m) { nwMonths = m; renderNetWorthTrend(); }
+
+        function netWorthSeries(n) {
+            const nowNW = Number(dashboardData && dashboardData.net_worth);
+            if (!isFinite(nowNW)) return [];
+            const today = new Date(), pts = [];
+            for (let i = n - 1; i >= 0; i--) {
+                const end = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+                const cutoff = i === 0 ? todayStr() : toDateStr(end);
+                const after = transactions.reduce((sum, t) => {
+                    if (String(t.date || '') <= cutoff) return sum;
+                    const ty = (t.type || '').toUpperCase(), a = Number(t.amount) || 0;
+                    return sum + (ty === 'INCOME' ? a : ty === 'EXPENSE' ? -a : 0);
+                }, 0);
+                pts.push({ label: end.toLocaleString('en-IN', { month: 'short' }), value: nowNW - after });
+            }
+            return pts;
+        }
+
+        function renderNetWorthTrend() {
+            document.getElementById('nwRange').innerHTML = [[3, '3M'], [6, '6M'], [12, '1Y'], [0, 'All']].map(([m, l]) =>
+                `<button type="button" class="btn ${nwMonths === m ? 'btn-secondary' : 'btn-ghost'} btn-pill" style="padding:0.2rem 0.6rem; font-size:11px;" onclick="setNwRange(${m})">${l}</button>`).join('');
+            let n = nwMonths;
+            if (!n) {
+                const first = transactions.map(t => String(t.date || '').slice(0, 7)).filter(Boolean).sort()[0];
+                if (first) { const [y, m] = first.split('-').map(Number); const now = new Date(); n = (now.getFullYear() - y) * 12 + now.getMonth() - (m - 1) + 1; }
+                n = Math.min(Math.max(n || 2, 2), 36);
+            }
+            const pts = netWorthSeries(n), box = document.getElementById('nwChart');
+            if (pts.length < 2) { box.innerHTML = '<div class="empty-state"><span class="caption-text">Not enough data yet.</span></div>'; return; }
+
+            const W = 640, H = 190, L = 66, R = 14, T = 14, B = 26;
+            const vals = pts.map(p => p.value);
+            let lo = Math.min(...vals), hi = Math.max(...vals);
+            if (hi === lo) { hi += 1; lo -= 1; }
+            const x = i => L + i * (W - L - R) / (pts.length - 1), y = v => T + (hi - v) * (H - T - B) / (hi - lo);
+            const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+            const step = Math.ceil(pts.length / 8);
+            const compact = v => { const a = Math.abs(v); return (v < 0 ? '-' : '') + '₹' + (a >= 1e7 ? (a / 1e7).toFixed(2) + 'Cr' : a >= 1e5 ? (a / 1e5).toFixed(2) + 'L' : a >= 1e3 ? (a / 1e3).toFixed(1) + 'K' : a.toFixed(0)); };
+            box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; min-width:420px; height:auto;" role="img" aria-label="Net worth trend">
+                <path d="${line} L${x(pts.length - 1)},${H - B} L${x(0)},${H - B} Z" fill="var(--palace-teal)" opacity="0.12"/>
+                <path d="${line}" fill="none" stroke="var(--palace-teal)" stroke-width="2.5"/>
+                <text x="${L - 6}" y="${T + 4}" text-anchor="end" font-size="10" fill="var(--text-muted)">${compact(hi)}</text>
+                <text x="${L - 6}" y="${H - B}" text-anchor="end" font-size="10" fill="var(--text-muted)">${compact(lo)}</text>
+                ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.value)}" r="3.5" fill="var(--palace-teal)"><title>${p.label}: ${formatINR(p.value)}</title></circle>` +
+                    (i % step === 0 || i === pts.length - 1 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${p.label}</text>` : '')).join('')}
+            </svg>`;
+        }
+
+        // ---------- Assets vs liabilities ----------
+        function renderAssetsLiabilities() {
+            const box = document.getElementById('assetsLiabContainer');
+            const accs = (dashboardData && dashboardData.accounts) || [];
+            const val = a => { let v = Number(a.current_balance) || 0; if (!v && a.current_market_value) v = Number(a.current_market_value) || 0; return v; };
+            const isL = a => String(a.type || '').toUpperCase() === 'CREDIT_CARD';
+            const assets = accs.filter(a => !isL(a)), liabs = accs.filter(isL);
+            const sum = list => list.reduce((t, a) => t + Math.abs(val(a)), 0);
+            const rows = list => list.map(a => `<tr><td style="padding:4px 0;">${sanitize(a.name)}</td><td style="text-align:right;">${formatINR(Math.abs(val(a)))}</td></tr>`).join('');
+            box.innerHTML = `<table style="width:100%; border-collapse:collapse;" class="caption-text">
+                <tr><th colspan="2" style="text-align:left; padding-top:2px;">Assets</th></tr>${rows(assets)}
+                <tr style="border-top:1px solid var(--border);"><td style="padding:4px 0; font-weight:700;">Total assets</td><td style="text-align:right; font-weight:700;">${formatINR(sum(assets))}</td></tr>
+                <tr><th colspan="2" style="text-align:left; padding-top:10px;">Liabilities</th></tr>${rows(liabs) || '<tr><td colspan="2">None</td></tr>'}
+                <tr style="border-top:1px solid var(--border);"><td style="padding:4px 0; font-weight:700;">Total liabilities</td><td style="text-align:right; font-weight:700;">${formatINR(sum(liabs))}</td></tr>
+                <tr style="border-top:2px solid var(--border);"><td style="padding:6px 0; font-weight:700;">Net worth</td><td style="text-align:right; font-weight:700;">${formatINR(sum(assets) - sum(liabs))}</td></tr></table>`;
+        }
+
+        // ---------- Recurring + upcoming (stored in this browser) ----------
+        const REC_KEY = 'dhanSutraRecurring';
+        let recurring = [];
+        function loadRecurring() { try { recurring = JSON.parse(localStorage.getItem(REC_KEY) || '[]'); } catch { recurring = []; } }
+        function persistRecurring() { try { localStorage.setItem(REC_KEY, JSON.stringify(recurring)); } catch {} }
+
+        function advanceDate(dateStr, freq) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dt = new Date(y, m - 1, d);
+            if (freq === 'weekly') dt.setDate(dt.getDate() + 7);
+            else if (freq === 'yearly') dt.setFullYear(y + 1);
+            else { dt.setDate(1); dt.setMonth(m); dt.setDate(Math.min(d, new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate())); }
+            return toDateStr(dt);
+        }
+
+        function renderUpcoming() {
+            const days = n => toDateStr(new Date(Date.now() + n * 864e5));
+            const list = recurring.filter(r => r.next <= days(30)).sort((a, b) => a.next.localeCompare(b.next));
+            const due7 = recurring.filter(r => r.next <= days(7)).length;
+            document.getElementById('upcomingSummary').textContent = recurring.length ? `${due7} due in the next 7 days` : '';
+            const box = document.getElementById('upcomingContainer');
+            if (!list.length) { box.innerHTML = `<div class="empty-state"><span class="caption-text">${recurring.length ? 'Nothing due in the next 30 days.' : 'Add rent, SIPs, salary or subscriptions to see what is coming up.'}</span></div>`; return; }
+            const today = todayStr();
+            box.innerHTML = list.map(r => `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
+                    <div><div style="font-weight:600;">${r.type === 'INCOME' ? '💰' : '🧾'} ${sanitize(r.description)}</div>
+                        <div class="caption-text">${sanitize(r.next)}${r.next < today ? ' · overdue' : r.next === today ? ' · today' : ''} · ${sanitize(r.freq)}</div></div>
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <span class="${r.type === 'INCOME' ? 'amount-pos' : 'amount-neg'}" style="font-weight:700;">${formatINR(r.amount)}</span>
+                        <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring('${sanitize(r.id)}')">Add now</button>
+                        <button class="btn btn-ghost" style="padding:0.1rem 0.4rem;" aria-label="Remove" onclick="removeRecurring('${sanitize(r.id)}')">✕</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        function openRecurringModal() {
+            ['recDesc', 'recAmount'].forEach(i => document.getElementById(i).value = '');
+            document.getElementById('recType').value = 'EXPENSE';
+            document.getElementById('recFreq').value = 'monthly';
+            document.getElementById('recNext').value = todayStr();
+            document.getElementById('recAccount').innerHTML = accounts.filter(a => !['GOAL_RESERVE', 'INVESTMENT'].includes(String(a.type || '').toUpperCase()))
+                .map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('');
+            fillRecCategories();
+            openModal('modalRecurring');
+        }
+        function fillRecCategories() {
+            const t = document.getElementById('recType').value;
+            document.getElementById('recCategory').innerHTML = categories.filter(c => (c.type || '').toUpperCase() === t)
+                .map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
+        }
+        function submitRecurring() {
+            const r = {
+                id: 'r' + Date.now(), description: document.getElementById('recDesc').value.trim(),
+                amount: parseFloat(document.getElementById('recAmount').value), type: document.getElementById('recType').value,
+                account_id: parseInt(document.getElementById('recAccount').value), category_id: parseInt(document.getElementById('recCategory').value),
+                freq: document.getElementById('recFreq').value, next: document.getElementById('recNext').value
+            };
+            if (!r.description || !(r.amount > 0) || !r.account_id || !r.category_id || !r.next) { showToast('Fill in description, amount, account, category and date', 'error'); return; }
+            recurring.push(r); persistRecurring(); closeModal('modalRecurring'); renderUpcoming(); showToast('✓ Recurring item saved');
+        }
+        function removeRecurring(id) { recurring = recurring.filter(r => r.id !== id); persistRecurring(); renderUpcoming(); }
+        async function postRecurring(id) {
+            const r = recurring.find(x => x.id === id);
+            if (!r) return;
+            const res = await API.createTransaction({ type: r.type, amount: r.amount, date: r.next, description: r.description, account_id: r.account_id, category_id: r.category_id });
+            if (!(await okOrToast(res, 'Failed to add transaction'))) return;
+            r.next = advanceDate(r.next, r.freq); persistRecurring();
+            await refreshData();
+            showToast(`✓ Added “${r.description}” — next on ${r.next}`);
         }
 
         function openAccountsModal() {
@@ -2509,15 +2720,30 @@
             lastFocusedElement = document.activeElement;
             const modal = document.getElementById(id);
             modal.classList.add('active');
-            const focusable = modal.querySelector('button, input, select');
+            document.body.style.overflow = 'hidden';
+            const focusable = modal.querySelector('input, select, button');
             if (focusable) focusable.focus();
         }
 
         function closeModal(id) {
-            const modal = document.getElementById(id);
-            modal.classList.remove('active');
-            if (lastFocusedElement) lastFocusedElement.focus();
+            document.getElementById(id).classList.remove('active');
+            if (!document.querySelector('.modal-overlay.active')) document.body.style.overflow = '';
+            if (lastFocusedElement && document.body.contains(lastFocusedElement)) lastFocusedElement.focus();
         }
+
+        // click outside the box closes it; Tab stays inside the open dialog
+        document.addEventListener('mousedown', e => {
+            if (e.target.classList && e.target.classList.contains('modal-overlay')) closeModal(e.target.id);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Tab') return;
+            const act = Array.from(document.querySelectorAll('.modal-overlay.active')).pop();
+            if (!act) return;
+            const f = Array.from(act.querySelectorAll('button, input, select, textarea, a[href]')).filter(el => !el.disabled && el.offsetParent !== null);
+            if (!f.length) return;
+            if (!act.contains(document.activeElement) || (e.shiftKey && document.activeElement === f[0])) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
+            else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+        });
 
         function confirmAction(title, msg, onConfirm) {
             document.getElementById('confirmTitle').textContent = title;
