@@ -7,7 +7,7 @@ from sqlalchemy import or_
 from core.database import SessionLocal
 from modules.users.models import User
 from modules.auth.userverification import get_current_user
-from modules.finance.models import Account, AccountType, Category, Transaction, TransactionType
+from modules.finance.models import Account, AccountType, Category, Transaction, TransactionType, Budget, FinancialGoal, GoalContribution
 from modules.finance.schemas import (
     AccountCreate,
     AccountUpdate,
@@ -18,7 +18,17 @@ from modules.finance.schemas import (
     TransactionResponse,
     TransactionUpdate,
     TransferCreate,
+    BudgetCreate,
+    BudgetResponse,
+    BudgetStatusResponse,
+    GoalCreate,
+    GoalResponse,
+    GoalContributionCreate,
+    GoalContributionResponse,
+    DashboardSummaryResponse,
 )
+from datetime import date, datetime
+from modules.finance.services import FinanceService
 
 router = APIRouter(prefix="/api/finance", tags=["Finance"])
 
@@ -281,20 +291,6 @@ def delete_transaction(
     db.delete(tx)
     db.commit()
     return None
-
-from datetime import date, datetime
-from modules.finance.models import Budget, FinancialGoal, GoalContribution
-from modules.finance.schemas import (
-    BudgetCreate,
-    BudgetResponse,
-    BudgetStatusResponse,
-    GoalCreate,
-    GoalResponse,
-    GoalContributionCreate,
-    GoalContributionResponse,
-    DashboardSummaryResponse,
-)
-from modules.finance.services import FinanceService
 
 # -------------------------------------------------------------
 # BUDGETS

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
@@ -187,7 +188,7 @@ class TransactionResponse(BaseModel):
 
 class TransactionUpdate(BaseModel):
     amount: Optional[Decimal] = None
-    date: Optional[date] = None
+    date: Optional[datetime.date] = None
     description: Optional[str] = None
     type: Optional[TransactionType] = None
     account_id: Optional[int] = None
@@ -195,3 +196,4 @@ class TransactionUpdate(BaseModel):
     from_account_id: Optional[int] = None
     to_account_id: Optional[int] = None
     source_id: Optional[str] = None
+    model_config = ConfigDict(extra="ignore")
