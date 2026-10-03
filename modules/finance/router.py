@@ -7,7 +7,7 @@ from sqlalchemy import or_
 from core.database import SessionLocal
 from modules.users.models import User
 from modules.auth.userverification import get_current_user
-from modules.finance.models import Account, Category, Transaction, TransactionType
+from modules.finance.models import Account, AccountType, Category, Transaction, TransactionType
 from modules.finance.schemas import (
     AccountCreate,
     AccountUpdate,
@@ -16,6 +16,7 @@ from modules.finance.schemas import (
     CategoryResponse,
     TransactionCreate,
     TransactionResponse,
+    TransactionUpdate,
     TransferCreate,
 )
 
@@ -393,6 +394,12 @@ def contribute_to_goal(
     if not account:
         raise HTTPException(status_code=404, detail="Source account not found")
 
+    if account.type == AccountType.CREDIT_CARD:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot contribute to goals using a Credit Card account"
+        )
+
     # Record the contribution
     contribution = GoalContribution(
         goal_id=goal.id,
@@ -438,7 +445,7 @@ def get_dashboard_summary(
 @router.put("/transactions/{transaction_id}", response_model=TransactionResponse)
 def update_transaction(
     transaction_id: int,
-    payload: dict,  # Or your schema e.g. TransactionUpdate
+    data: TransactionUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -450,24 +457,17 @@ def update_transaction(
     if not tx:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
-    # Update fields
-    if "amount" in payload and payload["amount"] is not None:
-        tx.amount = payload["amount"]
-    if "date" in payload and payload["date"]:
-        tx.date = payload["date"]
-    if "description" in payload and payload["description"]:
-        tx.description = payload["description"]
-    if "type" in payload and payload["type"]:
-        raw_type = str(payload["type"]).upper()
-        tx.type = TransactionType[raw_type] if raw_type in TransactionType.__members__ else tx.type
-    if "account_id" in payload:
-        tx.account_id = payload["account_id"]
-    if "category_id" in payload:
-        tx.category_id = payload["category_id"]
-    if "from_account_id" in payload:
-        tx.from_account_id = payload["from_account_id"]
-    if "to_account_id" in payload:
-        tx.to_account_id = payload["to_account_id"]
+    # Extract only the fields sent in the request
+    update_data = data.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        if field == "type" and value is not None:
+            # Handle enum conversion safely if passed as string or enum instance
+            raw_type = value.value if hasattr(value, "value") else str(value).upper()
+            if raw_type in TransactionType.__members__:
+                tx.type = TransactionType[raw_type]
+        else:
+            setattr(tx, field, value)
 
     db.commit()
     db.refresh(tx)

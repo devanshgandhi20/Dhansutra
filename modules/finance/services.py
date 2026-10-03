@@ -72,7 +72,7 @@ class FinanceService:
                 AccountBalanceSummary(
                     id=account.id,
                     name=account.name,
-                    type=raw_type,
+                    type=account.type,
                     current_balance=Decimal(str(balance or "0.00")),
                     current_market_value=account.current_market_value
                 )

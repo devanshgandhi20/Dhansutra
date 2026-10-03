@@ -1305,6 +1305,17 @@
                 categories = await API.getCategories();
             }
 
+            goals = await API.getGoals();
+            const hasEmergency = goals.some(g => (g.name || '').toLowerCase().includes('emergency'));
+            if (!hasEmergency) {
+                await API.createGoal({
+                    name: 'Emergency Fund',
+                    target_amount: 150000,
+                    target_date: getFutureDate(12)
+                });
+                goals = await API.getGoals();
+            }
+
             await refreshData();
         }
 
@@ -1366,7 +1377,13 @@
             toSelect.innerHTML = accOpts;
             filterSelect.innerHTML = '<option value="all">All Accounts</option>' + accOpts;
 
-            goalSource.innerHTML = accounts.filter(a => a.type !== 'CREDIT_CARD').map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('');
+            // Filter out credit cards and include live balance in label
+            const validSavings = accounts.filter(a => a.type !== 'CREDIT_CARD');
+            goalSource.innerHTML = validSavings.map(a => {
+                const bal = Number(a.current_balance || a.starting_balance || 0);
+                return `<option value="${a.id}" data-balance="${bal}">${sanitize(a.name)} (Avail: ${formatINR(bal)})</option>`;
+            }).join('');
+
             updateCategoryDropdown();
         }
 
@@ -1555,21 +1572,36 @@
 
         function renderHealthScore(savingsRate, income, expenses) {
             const totalBudget = budgets.reduce((s, b) => s + Number(b.limit_amount || 0), 0);
-            const budgetUsage = totalBudget > 0 ? Math.round((expenses / totalBudget) * 100) : 0;
+            
+            let budgetUsage = 0;
+            let budgetDisplay = "No Cap";
+            let budgetScore = 30; // neutral fallback if no budget is configured
 
-            let score = 0;
-            if (savingsRate >= 20) score += 40; else score += Math.round((savingsRate / 20) * 40);
-            if (budgetUsage <= 85) score += 40; else score += Math.max(40 - (budgetUsage - 85), 0);
-            score += 20;
+            if (totalBudget > 0) {
+                budgetUsage = Math.round((expenses / totalBudget) * 100);
+                budgetDisplay = `${budgetUsage}%`;
+                if (budgetUsage <= 80) budgetScore = 40;
+                else if (budgetUsage <= 100) budgetScore = 25;
+                else budgetScore = Math.max(0, 40 - Math.round((budgetUsage - 100) / 2));
+            }
 
-            document.getElementById('healthScoreDisplay').textContent = `${Math.min(score, 100)} / 100`;
+            let savingsScore = 0;
+            if (savingsRate >= 30) savingsScore = 40;
+            else if (savingsRate >= 20) savingsScore = 30;
+            else if (savingsRate > 0) savingsScore = Math.round((savingsRate / 20) * 30);
+
+            const baseScore = 20; // baseline consistency points
+            const finalScore = Math.min(100, Math.max(0, savingsScore + budgetScore + baseScore));
+
+            document.getElementById('healthScoreDisplay').textContent = `${finalScore} / 100`;
             const pill = document.getElementById('healthGradePill');
-            pill.textContent = (score >= 75) ? 'Strong' : (score >= 50) ? 'Stable' : 'Needs Review';
-            pill.className = (score >= 50) ? 'pill' : 'pill warning';
+            pill.textContent = (finalScore >= 75) ? 'Strong' : (finalScore >= 50) ? 'Stable' : 'Needs Review';
+            pill.className = (finalScore >= 50) ? 'pill' : 'pill warning';
 
-            document.getElementById('lblSavingsRate').textContent = `${savingsRate}%`;
-            document.getElementById('barSavingsRate').style.width = `${Math.min(savingsRate, 100)}%`;
-            document.getElementById('lblBudgetUsage').textContent = `${budgetUsage}%`;
+            document.getElementById('lblSavingsRate').textContent = `${Number(savingsRate).toFixed(1)}%`;
+            document.getElementById('barSavingsRate').style.width = `${Math.min(Math.max(savingsRate, 0), 100)}%`;
+            
+            document.getElementById('lblBudgetUsage').textContent = budgetDisplay;
             document.getElementById('barBudgetUsage').style.width = `${Math.min(budgetUsage, 100)}%`;
         }
 
@@ -1935,28 +1967,59 @@
         }
 
         function openGoalContributionModal(id = null) {
-            selectedGoalId = id || (goals[0] ? goals[0].id : null);
-            if (!selectedGoalId) return;
+            if (!id) {
+                const ef = goals.find(g => (g.name || '').toLowerCase().includes('emergency'));
+                selectedGoalId = ef ? ef.id : (goals[0] ? goals[0].id : null);
+            } else {
+                selectedGoalId = id;
+            }
+
+            if (!selectedGoalId) {
+                showToast('Please create a goal or emergency fund target first', 'error');
+                return;
+            }
+
             const g = goals.find(x => x.id === selectedGoalId);
             document.getElementById('lblGoalFundTitle').textContent = `Add Funds: ${g ? g.name : 'Target'}`;
             document.getElementById('goalFundAmount').value = '';
+            populateSelects(); // refreshes balances
             openModal('modalGoalFund');
         }
 
         async function submitGoalContribution() {
             const amount = parseFloat(document.getElementById('goalFundAmount').value);
             const date = document.getElementById('goalFundDate').value;
-            const account_id = parseInt(document.getElementById('goalFundSource').value);
+            const sourceSelect = document.getElementById('goalFundSource');
+            const account_id = parseInt(sourceSelect.value);
+
+            const selectedOption = sourceSelect.selectedOptions[0];
+            const availableBalance = parseFloat(selectedOption?.dataset?.balance || 0);
 
             if (isNaN(amount) || amount <= 0 || !date || !account_id || !selectedGoalId) {
                 showToast('Specify valid amount, account, and date', 'error');
                 return;
             }
 
-            await API.contributeGoal(selectedGoalId, { account_id, amount, date, note: 'Fund allocation' });
-            closeModal('modalGoalFund');
-            await refreshData();
-            showToast('✓ Funds allocated to goal');
+            // Strict balance check: user cannot allocate money they do not have
+            if (amount > availableBalance) {
+                showToast(`Insufficient funds! Account only has ${formatINR(availableBalance)} available.`, 'error');
+                return;
+            }
+
+            const res = await API.contributeGoal(selectedGoalId, {
+                account_id,
+                amount,
+                date,
+                note: 'Fund allocation'
+            });
+
+            if (res && res.id) {
+                closeModal('modalGoalFund');
+                await refreshData();
+                showToast('✓ Funds allocated to goal');
+            } else {
+                showToast('Failed to allocate funds', 'error');
+            }
         }
 
         async function handleGoalSubmit(e) {
@@ -2079,8 +2142,8 @@
                 delete window[cb];
                 if (s.parentNode) document.body.removeChild(s);
 
-                const incoming = Array.isArray(response) 
-                    ? response 
+                const incoming = Array.isArray(response)
+                    ? response
                     : (response && Array.isArray(response.transactions) ? response.transactions : []);
 
                 if (response && response.error) {
@@ -2088,38 +2151,33 @@
                     return;
                 }
 
-                if (!incoming.length) {
-                    showToast('No transactions found', 'error');
-                    return;
-                }
+                // Get currently existing source IDs in database to prevent duplicates
+                const existingTxList = await API.getTransactions();
+                const existingSourceIds = new Set(
+                    existingTxList.map(t => String(t.source_id)).filter(Boolean)
+                );
 
-                // 1. Ensure target Axis account exists
                 let axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis')) 
-                               || accounts.find(a => a.type === 'BANK') 
-                               || accounts[0];
+                            || accounts.find(a => a.type === 'BANK') 
+                            || accounts[0];
 
-                // 2. Refresh & ensure valid Income and Expense categories
                 categories = await API.getCategories();
                 let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
                 let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
 
-                if (!incCat) {
-                    const createdInc = await API.createCategory({ name: 'Salary & Income', type: 'INCOME', icon: '💰' });
-                    categories = await API.getCategories();
-                    incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME') || createdInc;
+                // Filter out already imported transactions using source_id
+                const newIncoming = incoming.filter(item => {
+                    const sid = String(item.sourceId || item.id || `axis_${item.date}_${item.amount}`);
+                    return !existingSourceIds.has(sid);
+                });
+
+                if (!newIncoming.length) {
+                    showToast('All transactions from alerts are already imported!', 'success');
+                    return;
                 }
 
-                if (!expCat) {
-                    const createdExp = await API.createCategory({ name: 'General Outflow', type: 'EXPENSE', icon: '🛒' });
-                    categories = await API.getCategories();
-                    expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE') || createdExp;
-                }
-
-                // 3. Map transactions with guaranteed explicit uppercase type & correct category ID
-                const formatted = incoming.map(item => {
+                const formatted = newIncoming.map(item => {
                     const isIncome = String(item.type).toLowerCase() === 'income';
-                    const assignedCat = isIncome ? incCat : expCat;
-
                     return {
                         source_id: String(item.sourceId || item.id || `axis_${item.date}_${item.amount}`),
                         type: isIncome ? 'INCOME' : 'EXPENSE',
@@ -2127,31 +2185,15 @@
                         amount: Math.abs(parseFloat(item.amount) || 0),
                         description: item.description || (isIncome ? 'Direct Credit' : 'Bank Outflow'),
                         account_id: axisAccount ? axisAccount.id : accounts[0]?.id,
-                        category_id: assignedCat ? assignedCat.id : null
+                        category_id: isIncome ? (incCat?.id || null) : (expCat?.id || null)
                     };
                 }).filter(item => item.amount > 0);
 
-                // Send to stage
-                const backendStaged = await API.stageReceipts(formatted);
-
-                // Map using source_id rather than positional index
-                const formattedMap = new Map(formatted.map(item => [item.source_id, item]));
-
-                stagedSync = (backendStaged || []).map(t => {
-                    const orig = formattedMap.get(t.source_id) || {};
-                    return {
-                        ...t,
-                        type: orig.type || t.type || 'EXPENSE',
-                        category_id: orig.category_id || t.category_id,
-                        account_id: orig.account_id || t.account_id
-                    };
-                });
-
+                stagedSync = formatted;
                 document.getElementById('stagingCount').textContent = stagedSync.length;
                 const list = document.getElementById('stagingItemsList');
-                
                 list.innerHTML = stagedSync.map((t, idx) => {
-                    const isInc = String(t.type).toUpperCase() === 'INCOME';
+                    const isInc = t.type === 'INCOME';
                     return `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
                             <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
@@ -2169,7 +2211,6 @@
                         </div>
                     `;
                 }).join('');
-                
                 document.getElementById('gmailStagingWrap').style.display = 'block';
             };
 
@@ -2178,7 +2219,6 @@
                 if (s.parentNode) document.body.removeChild(s);
                 showToast('Failed to connect to Google Apps Script', 'error');
             };
-
             document.body.appendChild(s);
         }
 
@@ -2196,34 +2236,21 @@
             }
 
             showToast('Saving transactions...');
-
-            // 1. Ensure latest category maps
-            categories = await API.getCategories();
-            let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
-            let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
-
-            // 2. Resolve default Axis account
-            const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
-                             || accounts.find(a => a.type === 'BANK')
-                             || accounts[0];
-
-            // 3. Save each transaction directly to /api/finance/transactions
             let successCount = 0;
+
             for (const item of toCommit) {
-                const isInc = String(item.type || '').toUpperCase() === 'INCOME';
                 const payload = {
-                    type: isInc ? 'INCOME' : 'EXPENSE',
+                    type: item.type,
                     amount: Math.abs(parseFloat(item.amount)),
                     date: item.date,
                     description: item.description,
-                    account_id: item.account_id || (axisAccount ? axisAccount.id : accounts[0]?.id),
-                    category_id: isInc ? (incCat ? incCat.id : item.category_id) : (expCat ? expCat.id : item.category_id)
+                    account_id: item.account_id,
+                    category_id: item.category_id,
+                    source_id: item.source_id  // CRUCIAL: Pass source_id so DB knows it is saved
                 };
 
                 const res = await API.createTransaction(payload);
-                if (res && res.ok) {
-                    successCount++;
-                }
+                if (res && res.ok) successCount++;
             }
 
             closeModal('modalGmail');

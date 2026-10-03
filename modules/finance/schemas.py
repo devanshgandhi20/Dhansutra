@@ -184,3 +184,14 @@ class TransactionResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class TransactionUpdate(BaseModel):
+    amount: Optional[Decimal] = None
+    date: Optional[date] = None
+    description: Optional[str] = None
+    type: Optional[TransactionType] = None
+    account_id: Optional[int] = None
+    category_id: Optional[int] = None
+    from_account_id: Optional[int] = None
+    to_account_id: Optional[int] = None
+    source_id: Optional[str] = None
