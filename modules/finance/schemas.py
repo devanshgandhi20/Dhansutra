@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import date, datetime
+import datetime as _dt
 from decimal import Decimal
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,7 +37,7 @@ class BudgetStatusResponse(BaseModel):
 class GoalBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     target_amount: Decimal = Field(..., gt=0)
-    target_date: Optional[date] = None
+    target_date: Optional[_dt.date] = None
 
 
 class GoalCreate(GoalBase):
@@ -47,7 +47,7 @@ class GoalCreate(GoalBase):
 class GoalContributionCreate(BaseModel):
     account_id: int
     amount: Decimal = Field(..., gt=0)
-    date: date
+    date: _dt.date
     note: Optional[str] = Field(None, max_length=255)
 
 
@@ -56,7 +56,7 @@ class GoalContributionResponse(BaseModel):
     goal_id: int
     account_id: int
     amount: Decimal
-    date: date
+    date: _dt.date
     note: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
@@ -66,7 +66,7 @@ class GoalResponse(GoalBase):
     id: int
     user_id: int
     saved_amount: Decimal
-    created_at: datetime
+    created_at: _dt.date
     contributions: List[GoalContributionResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -101,7 +101,7 @@ class AccountBase(BaseModel):
     type: AccountType
     starting_balance: Decimal = Field(default=Decimal("0.00"))
     current_market_value: Optional[Decimal] = None
-    anchor_date: Optional[date] = None
+    anchor_date: Optional[_dt.date] = None
 
 
 class AccountCreate(AccountBase):
@@ -113,13 +113,13 @@ class AccountUpdate(BaseModel):
     type: Optional[AccountType] = None
     starting_balance: Optional[Decimal] = None
     current_market_value: Optional[Decimal] = None
-    anchor_date: Optional[date] = None
+    anchor_date: Optional[_dt.date] = None
 
 
 class AccountResponse(AccountBase):
     id: int
     user_id: int
-    created_at: datetime
+    created_at: _dt.date
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -139,7 +139,7 @@ class CategoryResponse(CategoryBase):
     id: int
     user_id: Optional[int] = None
     is_system: bool
-    created_at: datetime
+    created_at: _dt.date
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -148,7 +148,7 @@ class CategoryResponse(CategoryBase):
 class TransactionBase(BaseModel):
     type: TransactionType
     amount: Decimal = Field(..., gt=0)
-    date: date
+    date: _dt.date
     description: Optional[str] = Field(None, max_length=255)
     category_id: Optional[int] = None
     account_id: Optional[int] = None
@@ -162,7 +162,7 @@ class TransactionCreate(TransactionBase):
 
 class TransferCreate(BaseModel):
     amount: Decimal = Field(..., gt=0)
-    date: date
+    date: _dt.date
     from_account_id: int
     to_account_id: int
     description: Optional[str] = Field(default="Account Transfer", max_length=255)
@@ -173,7 +173,7 @@ class TransactionResponse(BaseModel):
     user_id: int
     type: TransactionType
     amount: Decimal
-    date: date
+    date: _dt.date
     description: Optional[str]
     category_id: Optional[int]
     account_id: Optional[int]
@@ -181,13 +181,13 @@ class TransactionResponse(BaseModel):
     to_account_id: Optional[int]
     source: str
     source_id: Optional[str]
-    created_at: datetime
+    created_at: _dt.date
 
     model_config = ConfigDict(from_attributes=True)
 
 class TransactionUpdate(BaseModel):
     amount: Optional[Decimal] = None
-    date: Optional[date] = None
+    date: Optional[_dt.date] = None
     description: Optional[str] = None
     type: Optional[TransactionType] = None
     account_id: Optional[int] = None
