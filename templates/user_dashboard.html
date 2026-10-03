@@ -670,7 +670,7 @@
                     <div class="card" style="border: 1px solid var(--gold);">
                         <div class="card-header">
                             <h2 class="section-title">Emergency Fund Runway</h2>
-                            <span class="pill" id="efRunwayPill">0.0 Mo</span>
+                            <span class="pill" id="efRunwayPill">0.0 Mo Runway</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: baseline;">
                             <div class="card-value" id="efCurrentTotal">₹0.00</div>
@@ -678,7 +678,7 @@
                         </div>
                         <div class="progress-track" role="progressbar" aria-label="Emergency Fund Progress"><div class="progress-fill" id="efProgressBar" style="width: 0%;"></div></div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-                            <span class="caption-text" id="efBurnText">Essential monthly burn: ₹0.00</span>
+                            <span class="caption-text" id="efBurnText">Monthly burn: ₹0.00</span>
                             <button class="btn btn-secondary btn-pill" style="padding: 0.3rem 0.75rem; font-size: 11px;" onclick="openGoalContributionModal()">+ Add Funds</button>
                         </div>
                     </div>
@@ -692,15 +692,21 @@
 
                         <div style="margin-bottom: 0.5rem;">
                             <div style="display: flex; justify-content: space-between;" class="caption-text">
-                                <span>Savings Rate (>20%)</span><span id="lblSavingsRate">0%</span>
+                                <span>Savings Rate (≥20%)</span><span id="lblSavingsRate">0%</span>
                             </div>
                             <div class="progress-track"><div class="progress-fill" id="barSavingsRate" style="width: 0%;"></div></div>
                         </div>
                         <div style="margin-bottom: 0.5rem;">
                             <div style="display: flex; justify-content: space-between;" class="caption-text">
-                                <span>Budget Discipline (&lt;85%)</span><span id="lblBudgetUsage">0%</span>
+                                <span>Budget Discipline (≤100%)</span><span id="lblBudgetUsage">0%</span>
                             </div>
                             <div class="progress-track"><div class="progress-fill" id="barBudgetUsage" style="width: 0%;"></div></div>
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <div style="display: flex; justify-content: space-between;" class="caption-text">
+                                <span>Emergency Fund (6 months)</span><span id="lblEmergency">0.0 mo</span>
+                            </div>
+                            <div class="progress-track"><div class="progress-fill" id="barEmergency" style="width: 0%;"></div></div>
                         </div>
                         <div id="healthInsightsContainer" style="margin-top: 0.75rem;"></div>
                     </div>
@@ -1039,7 +1045,7 @@
                     <input type="date" id="goalFundDate" class="form-control" required>
                 </div>
             </div>
-            <button class="btn btn-primary" style="width: 100%;" onclick="submitGoalContribution()">Confirm Fund Transfer</button>
+            <button type="button" class="btn btn-primary" id="btnGoalFundSubmit" style="width: 100%;" onclick="submitGoalContribution()">Confirm Fund Transfer</button>
         </div>
     </div>
 
@@ -1062,6 +1068,22 @@
                 <span class="caption-text" style="font-weight: 700; margin-bottom: 0.5rem;">Review Detected Receipts (<span id="stagingCount">0</span>)</span>
                 <div id="stagingItemsList" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; margin-bottom: 1rem;"></div>
                 <button class="btn btn-primary" style="width: 100%;" onclick="commitStagedTransactions()">Commit Selected Entries</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Delete Category -->
+    <div class="modal-overlay" id="modalCatDelete" role="dialog" aria-modal="true" aria-labelledby="catDelTitle">
+        <div class="modal-box">
+            <h3 class="section-title" id="catDelTitle" style="color: var(--terracotta);">Delete Category</h3>
+            <p class="body-text" id="catDelMsg" style="margin: 0.75rem 0 1rem; color: var(--text-muted);"></p>
+            <div class="form-group" id="catDelMoveWrap">
+                <label for="catDelTarget">Move transactions to</label>
+                <select id="catDelTarget" class="form-control"></select>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('modalCatDelete')">Cancel</button>
+                <button type="button" class="btn btn-destructive" id="btnCatDelConfirm">Delete</button>
             </div>
         </div>
     </div>
@@ -1096,24 +1118,22 @@
                 return res ? await res.json() : null;
             },
             async updateAccount(id, payload) {
-                const res = await this.req(`/api/finance/accounts/${id}`, {
+                return await this.req(`/api/finance/accounts/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                return res ? await res.json() : null;
             },
             async getCategories() {
                 const res = await this.req('/api/finance/categories');
                 return res ? await res.json() : [];
             },
             async createCategory(payload) {
-                const res = await this.req('/api/finance/categories', {
+                return await this.req('/api/finance/categories', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                return res ? await res.json() : null;
             },
             async deleteCategory(id) {
                 return await this.req(`/api/finance/categories/${id}`, { method: 'DELETE' });
@@ -1156,32 +1176,29 @@
                 return res ? await res.json() : [];
             },
             async setBudget(payload) {
-                const res = await this.req('/api/finance/budgets', {
+                return await this.req('/api/finance/budgets', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                return res ? await res.json() : null;
             },
             async getGoals() {
                 const res = await this.req('/api/finance/goals');
                 return res ? await res.json() : [];
             },
             async createGoal(payload) {
-                const res = await this.req('/api/finance/goals', {
+                return await this.req('/api/finance/goals', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                return res ? await res.json() : null;
             },
             async contributeGoal(id, payload) {
-                const res = await this.req(`/api/finance/goals/${id}/contribute`, {
+                return await this.req(`/api/finance/goals/${id}/contribute`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                return res ? await res.json() : null;
             },
             async getDashboardSummary(dateStr) {
                 const q = dateStr ? `?date=${dateStr}` : '';
@@ -1224,8 +1241,8 @@
         let lastFocusedElement = null;
 
         function sanitize(str) {
-            if (typeof str !== 'string') return String(str || '');
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
 
         function formatINR(v) {
@@ -1242,16 +1259,53 @@
         function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
         function formatMonthStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
         function parseMonthInput(v) { const [y, m] = v.split('-').map(Number); return new Date(y, m - 1, 1); }
-        function getFutureDate(m) { const d = new Date(); d.setMonth(d.getMonth() + m); return d.toISOString().split('T')[0]; }
+        // Local-time date helpers (toISOString()/valueAsDate use UTC and give "yesterday" before 5:30 AM IST)
+        function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+        function todayStr() { return toDateStr(new Date()); }
+        function getFutureDate(m) {
+            const d = new Date();
+            const day = d.getDate();
+            d.setDate(1);
+            d.setMonth(d.getMonth() + m);
+            d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+            return toDateStr(d);
+        }
+
+        // Pulls a readable message out of an API error response (handles FastAPI's list-style `detail`)
+        async function readError(res, fallback) {
+            try {
+                const j = await res.json();
+                const d = j.detail ?? j.error ?? j.message;
+                if (Array.isArray(d)) return d.map(x => x.msg || JSON.stringify(x)).join('; ') || fallback;
+                return (typeof d === 'string' && d) || fallback;
+            } catch { return fallback; }
+        }
+
+        async function okOrToast(res, fallback) {
+            if (res && res.ok) return true;
+            showToast(await readError(res, fallback), 'error');
+            return false;
+        }
+
+        // Live balance for an account: dashboard summary (reconciled) first, then account record
+        function getAccountBalance(a) {
+            const live = (dashboardData && Array.isArray(dashboardData.accounts))
+                ? dashboardData.accounts.find(x => String(x.id) === String(a.id)) : null;
+            return Number(live?.current_balance ?? a.current_balance ?? a.starting_balance ?? 0) || 0;
+        }
+
+        window.addEventListener('unhandledrejection', e => {
+            console.error(e.reason);
+            showToast('Something went wrong: ' + (e.reason && e.reason.message ? e.reason.message : 'unexpected error'), 'error');
+        });
+        window.addEventListener('error', e => { console.error(e.error || e.message); showToast('Something went wrong: ' + e.message, 'error'); });
 
         document.addEventListener('DOMContentLoaded', async () => {
             applyTheme();
             initMonthSelector();
-            document.getElementById('txDate').valueAsDate = new Date();
-            document.getElementById('goalFundDate').valueAsDate = new Date();
+            document.getElementById('txDate').value = todayStr();
+            document.getElementById('goalFundDate').value = todayStr();
             document.getElementById('goalDue').value = getFutureDate(6);
-
-            await bootstrapData();
 
             document.getElementById('formTransaction').addEventListener('submit', handleTransactionSubmit);
             document.getElementById('formNewGoal').addEventListener('submit', handleGoalSubmit);
@@ -1267,14 +1321,26 @@
 
             window.addEventListener('keydown', e => {
                 if (e.key === 'Escape') {
-                    const activeModal = document.querySelector('.modal-overlay.active');
+                    const activeModal = document.querySelector('#modalConfirm.active') || document.querySelector('.modal-overlay.active');
                     if (activeModal) closeModal(activeModal.id);
                 }
             });
+
+            document.getElementById('goalFundAmount').addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); submitGoalContribution(); }
+            });
+
+            try {
+                await bootstrapData();
+            } catch (err) {
+                console.error(err);
+                showToast('Could not load your data. Please refresh the page.', 'error');
+            }
         });
 
         async function bootstrapData() {
             accounts = await API.getAccounts();
+            if (!Array.isArray(accounts)) throw new Error('Could not load accounts');
             if (accounts.length === 0) {
                 const seedAccounts = [
                     { name: 'Axis Bank', type: 'BANK', starting_balance: 0 },
@@ -1290,6 +1356,7 @@
             }
 
             categories = await API.getCategories();
+            if (!Array.isArray(categories)) throw new Error('Could not load categories');
             if (categories.length === 0) {
                 const seedCategories = [
                     { name: 'Salary & Wages', type: 'INCOME', icon: '💼' },
@@ -1306,6 +1373,7 @@
             }
 
             goals = await API.getGoals();
+            if (!Array.isArray(goals)) throw new Error('Could not load goals');
             const hasEmergency = goals.some(g => (g.name || '').toLowerCase().includes('emergency'));
             if (!hasEmergency) {
                 await API.createGoal({
@@ -1321,22 +1389,24 @@
 
         async function refreshData() {
             const mStr = formatMonthStr(selectedMonth);
-            const [txs, g, bStatus, bList, summary] = await Promise.all([
+            const [accs, txs, g, bStatus, bList, summary] = await Promise.all([
+                API.getAccounts(),
                 API.getTransactions(),
                 API.getGoals(),
                 API.getBudgetStatus(mStr),
                 API.getBudgets(mStr),
-                API.getDashboardSummary(new Date().toISOString().split('T')[0])
+                API.getDashboardSummary(todayStr())
             ]);
 
-            transactions = txs;
-            goals = g;
-            budgets = bStatus;
+            if (Array.isArray(accs)) accounts = accs;   // keeps balances / names fresh after every change
+            transactions = Array.isArray(txs) ? txs : [];
+            goals = Array.isArray(g) ? g : [];
+            budgets = Array.isArray(bStatus) ? bStatus : [];
             dashboardData = summary;
 
             populateSelects();
             updateNoteSuggestions();
-            renderUI(bList);
+            renderUI(Array.isArray(bList) ? bList : []);
         }
 
         function switchTab(tabId, btn) {
@@ -1377,12 +1447,17 @@
             toSelect.innerHTML = accOpts;
             filterSelect.innerHTML = '<option value="all">All Accounts</option>' + accOpts;
 
-            // Filter out credit cards and include live balance in label
-            const validSavings = accounts.filter(a => a.type !== 'CREDIT_CARD');
-            goalSource.innerHTML = validSavings.map(a => {
-                const bal = Number(a.current_balance || a.starting_balance || 0);
-                return `<option value="${a.id}" data-balance="${bal}">${sanitize(a.name)} (Avail: ${formatINR(bal)})</option>`;
-            }).join('');
+            // Eligible funding sources: not a credit card, not the goal reserve itself.
+            // Balance comes from the live dashboard summary, not the (stale) starting balance.
+            const prevSource = goalSource.value;
+            const validSavings = accounts.filter(a => !['CREDIT_CARD', 'GOAL_RESERVE'].includes(String(a.type || '').toUpperCase()));
+            goalSource.innerHTML = validSavings.length
+                ? validSavings.map(a => {
+                    const bal = getAccountBalance(a);
+                    return `<option value="${a.id}" data-balance="${bal}">${sanitize(a.name)} (Avail: ${formatINR(bal)})</option>`;
+                }).join('')
+                : '<option value="" disabled selected>No eligible accounts</option>';
+            if (prevSource && Array.from(goalSource.options).some(o => o.value === prevSource)) goalSource.value = prevSource;
 
             updateCategoryDropdown();
         }
@@ -1426,15 +1501,30 @@
             datalist.innerHTML = uniqueNotes.map(note => `<option value="${sanitize(note)}"></option>`).join('');
         }
 
+        // Income / expense / savings for the month picked in the selector (same data the ledger uses)
+        function monthStats() {
+            const key = formatMonthStr(selectedMonth);
+            let income = 0, expense = 0;
+            transactions.forEach(t => {
+                if (!String(t.date || '').startsWith(key)) return;
+                const ty = (t.type || '').toUpperCase();
+                if (ty === 'INCOME') income += Number(t.amount) || 0;
+                else if (ty === 'EXPENSE') expense += Number(t.amount) || 0;
+            });
+            const savings = income - expense;
+            return { income, expense, savings, rate: income > 0 ? (savings / income) * 100 : 0 };
+        }
+
         function renderUI(rawBudgets = []) {
             if (dashboardData) {
                 document.getElementById('heroNetWorth').textContent = formatINR(dashboardData.net_worth);
-                document.getElementById('valMonthlyIncome').textContent = formatINR(dashboardData.monthly_income);
-                document.getElementById('valMonthlyExpense').textContent = formatINR(dashboardData.monthly_expense);
-                document.getElementById('valMonthlySurplus').textContent = formatINR(dashboardData.monthly_savings);
-                renderAccountCards(dashboardData.accounts);
-                renderHealthScore(dashboardData.savings_rate, dashboardData.monthly_income, dashboardData.monthly_expense);
+                renderAccountCards(dashboardData.accounts || []);
             }
+            const ms = monthStats();
+            document.getElementById('valMonthlyIncome').textContent = formatINR(ms.income);
+            document.getElementById('valMonthlyExpense').textContent = formatINR(ms.expense);
+            document.getElementById('valMonthlySurplus').textContent = formatINR(ms.savings);
+            renderHealthScore(ms.rate, ms.income, ms.expense);
 
             renderRankedOutflows();
             renderMoMComparison();
@@ -1552,57 +1642,80 @@
             }).join('');
         }
 
-        function renderEmergencyRunway() {
-            const ef = goals.find(g => (g.name || '').toLowerCase().includes('emergency')) || goals[0];
-            if (!ef) return;
-
-            const saved = Number(ef.saved_amount || 0);
-            const target = Number(ef.target_amount || 150000);
-            const pct = Math.min(Math.round((saved / target) * 100), 100);
-
-            const burn = (dashboardData && dashboardData.monthly_expense > 0) ? Number(dashboardData.monthly_expense) : (target / 6);
-            const runwayMonths = (saved / Math.max(burn, 1)).toFixed(1);
-
-            document.getElementById('efCurrentTotal').textContent = formatINR(saved);
-            document.getElementById('efTargetTotal').textContent = `of ${formatINR(target)} Target`;
-            document.getElementById('efProgressBar').style.width = `${pct}%`;
-            document.getElementById('efRunwayPill').textContent = `${runwayMonths} Mo Runway`;
-            document.getElementById('efBurnText').textContent = `Monthly burn: ${formatINR(burn)}`;
+        // Average monthly spend over up to 3 months before the selected one (a partial month understates burn)
+        function avgMonthlyBurn() {
+            const monthTotal = d => {
+                const key = formatMonthStr(d);
+                return transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && String(t.date || '').startsWith(key))
+                    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+            };
+            const totals = [1, 2, 3].map(i => monthTotal(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1))).filter(v => v > 0);
+            if (!totals.length) { const cur = monthTotal(selectedMonth); return cur > 0 ? cur : 0; }
+            return totals.reduce((a, b) => a + b, 0) / totals.length;
         }
 
-        function renderHealthScore(savingsRate, income, expenses) {
-            const totalBudget = budgets.reduce((s, b) => s + Number(b.limit_amount || 0), 0);
-            
-            let budgetUsage = 0;
-            let budgetDisplay = "No Cap";
-            let budgetScore = 30; // neutral fallback if no budget is configured
+        function getEmergencyStatus() {
+            const ef = goals.find(g => (g.name || '').toLowerCase().includes('emergency')) || goals[0];
+            if (!ef) return null;
+            const saved = Number(ef.saved_amount) || 0;
+            const target = Number(ef.target_amount) || 150000;
+            const burn = avgMonthlyBurn() || (target / 6);
+            return { saved, target, burn, months: saved / Math.max(burn, 1) };
+        }
 
-            if (totalBudget > 0) {
-                budgetUsage = Math.round((expenses / totalBudget) * 100);
+        function renderEmergencyRunway() {
+            const e = getEmergencyStatus();
+            if (!e) return;
+            const pct = Math.min(Math.round((e.saved / e.target) * 100), 100);
+            document.getElementById('efCurrentTotal').textContent = formatINR(e.saved);
+            document.getElementById('efTargetTotal').textContent = `of ${formatINR(e.target)} Target`;
+            document.getElementById('efProgressBar').style.width = `${pct}%`;
+            document.getElementById('efRunwayPill').textContent = `${e.months.toFixed(1)} Mo Runway`;
+            document.getElementById('efBurnText').textContent = `Avg monthly spend: ${formatINR(e.burn)}`;
+        }
+
+        // 100 pts: savings rate 40 (20%+ target, per 50/30/20), budget discipline 30, emergency fund 30 (6 months = full)
+        function renderHealthScore(savingsRate, income, expenses) {
+            savingsRate = Number(savingsRate) || 0;
+            const savingsScore = savingsRate >= 20 ? 40 : savingsRate > 0 ? Math.round((savingsRate / 20) * 40) : 0;
+
+            const capped = budgets.filter(b => Number(b.limit_amount) > 0);
+            const totalCap = capped.reduce((a, b) => a + Number(b.limit_amount), 0);
+            const totalSpent = capped.reduce((a, b) => a + Number(b.spent_amount || 0), 0);
+            let budgetUsage = 0, budgetDisplay = 'No Cap', budgetScore = 15; // neutral until budgets exist
+            if (totalCap > 0) {
+                budgetUsage = Math.round((totalSpent / totalCap) * 100);
                 budgetDisplay = `${budgetUsage}%`;
-                if (budgetUsage <= 80) budgetScore = 40;
-                else if (budgetUsage <= 100) budgetScore = 25;
-                else budgetScore = Math.max(0, 40 - Math.round((budgetUsage - 100) / 2));
+                budgetScore = budgetUsage <= 90 ? 30 : budgetUsage <= 100 ? 22 : Math.max(0, 22 - Math.round((budgetUsage - 100) / 2));
             }
 
-            let savingsScore = 0;
-            if (savingsRate >= 30) savingsScore = 40;
-            else if (savingsRate >= 20) savingsScore = 30;
-            else if (savingsRate > 0) savingsScore = Math.round((savingsRate / 20) * 30);
+            const e = getEmergencyStatus();
+            const months = e ? e.months : 0;
+            const efScore = Math.min(30, Math.round((months / 6) * 30));
 
-            const baseScore = 20; // baseline consistency points
-            const finalScore = Math.min(100, Math.max(0, savingsScore + budgetScore + baseScore));
-
+            const finalScore = Math.min(100, Math.max(0, savingsScore + budgetScore + efScore));
             document.getElementById('healthScoreDisplay').textContent = `${finalScore} / 100`;
             const pill = document.getElementById('healthGradePill');
-            pill.textContent = (finalScore >= 75) ? 'Strong' : (finalScore >= 50) ? 'Stable' : 'Needs Review';
-            pill.className = (finalScore >= 50) ? 'pill' : 'pill warning';
+            pill.textContent = finalScore >= 75 ? 'Strong' : finalScore >= 50 ? 'Stable' : 'Needs Review';
+            pill.className = finalScore >= 50 ? 'pill' : 'pill warning';
 
-            document.getElementById('lblSavingsRate').textContent = `${Number(savingsRate).toFixed(1)}%`;
+            document.getElementById('lblSavingsRate').textContent = `${savingsRate.toFixed(1)}%`;
             document.getElementById('barSavingsRate').style.width = `${Math.min(Math.max(savingsRate, 0), 100)}%`;
-            
             document.getElementById('lblBudgetUsage').textContent = budgetDisplay;
             document.getElementById('barBudgetUsage').style.width = `${Math.min(budgetUsage, 100)}%`;
+            document.getElementById('lblEmergency').textContent = `${months.toFixed(1)} mo`;
+            document.getElementById('barEmergency').style.width = `${Math.min((months / 6) * 100, 100)}%`;
+
+            const tips = [];
+            tips.push(savingsRate >= 20
+                ? `Saving ${savingsRate.toFixed(1)}% of income — above the 20% guideline.`
+                : `Savings rate is ${savingsRate.toFixed(1)}%. The 50/30/20 guideline aims for at least 20%.`);
+            if (months < 3) tips.push(`Emergency fund covers ${months.toFixed(1)} months of spending. Aim for 3–6 months.`);
+            if (totalCap > 0 && budgetUsage > 100) tips.push(`Budgeted categories are ${budgetUsage - 100}% over their limits.`);
+            else if (totalCap > 0 && budgetUsage >= 90) tips.push(`You've used ${budgetUsage}% of your budget — close to the limit.`);
+            if (totalCap === 0) tips.push('Set category budgets to track spending discipline.');
+            document.getElementById('healthInsightsContainer').innerHTML =
+                tips.slice(0, 3).map(t => `<div class="caption-text" style="margin-bottom:4px;">• ${sanitize(t)}</div>`).join('');
         }
 
         function renderLedger() {
@@ -1664,10 +1777,10 @@
 
                 html += `
                     <div class="accordion-group ${isOpen ? 'open' : ''}">
-                        <div class="accordion-header" onclick="toggleDateAccordion('${dateKey}')">
+                        <div class="accordion-header" onclick="toggleDateAccordion('${sanitize(dateKey)}')">
                             <div class="accordion-header-left">
                                 <span class="accordion-arrow">▶</span>
-                                <span>${dateKey}</span>
+                                <span>${sanitize(dateKey)}</span>
                                 <span class="caption-text">(${dayTxList.length})</span>
                             </div>
                             <div style="font-size: 13px; font-weight: 700;" class="${dailyNet >= 0 ? 'amount-pos' : 'amount-neg'}">
@@ -1772,7 +1885,7 @@
                 </div>
                 <div style="display:flex; justify-content:space-between; padding:0.6rem 0;">
                     <span class="caption-text">Date</span>
-                    <span style="font-weight:600;">${t.date}</span>
+                    <span style="font-weight:600;">${sanitize(t.date)}</span>
                 </div>
             `;
 
@@ -1783,8 +1896,12 @@
 
             document.getElementById('btnDetailDelete').onclick = () => {
                 closeModal('txDetailModal');
-                confirmAction('Delete Transaction', `Permanently delete "${sanitize(t.description)}"?`, async () => {
-                    await API.deleteTransaction(t.id);
+                confirmAction('Delete Transaction', `Permanently delete "${t.description}"?`, async () => {
+                    const res = await API.deleteTransaction(t.id);
+                    if (!res || !res.ok) {
+                        showToast(await readError(res, 'Failed to delete transaction'), 'error');
+                        return;
+                    }
                     await refreshData();
                     showToast('✓ Transaction deleted');
                 });
@@ -1821,7 +1938,7 @@
                 document.getElementById('btnTxSubmit').textContent = 'Save Transaction';
                 document.getElementById('txEditingId').value = '';
                 setFormType('expense');
-                document.getElementById('txDate').valueAsDate = new Date();
+                document.getElementById('txDate').value = todayStr();
             }
 
             openModal('modalTransaction');
@@ -1829,42 +1946,65 @@
 
         async function handleTransactionSubmit(e) {
             e.preventDefault();
+            const submitBtn = document.getElementById('btnTxSubmit');
+            if (submitBtn.disabled) return;
+
             const editId = document.getElementById('txEditingId').value;
             const amount = parseFloat(document.getElementById('txAmount').value);
             const date = document.getElementById('txDate').value;
             const description = document.getElementById('txDescription').value.trim();
 
+            if (!(amount > 0) || !date || !description) {
+                showToast('Enter a valid amount, date, and description', 'error');
+                return;
+            }
+
+            let payload, failMsg;
             if (currentFormType === 'transfer') {
                 const from_account_id = parseInt(document.getElementById('txFromAccount').value);
                 const to_account_id = parseInt(document.getElementById('txToAccount').value);
+                if (!from_account_id || !to_account_id) {
+                    showToast('Select both accounts for the transfer', 'error');
+                    return;
+                }
                 if (from_account_id === to_account_id) {
                     showToast('Source and destination cannot be identical', 'error');
                     return;
                 }
-                const payload = { amount, date, description, from_account_id, to_account_id, type: 'TRANSFER' };
-                const res = editId ? await API.updateTransaction(editId, payload) : await API.createTransfer(payload);
-                if (!res || !res.ok) {
-                    const err = res ? await res.json() : {};
-                    showToast(err.detail || 'Transfer operation failed', 'error');
-                    return;
-                }
+                payload = { amount, date, description, from_account_id, to_account_id, type: 'TRANSFER' };
+                failMsg = 'Transfer operation failed';
             } else {
                 const account_id = parseInt(document.getElementById('txAccount').value);
                 const category_id = parseInt(document.getElementById('txCategory').value);
-                const payload = {
-                    type: currentFormType.toUpperCase(),
-                    amount,
-                    date,
-                    description,
-                    account_id,
-                    category_id
-                };
-                const res = editId ? await API.updateTransaction(editId, payload) : await API.createTransaction(payload);
-                if (!res || !res.ok) {
-                    const err = res ? await res.json() : {};
-                    showToast(err.detail || 'Failed to save transaction', 'error');
+                if (!account_id || !category_id) {
+                    showToast('Select an account and a category (add categories in Settings if the list is empty)', 'error');
                     return;
                 }
+                payload = { type: currentFormType.toUpperCase(), amount, date, description, account_id, category_id };
+                failMsg = 'Failed to save transaction';
+            }
+
+            if (editId) {
+                const orig = transactions.find(t => String(t.id) === String(editId));
+                if (orig && orig.source_id) payload.source_id = orig.source_id;
+            }
+
+            submitBtn.disabled = true;
+            try {
+                let res;
+                if (editId) res = await API.updateTransaction(editId, payload);
+                else res = (currentFormType === 'transfer') ? await API.createTransfer(payload) : await API.createTransaction(payload);
+
+                if (!res || !res.ok) {
+                    showToast(await readError(res, failMsg), 'error');
+                    return;
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Network error — nothing was saved', 'error');
+                return;
+            } finally {
+                submitBtn.disabled = false;
             }
 
             openAccordions.add(date);
@@ -1880,7 +2020,8 @@
 
             const now = new Date();
             const daysInMo = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
-            const currDay = (now.getMonth() === selectedMonth.getMonth()) ? now.getDate() : 1;
+            const isCurrentMonth = now.getFullYear() === selectedMonth.getFullYear() && now.getMonth() === selectedMonth.getMonth();
+            const currDay = isCurrentMonth ? now.getDate() : 1;
             const daysLeft = Math.max(daysInMo - currDay + 1, 1);
             const safeDaily = remaining > 0 ? (remaining / daysLeft) : 0;
 
@@ -1932,7 +2073,7 @@
                 const category_id = parseInt(inp.dataset.cid);
                 const limit_amount = parseFloat(inp.value) || 0;
                 if (limit_amount >= 0) {
-                    await API.setBudget({ category_id, month: mStr, limit_amount });
+                    if (!(await okOrToast(await API.setBudget({ category_id, month: mStr, limit_amount }), 'Failed to save budget limits'))) return;
                 }
             }
             await refreshData();
@@ -1947,7 +2088,7 @@
             }
 
             container.innerHTML = goals.map(g => {
-                const pct = Math.min(Math.round((Number(g.saved_amount || 0) / Number(g.target_amount || 1)) * 100), 100);
+                const pct = Math.min(Math.round((Number(g.saved_amount || 0) / (Number(g.target_amount) || 1)) * 100), 100);
                 return `
                     <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1955,47 +2096,55 @@
                             <span class="pill">${pct}%</span>
                         </div>
                         <div class="caption-text" style="margin: 4px 0;">
-                            ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)} target · Due ${g.target_date || 'Ongoing'}
+                            ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)} target · Due ${sanitize(g.target_date || 'Ongoing')}
                         </div>
                         <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
                         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
-                            <button class="btn btn-secondary btn-pill" style="padding:0.25rem 0.65rem; font-size:11px;" onclick="openGoalContributionModal(${g.id})">+ Add Funds</button>
+                            <button class="btn btn-secondary btn-pill" style="padding:0.25rem 0.65rem; font-size:11px;" onclick="openGoalContributionModal('${sanitize(g.id)}')">+ Add Funds</button>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function openGoalContributionModal(id = null) {
-            if (!id) {
-                const ef = goals.find(g => (g.name || '').toLowerCase().includes('emergency'));
-                selectedGoalId = ef ? ef.id : (goals[0] ? goals[0].id : null);
-            } else {
-                selectedGoalId = id;
-            }
+        let goalFundBusy = false;
 
-            if (!selectedGoalId) {
+        // With no id (dashboard "+ Add Funds"), targets the Emergency Fund, else the first goal.
+        function openGoalContributionModal(id = null) {
+            const hasId = id !== null && id !== undefined && id !== '';
+            const goal = hasId
+                ? goals.find(x => String(x.id) === String(id))
+                : (goals.find(g => (g.name || '').toLowerCase().includes('emergency')) || goals[0]);
+
+            if (!goal) {
                 showToast('Please create a goal or emergency fund target first', 'error');
                 return;
             }
+            selectedGoalId = goal.id;
 
-            const g = goals.find(x => x.id === selectedGoalId);
-            document.getElementById('lblGoalFundTitle').textContent = `Add Funds: ${g ? g.name : 'Target'}`;
+            document.getElementById('lblGoalFundTitle').textContent = `Add Funds: ${goal.name}`;
             document.getElementById('goalFundAmount').value = '';
-            populateSelects(); // refreshes balances
+            document.getElementById('goalFundDate').value = todayStr();
+            populateSelects(); // refreshes source accounts + live balances
+
+            if (!document.getElementById('goalFundSource').value) {
+                showToast('No eligible source account (bank / cash) available', 'error');
+                return;
+            }
             openModal('modalGoalFund');
+            document.getElementById('goalFundAmount').focus();
         }
 
         async function submitGoalContribution() {
-            const amount = parseFloat(document.getElementById('goalFundAmount').value);
+            if (goalFundBusy) return;
+
+            const amount = Math.round(parseFloat(document.getElementById('goalFundAmount').value) * 100) / 100;
             const date = document.getElementById('goalFundDate').value;
             const sourceSelect = document.getElementById('goalFundSource');
             const account_id = parseInt(sourceSelect.value);
+            const availableBalance = Number(sourceSelect.selectedOptions[0]?.dataset?.balance || 0);
 
-            const selectedOption = sourceSelect.selectedOptions[0];
-            const availableBalance = parseFloat(selectedOption?.dataset?.balance || 0);
-
-            if (isNaN(amount) || amount <= 0 || !date || !account_id || !selectedGoalId) {
+            if (!(amount > 0) || !date || !account_id || selectedGoalId === null || selectedGoalId === undefined) {
                 showToast('Specify valid amount, account, and date', 'error');
                 return;
             }
@@ -2006,20 +2155,29 @@
                 return;
             }
 
-            const res = await API.contributeGoal(selectedGoalId, {
-                account_id,
-                amount,
-                date,
-                note: 'Fund allocation'
-            });
-
-            if (res && res.id) {
-                closeModal('modalGoalFund');
-                await refreshData();
-                showToast('✓ Funds allocated to goal');
-            } else {
-                showToast('Failed to allocate funds', 'error');
+            const btn = document.getElementById('btnGoalFundSubmit');
+            goalFundBusy = true;
+            btn.disabled = true;
+            let res;
+            try {
+                res = await API.contributeGoal(selectedGoalId, { account_id, amount, date, note: 'Fund allocation' });
+            } catch (err) {
+                console.error(err);
+                showToast('Network error — no funds were moved', 'error');
+                return;
+            } finally {
+                goalFundBusy = false;
+                btn.disabled = false;
             }
+
+            if (!res || !res.ok) {
+                showToast(await readError(res, 'Failed to allocate funds'), 'error');
+                return;
+            }
+
+            closeModal('modalGoalFund');
+            await refreshData();
+            showToast('✓ Funds allocated to goal');
         }
 
         async function handleGoalSubmit(e) {
@@ -2028,8 +2186,18 @@
             const target_amount = parseFloat(document.getElementById('goalTarget').value);
             const target_date = document.getElementById('goalDue').value || null;
 
-            await API.createGoal({ name, target_amount, target_date });
+            if (!name || !(target_amount > 0)) {
+                showToast('Enter a target name and an amount greater than zero', 'error');
+                return;
+            }
+
+            const res = await API.createGoal({ name, target_amount, target_date });
+            if (!res || !res.ok) {
+                showToast(await readError(res, 'Failed to create goal'), 'error');
+                return;
+            }
             document.getElementById('formNewGoal').reset();
+            document.getElementById('goalDue').value = getFutureDate(6);
             await refreshData();
             showToast('✓ Goal created');
         }
@@ -2040,7 +2208,15 @@
             const name = document.getElementById('newCatName').value.trim();
             const icon = document.getElementById('newCatIcon').value.trim() || '🏷️';
 
-            await API.createCategory({ name, type, icon });
+            if (!name) {
+                showToast('Enter a category name', 'error');
+                return;
+            }
+            const res = await API.createCategory({ name, type, icon });
+            if (!res || !res.ok) {
+                showToast(await readError(res, 'Failed to create category'), 'error');
+                return;
+            }
             document.getElementById('formNewCat').reset();
             categories = await API.getCategories();
             populateSelects();
@@ -2061,11 +2237,47 @@
         }
 
         async function deleteCategory(id) {
-            await API.deleteCategory(id);
-            categories = await API.getCategories();
-            populateSelects();
-            renderCategoryManagerList();
-            showToast('✓ Category deleted');
+            const cat = categories.find(c => c.id === id);
+            if (!cat) return;
+            const used = transactions.filter(t => t.category_id === id);
+            const others = categories.filter(c => c.id !== id && (c.type || '').toUpperCase() === (cat.type || '').toUpperCase());
+            if (used.length && !others.length) {
+                showToast(`Create another ${String(cat.type).toLowerCase()} category first — "${cat.name}" has ${used.length} transaction(s) that need a new home`, 'error');
+                return;
+            }
+
+            document.getElementById('catDelMsg').textContent = used.length
+                ? `"${cat.name}" is used by ${used.length} transaction(s). Choose the category they should move to.`
+                : `Delete "${cat.name}"?`;
+            document.getElementById('catDelMoveWrap').style.display = used.length ? 'block' : 'none';
+            const target = document.getElementById('catDelTarget');
+            target.innerHTML = others.map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
+
+            const btn = document.getElementById('btnCatDelConfirm');
+            btn.onclick = async () => {
+                btn.disabled = true;
+                try {
+                    if (used.length) {
+                        const to = parseInt(target.value);
+                        for (const t of used) {
+                            const payload = {
+                                type: String(t.type || '').toUpperCase(), amount: Number(t.amount), date: t.date,
+                                description: t.description, account_id: t.account_id, category_id: to
+                            };
+                            if (t.source_id) payload.source_id = t.source_id;
+                            if (!(await okOrToast(await API.updateTransaction(t.id, payload), 'Could not move transactions — category not deleted'))) return;
+                        }
+                    }
+                    if (!(await okOrToast(await API.deleteCategory(id), 'Could not delete category'))) return;
+                    closeModal('modalCatDelete');
+                    const fresh = await API.getCategories();
+                    if (Array.isArray(fresh)) categories = fresh;
+                    renderCategoryManagerList();
+                    await refreshData();
+                    showToast(used.length ? `✓ Category deleted, ${used.length} transaction(s) moved` : '✓ Category deleted');
+                } finally { btn.disabled = false; }
+            };
+            openModal('modalCatDelete');
         }
 
         function openAccountsModal() {
@@ -2085,7 +2297,7 @@
             for (const inp of inputs) {
                 const aid = parseInt(inp.dataset.aid);
                 const starting_balance = parseFloat(inp.value) || 0;
-                await API.updateAccount(aid, { starting_balance });
+                if (!(await okOrToast(await API.updateAccount(aid, { starting_balance }), 'Failed to update balances'))) return;
             }
             accounts = await API.getAccounts();
             closeModal('modalAccounts');
@@ -2100,7 +2312,7 @@
             c.innerHTML = invs.map(a => `
                 <div class="form-group">
                     <label>${sanitize(a.name)} Market Value (₹)</label>
-                    <input type="number" step="any" min="0" class="form-control" data-vid="${a.id}" value="${a.current_market_value || a.starting_balance}">
+                    <input type="number" step="any" min="0" class="form-control" data-vid="${a.id}" value="${a.current_market_value ?? a.starting_balance}">
                 </div>
             `).join('');
             openModal('modalValuations');
@@ -2111,7 +2323,7 @@
             for (const inp of inputs) {
                 const vid = parseInt(inp.dataset.vid);
                 const current_market_value = parseFloat(inp.value) || 0;
-                await API.updateAccount(vid, { current_market_value });
+                if (!(await okOrToast(await API.updateAccount(vid, { current_market_value }), 'Failed to update valuations'))) return;
             }
             accounts = await API.getAccounts();
             closeModal('modalValuations');
@@ -2125,6 +2337,39 @@
             openModal('modalGmail');
         }
 
+        const CATEGORY_RULES = [
+            { hint: 'dining', words: ['taco bell', 'swiggy', 'zomato', 'domino', 'dominos', 'pizza', 'mcdonald', 'mcdonalds', 'kfc', 'burger', 'starbucks', 'cafe', 'restaurant', 'dineout', 'subway'] },
+            { hint: 'grocer', words: ['bigbasket', 'blinkit', 'zepto', 'instamart', 'dmart', 'grofers', 'grocery', 'reliance fresh'] },
+            { hint: 'fuel', words: ['uber', 'ola', 'rapido', 'irctc', 'metro', 'petrol', 'fuel', 'hpcl', 'bpcl', 'iocl', 'fastag', 'redbus'] },
+            { hint: 'utilit', words: ['electricity', 'bescom', 'airtel', 'jio', 'broadband', 'recharge', 'lpg', 'water bill', 'tata power', 'adani electricity'] },
+            { hint: 'rent', words: ['rent', 'nobroker'] },
+            { hint: 'salary', words: ['salary', 'payroll'] }
+        ];
+        const CAT_MEMORY_KEY = 'dhanSutraCatMemory';
+        const normDesc = d => String(d || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        function loadCatMemory() { try { return JSON.parse(localStorage.getItem(CAT_MEMORY_KEY) || '{}'); } catch { return {}; } }
+
+        // Learned choice for this exact description wins, then keyword rules, else null (user picks)
+        function guessCategoryId(desc, type) {
+            const pool = categories.filter(c => (c.type || '').toUpperCase() === type);
+            const key = normDesc(desc);
+            const learned = loadCatMemory()[key];
+            if (learned && pool.some(c => c.id === learned)) return learned;
+            for (const r of CATEGORY_RULES) {
+                const hit = r.words.some(w => new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(key));
+                if (!hit) continue;
+                const c = pool.find(c => (c.name || '').toLowerCase().includes(r.hint));
+                if (c) return c.id;
+            }
+            return null;
+        }
+
+        function categoryOptionsHtml(type, selectedId) {
+            return '<option value="">Select category…</option>' + categories
+                .filter(c => (c.type || '').toUpperCase() === type)
+                .map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
+        }
+
         async function fetchGmailTransactions() {
             const url = document.getElementById('gmailScriptUrl').value.trim();
             if (!url) {
@@ -2132,7 +2377,7 @@
                 return;
             }
             localStorage.setItem('dhanSutraGmailScript', url);
-            showToast('Fetching from Axis Bank alerts...');
+            showToast('Fetching from bank alerts...');
 
             const cb = 'dhanSutraJsonp_' + Date.now();
             const s = document.createElement('script');
@@ -2142,72 +2387,63 @@
                 delete window[cb];
                 if (s.parentNode) document.body.removeChild(s);
 
-                const incoming = Array.isArray(response)
-                    ? response
-                    : (response && Array.isArray(response.transactions) ? response.transactions : []);
-
                 if (response && response.error) {
                     showToast('Script Error: ' + response.error, 'error');
                     return;
                 }
+                const incoming = Array.isArray(response)
+                    ? response
+                    : (response && Array.isArray(response.transactions) ? response.transactions : []);
 
-                // Get currently existing source IDs in database to prevent duplicates
-                const existingTxList = await API.getTransactions();
-                const existingSourceIds = new Set(
-                    existingTxList.map(t => String(t.source_id)).filter(Boolean)
-                );
+                // Skip receipts that are already in the database
+                const existing = await API.getTransactions();
+                const existingSourceIds = new Set((Array.isArray(existing) ? existing : []).map(t => t.source_id).filter(Boolean).map(String));
 
-                let axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis')) 
-                            || accounts.find(a => a.type === 'BANK') 
-                            || accounts[0];
+                const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
+                                 || accounts.find(a => a.type === 'BANK')
+                                 || accounts[0];
+                const fresh = await API.getCategories();
+                if (Array.isArray(fresh)) categories = fresh;
 
-                categories = await API.getCategories();
-                let expCat = categories.find(c => (c.type || '').toUpperCase() === 'EXPENSE');
-                let incCat = categories.find(c => (c.type || '').toUpperCase() === 'INCOME');
+                const formatted = incoming.map(item => {
+                    const isIncome = String(item.type).toLowerCase() === 'income';
+                    const type = isIncome ? 'INCOME' : 'EXPENSE';
+                    const description = item.description || (isIncome ? 'Direct Credit' : 'Bank Outflow');
+                    return {
+                        source_id: String(item.sourceId || item.id || `axis_${item.date}_${item.amount}_${normDesc(description)}`),
+                        type,
+                        date: item.date || todayStr(),
+                        amount: Math.abs(parseFloat(item.amount) || 0),
+                        description,
+                        account_id: axisAccount ? axisAccount.id : null,
+                        category_id: guessCategoryId(description, type)
+                    };
+                }).filter(item => item.amount > 0 && item.account_id && !existingSourceIds.has(item.source_id));
 
-                // Filter out already imported transactions using source_id
-                const newIncoming = incoming.filter(item => {
-                    const sid = String(item.sourceId || item.id || `axis_${item.date}_${item.amount}`);
-                    return !existingSourceIds.has(sid);
-                });
-
-                if (!newIncoming.length) {
+                if (!formatted.length) {
                     showToast('All transactions from alerts are already imported!', 'success');
                     return;
                 }
 
-                const formatted = newIncoming.map(item => {
-                    const isIncome = String(item.type).toLowerCase() === 'income';
-                    return {
-                        source_id: String(item.sourceId || item.id || `axis_${item.date}_${item.amount}`),
-                        type: isIncome ? 'INCOME' : 'EXPENSE',
-                        date: item.date || new Date().toISOString().split('T')[0],
-                        amount: Math.abs(parseFloat(item.amount) || 0),
-                        description: item.description || (isIncome ? 'Direct Credit' : 'Bank Outflow'),
-                        account_id: axisAccount ? axisAccount.id : accounts[0]?.id,
-                        category_id: isIncome ? (incCat?.id || null) : (expCat?.id || null)
-                    };
-                }).filter(item => item.amount > 0);
-
                 stagedSync = formatted;
                 document.getElementById('stagingCount').textContent = stagedSync.length;
-                const list = document.getElementById('stagingItemsList');
-                list.innerHTML = stagedSync.map((t, idx) => {
+                document.getElementById('stagingItemsList').innerHTML = stagedSync.map((t, idx) => {
                     const isInc = t.type === 'INCOME';
                     return `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
-                                <div>
-                                    <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
-                                        ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
-                                    </span>
-                                    <div class="caption-text" style="font-size:12px; margin-top:2px;">${t.date} · ${sanitize(t.description)}</div>
-                                </div>
-                            </label>
-                            <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">
-                                ${isInc ? '+' : '-'}${formatINR(t.amount)}
-                            </span>
+                        <div style="padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                    <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
+                                    <div>
+                                        <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
+                                            ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
+                                        </span>
+                                        <div class="caption-text" style="font-size:12px; margin-top:2px;">${sanitize(t.date)} · ${sanitize(t.description)}</div>
+                                    </div>
+                                </label>
+                                <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">${isInc ? '+' : '-'}${formatINR(t.amount)}</span>
+                            </div>
+                            <select class="form-control sel-stage-cat" data-idx="${idx}" aria-label="Category" style="margin-top:4px; padding:4px 8px; font-size:12px;">${categoryOptionsHtml(t.type, t.category_id)}</select>
                         </div>
                     `;
                 }).join('');
@@ -2223,39 +2459,42 @@
         }
 
         async function commitStagedTransactions() {
-            const checked = document.querySelectorAll('.chk-stage:checked');
             const toCommit = [];
-            checked.forEach(c => {
-                const item = stagedSync[Number(c.dataset.idx)];
-                if (item) toCommit.push(item);
+            let missing = 0;
+            document.querySelectorAll('.chk-stage:checked').forEach(c => {
+                const idx = Number(c.dataset.idx);
+                const item = stagedSync[idx];
+                if (!item) return;
+                const category_id = parseInt(document.querySelector(`.sel-stage-cat[data-idx="${idx}"]`)?.value);
+                if (!category_id) { missing++; return; }
+                toCommit.push({ ...item, category_id });
             });
 
-            if (!toCommit.length) {
-                showToast('No items selected', 'error');
-                return;
-            }
+            if (missing) { showToast(`Choose a category for ${missing} selected item(s)`, 'error'); return; }
+            if (!toCommit.length) { showToast('No items selected', 'error'); return; }
 
             showToast('Saving transactions...');
+            const memory = loadCatMemory();
             let successCount = 0;
-
             for (const item of toCommit) {
-                const payload = {
-                    type: item.type,
-                    amount: Math.abs(parseFloat(item.amount)),
-                    date: item.date,
-                    description: item.description,
-                    account_id: item.account_id,
-                    category_id: item.category_id,
-                    source_id: item.source_id  // CRUCIAL: Pass source_id so DB knows it is saved
-                };
-
-                const res = await API.createTransaction(payload);
-                if (res && res.ok) successCount++;
+                try {
+                    const res = await API.createTransaction({
+                        type: item.type, amount: item.amount, date: item.date, description: item.description,
+                        account_id: item.account_id, category_id: item.category_id,
+                        source_id: item.source_id  // lets the DB (and the duplicate check) know this receipt is saved
+                    });
+                    if (res && res.ok) { successCount++; memory[normDesc(item.description)] = item.category_id; }
+                } catch (err) { console.error(err); }
             }
+            try { localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(memory)); } catch {}
 
+            stagedSync = [];
+            document.getElementById('stagingItemsList').innerHTML = '';
+            document.getElementById('gmailStagingWrap').style.display = 'none';
             closeModal('modalGmail');
             await refreshData();
-            showToast(`Successfully saved ${successCount} transactions`);
+            if (successCount === toCommit.length) showToast(`Successfully saved ${successCount} transactions`);
+            else showToast(`Saved ${successCount} of ${toCommit.length}. Fetch again to retry the rest.`, 'error');
         }
 
         function openCategoryModal() {
