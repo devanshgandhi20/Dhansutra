@@ -152,7 +152,15 @@ class RecurringTransaction(Base):
     type = Column(SAEnum(TransactionType), nullable=False)
     account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
-    frequency = Column(SAEnum(RecurringFrequency), nullable=False, default=RecurringFrequency.MONTHLY)
+    frequency = Column(
+        SAEnum(
+            RecurringFrequency,
+            name="recurringfrequency",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=RecurringFrequency.MONTHLY,
+    )
     next_date = Column(Date, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
