@@ -1,4 +1,6 @@
 from decimal import Decimal
+from calendar import monthrange
+import datetime as _dt
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -7,7 +9,7 @@ from sqlalchemy import or_
 from core.database import SessionLocal
 from modules.users.models import User
 from modules.auth.userverification import get_current_user
-from modules.finance.models import Account, AccountType, Category, Transaction, TransactionType, Budget, FinancialGoal, GoalContribution
+from modules.finance.models import Account, AccountType, Category, Transaction, TransactionType, Budget, FinancialGoal, GoalContribution, RecurringTransaction, RecurringFrequency
 from modules.finance.schemas import (
     AccountCreate,
     AccountUpdate,
@@ -26,6 +28,9 @@ from modules.finance.schemas import (
     GoalContributionCreate,
     GoalContributionResponse,
     DashboardSummaryResponse,
+    RecurringCreate,
+    RecurringResponse,
+    TransactionResponse,
 )
 from datetime import date, datetime
 from modules.finance.services import FinanceService
@@ -468,3 +473,115 @@ def update_transaction(
     db.commit()
     db.refresh(tx)
     return tx
+
+# -------------------------------------------------------------
+# RECURRING TRANSACTIONS
+# -------------------------------------------------------------
+
+def calculate_next_date(current_date: _dt.date, freq: RecurringFrequency) -> _dt.date:
+    if freq == RecurringFrequency.WEEKLY:
+        return current_date + _dt.timedelta(days=7)
+    elif freq == RecurringFrequency.YEARLY:
+        try:
+            return current_date.replace(year=current_date.year + 1)
+        except ValueError:
+            # Handles Feb 29 on leap years
+            return current_date.replace(year=current_date.year + 1, day=28)
+    else:  # MONTHLY
+        year = current_date.year + (1 if current_date.month == 12 else 0)
+        month = 1 if current_date.month == 12 else current_date.month + 1
+        max_days = monthrange(year, month)[1]
+        day = min(current_date.day, max_days)
+        return _dt.date(year, month, day)
+
+
+@router.get("/recurring", response_model=List[RecurringResponse])
+def get_recurring(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return (
+        db.query(RecurringTransaction)
+        .filter(RecurringTransaction.user_id == current_user.id)
+        .order_by(RecurringTransaction.next_date.asc())
+        .all()
+    )
+
+
+@router.post("/recurring", response_model=RecurringResponse, status_code=status.HTTP_201_CREATED)
+def create_recurring(
+    data: RecurringCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Verify account and category exist
+    acc = db.query(Account).filter(Account.id == data.account_id, Account.user_id == current_user.id).first()
+    if not acc:
+        raise HTTPException(status_code=404, detail="Selected account not found")
+
+    cat = db.query(Category).filter(
+        Category.id == data.category_id,
+        or_(Category.user_id == current_user.id, Category.is_system == True)
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Selected category not found")
+
+    rec = RecurringTransaction(**data.model_dump(), user_id=current_user.id)
+    db.add(rec)
+    db.commit()
+    db.refresh(rec)
+    return rec
+
+
+@router.delete("/recurring/{recurring_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recurring(
+    recurring_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rec = (
+        db.query(RecurringTransaction)
+        .filter(RecurringTransaction.id == recurring_id, RecurringTransaction.user_id == current_user.id)
+        .first()
+    )
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+
+    db.delete(rec)
+    db.commit()
+    return None
+
+
+@router.post("/recurring/{recurring_id}/execute", response_model=TransactionResponse)
+def execute_recurring(
+    recurring_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rec = (
+        db.query(RecurringTransaction)
+        .filter(RecurringTransaction.id == recurring_id, RecurringTransaction.user_id == current_user.id)
+        .first()
+    )
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+
+    # 1. Create real transaction in the ledger
+    new_tx = Transaction(
+        user_id=current_user.id,
+        account_id=rec.account_id,
+        category_id=rec.category_id,
+        type=rec.type,
+        amount=rec.amount,
+        date=rec.next_date,
+        description=rec.description,
+        source="RECURRING",
+    )
+    db.add(new_tx)
+
+    # 2. Advance the next_date on the recurring record
+    rec.next_date = calculate_next_date(rec.next_date, rec.frequency)
+
+    db.commit()
+    db.refresh(new_tx)
+    return new_tx

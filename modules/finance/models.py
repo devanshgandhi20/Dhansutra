@@ -133,3 +133,29 @@ class GoalContribution(Base):
 
     goal = relationship("FinancialGoal", back_populates="contributions")
     account = relationship("Account")
+
+# Add Frequency Enum
+class RecurringFrequency(str, enum.Enum):
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
+
+
+# Add RecurringTransaction Model
+class RecurringTransaction(Base):
+    __tablename__ = "recurring_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    description = Column(String(255), nullable=False)
+    amount = Column(Numeric(14, 2), nullable=False)
+    type = Column(SAEnum(TransactionType), nullable=False)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    frequency = Column(SAEnum(RecurringFrequency), nullable=False, default=RecurringFrequency.MONTHLY)
+    next_date = Column(Date, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", backref="recurring_transactions")
+    account = relationship("Account")
+    category = relationship("Category")

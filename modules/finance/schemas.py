@@ -3,7 +3,7 @@ import datetime as _dt
 from decimal import Decimal
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
-from modules.finance.models import AccountType, TransactionType
+from modules.finance.models import AccountType, TransactionType, RecurringFrequency
 
 # ---------------- BUDGETS ----------------
 class BudgetBase(BaseModel):
@@ -196,3 +196,24 @@ class TransactionUpdate(BaseModel):
     to_account_id: Optional[int] = None
     source_id: Optional[str] = None
     model_config = ConfigDict(from_attributes=True, extra="ignore")
+
+class RecurringBase(BaseModel):
+    description: str = Field(..., min_length=1, max_length=255)
+    amount: Decimal = Field(..., gt=0)
+    type: TransactionType
+    account_id: int
+    category_id: int
+    frequency: RecurringFrequency
+    next_date: _dt.date
+
+
+class RecurringCreate(RecurringBase):
+    pass
+
+
+class RecurringResponse(RecurringBase):
+    id: int
+    user_id: int
+    created_at: _dt.datetime
+
+    model_config = ConfigDict(from_attributes=True)

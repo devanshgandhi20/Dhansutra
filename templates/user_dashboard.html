@@ -1270,6 +1270,23 @@
                     body: JSON.stringify(payload)
                 });
                 return res ? await res.json() : [];
+            },
+            async getRecurring() {
+                const res = await this.req('/api/finance/recurring');
+                return res ? await res.json() : [];
+            },
+            async createRecurring(payload) {
+                return await this.req('/api/finance/recurring', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            },
+            async deleteRecurring(id) {
+                return await this.req(`/api/finance/recurring/${id}`, { method: 'DELETE' });
+            },
+            async executeRecurring(id) {
+                return await this.req(`/api/finance/recurring/${id}/execute`, { method: 'POST' });
             }
         };
 
@@ -1352,7 +1369,6 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             applyTheme();
-            loadRecurring();
             initMonthSelector();
             document.getElementById('txDate').value = todayStr();
             document.getElementById('goalFundDate').value = todayStr();
@@ -1440,20 +1456,22 @@
 
         async function refreshData() {
             const mStr = formatMonthStr(selectedMonth);
-            const [accs, txs, g, bStatus, bList, summary] = await Promise.all([
+            const [accs, txs, g, bStatus, bList, summary, recs] = await Promise.all([
                 API.getAccounts(),
                 API.getTransactions(),
                 API.getGoals(),
                 API.getBudgetStatus(mStr),
                 API.getBudgets(mStr),
-                API.getDashboardSummary(todayStr())
+                API.getDashboardSummary(todayStr()),
+                API.getRecurring()
             ]);
 
-            if (Array.isArray(accs)) accounts = accs;   // keeps balances / names fresh after every change
+            if (Array.isArray(accs)) accounts = accs;
             transactions = Array.isArray(txs) ? txs : [];
             goals = Array.isArray(g) ? g : [];
             budgets = Array.isArray(bStatus) ? bStatus : [];
             dashboardData = summary;
+            recurringList = Array.isArray(recs) ? recs : [];
 
             populateSelects();
             updateNoteSuggestions();
@@ -2422,9 +2440,7 @@
 
         // ---------- Recurring + upcoming (stored in this browser) ----------
         const REC_KEY = 'dhanSutraRecurring';
-        let recurring = [];
-        function loadRecurring() { try { recurring = JSON.parse(localStorage.getItem(REC_KEY) || '[]'); } catch { recurring = []; } }
-        function persistRecurring() { try { localStorage.setItem(REC_KEY, JSON.stringify(recurring)); } catch {} }
+        let recurringList = [];
 
         function advanceDate(dateStr, freq) {
             const [y, m, d] = dateStr.split('-').map(Number);
@@ -2437,20 +2453,30 @@
 
         function renderUpcoming() {
             const days = n => toDateStr(new Date(Date.now() + n * 864e5));
-            const list = recurring.filter(r => r.next <= days(30)).sort((a, b) => a.next.localeCompare(b.next));
-            const due7 = recurring.filter(r => r.next <= days(7)).length;
-            document.getElementById('upcomingSummary').textContent = recurring.length ? `${due7} due in the next 7 days` : '';
+            const list = recurringList
+                .filter(r => r.next_date <= days(30))
+                .sort((a, b) => a.next_date.localeCompare(b.next_date));
+            const due7 = recurringList.filter(r => r.next_date <= days(7)).length;
+
+            document.getElementById('upcomingSummary').textContent = recurringList.length ? `${due7} due in the next 7 days` : '';
             const box = document.getElementById('upcomingContainer');
-            if (!list.length) { box.innerHTML = `<div class="empty-state"><span class="caption-text">${recurring.length ? 'Nothing due in the next 30 days.' : 'Add rent, SIPs, salary or subscriptions to see what is coming up.'}</span></div>`; return; }
+
+            if (!list.length) {
+                box.innerHTML = `<div class="empty-state"><span class="caption-text">${recurringList.length ? 'Nothing due in the next 30 days.' : 'Add rent, SIPs, salary or subscriptions to see what is coming up.'}</span></div>`;
+                return;
+            }
+
             const today = todayStr();
             box.innerHTML = list.map(r => `
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
-                    <div><div style="font-weight:600;">${r.type === 'INCOME' ? '💰' : '🧾'} ${sanitize(r.description)}</div>
-                        <div class="caption-text">${sanitize(r.next)}${r.next < today ? ' · overdue' : r.next === today ? ' · today' : ''} · ${sanitize(r.freq)}</div></div>
+                    <div>
+                        <div style="font-weight:600;">${r.type === 'INCOME' ? '💰' : '🧾'} ${sanitize(r.description)}</div>
+                        <div class="caption-text">${sanitize(r.next_date)}${r.next_date < today ? ' · overdue' : r.next_date === today ? ' · today' : ''} · ${sanitize(r.frequency)}</div>
+                    </div>
                     <div style="display:flex; align-items:center; gap:0.4rem;">
                         <span class="${r.type === 'INCOME' ? 'amount-pos' : 'amount-neg'}" style="font-weight:700;">${formatINR(r.amount)}</span>
-                        <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring('${sanitize(r.id)}')">Add now</button>
-                        <button class="btn btn-ghost" style="padding:0.1rem 0.4rem;" aria-label="Remove" onclick="removeRecurring('${sanitize(r.id)}')">✕</button>
+                        <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring(${r.id})">Add now</button>
+                        <button class="btn btn-ghost" style="padding:0.1rem 0.4rem;" aria-label="Remove" onclick="removeRecurring(${r.id})">✕</button>
                     </div>
                 </div>`).join('');
         }
@@ -2460,35 +2486,59 @@
             document.getElementById('recType').value = 'EXPENSE';
             document.getElementById('recFreq').value = 'monthly';
             document.getElementById('recNext').value = todayStr();
-            document.getElementById('recAccount').innerHTML = accounts.filter(a => !['GOAL_RESERVE', 'INVESTMENT'].includes(String(a.type || '').toUpperCase()))
+            document.getElementById('recAccount').innerHTML = accounts.filter(a => !['GOAL_RESERVE', 'INVESTMENT', 'CREDIT_CARD'].includes(String(a.type || '').toUpperCase()))
                 .map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('');
             fillRecCategories();
             openModal('modalRecurring');
         }
+
         function fillRecCategories() {
             const t = document.getElementById('recType').value;
             document.getElementById('recCategory').innerHTML = categories.filter(c => (c.type || '').toUpperCase() === t)
                 .map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
         }
-        function submitRecurring() {
-            const r = {
-                id: 'r' + Date.now(), description: document.getElementById('recDesc').value.trim(),
-                amount: parseFloat(document.getElementById('recAmount').value), type: document.getElementById('recType').value,
-                account_id: parseInt(document.getElementById('recAccount').value), category_id: parseInt(document.getElementById('recCategory').value),
-                freq: document.getElementById('recFreq').value, next: document.getElementById('recNext').value
+
+        async function submitRecurring() {
+            const payload = {
+                description: document.getElementById('recDesc').value.trim(),
+                amount: parseFloat(document.getElementById('recAmount').value),
+                type: document.getElementById('recType').value,
+                account_id: parseInt(document.getElementById('recAccount').value),
+                category_id: parseInt(document.getElementById('recCategory').value),
+                frequency: document.getElementById('recFreq').value,
+                next_date: document.getElementById('recNext').value
             };
-            if (!r.description || !(r.amount > 0) || !r.account_id || !r.category_id || !r.next) { showToast('Fill in description, amount, account, category and date', 'error'); return; }
-            recurring.push(r); persistRecurring(); closeModal('modalRecurring'); renderUpcoming(); showToast('✓ Recurring item saved');
-        }
-        function removeRecurring(id) { recurring = recurring.filter(r => r.id !== id); persistRecurring(); renderUpcoming(); }
-        async function postRecurring(id) {
-            const r = recurring.find(x => x.id === id);
-            if (!r) return;
-            const res = await API.createTransaction({ type: r.type, amount: r.amount, date: r.next, description: r.description, account_id: r.account_id, category_id: r.category_id });
-            if (!(await okOrToast(res, 'Failed to add transaction'))) return;
-            r.next = advanceDate(r.next, r.freq); persistRecurring();
+
+            if (!payload.description || !(payload.amount > 0) || !payload.account_id || !payload.category_id || !payload.next_date) {
+                showToast('Fill in description, amount, account, category, and date', 'error');
+                return;
+            }
+
+            const res = await API.createRecurring(payload);
+            if (!(await okOrToast(res, 'Failed to save recurring item'))) return;
+
+            closeModal('modalRecurring');
             await refreshData();
-            showToast(`✓ Added “${r.description}” — next on ${r.next}`);
+            showToast('✓ Recurring item saved to database');
+        }
+
+        async function removeRecurring(id) {
+            confirmAction('Delete Recurring Item', 'Remove this recurring schedule?', async () => {
+                const res = await API.deleteRecurring(id);
+                if (res && (res.status === 204 || res.ok)) {
+                    await refreshData();
+                    showToast('✓ Recurring item removed');
+                } else {
+                    showToast('Failed to delete recurring item', 'error');
+                }
+            });
+        }
+
+        async function postRecurring(id) {
+            const res = await API.executeRecurring(id);
+            if (!(await okOrToast(res, 'Failed to post transaction'))) return;
+            await refreshData();
+            showToast('✓ Transaction posted and schedule advanced to next date');
         }
 
         function openAccountsModal() {
