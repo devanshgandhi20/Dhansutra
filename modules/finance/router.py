@@ -3,6 +3,7 @@ from calendar import monthrange
 import datetime as _dt
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
@@ -143,26 +144,56 @@ def create_category(
     db.refresh(category)
     return category
 
+class DeleteCategoryRequest(BaseModel):
+    move_to_category_id: Optional[int] = None
 
-@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/categories/{category_id}", status_code=status.HTTP_200_OK)
 def delete_category(
     category_id: int,
-    current_user: User = Depends(get_current_user),
+    payload: Optional[DeleteCategoryRequest] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    category = (
-        db.query(Category)
-        .filter(Category.id == category_id, Category.user_id == current_user.id)
-        .first()
-    )
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found or is a system category")
+    cat = db.query(Category).filter(
+        Category.id == category_id,
+        Category.user_id == current_user.id,
+        Category.is_system == False
+    ).first()
+    if not cat:
+        raise HTTPException(
+            status_code=404,
+            detail="Category not found or is a protected system category"
+        )
 
-    db.delete(category)
+    # Validate destination category if requested
+    if payload and payload.move_to_category_id:
+        target_cat = db.query(Category).filter(
+            Category.id == payload.move_to_category_id,
+            or_(Category.user_id == current_user.id, Category.is_system == True)
+        ).first()
+        if not target_cat:
+            raise HTTPException(status_code=400, detail="Target reassignment category does not exist")
+
+        # Atomic bulk reassignment
+        db.query(Transaction).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.category_id == category_id
+        ).update({"category_id": payload.move_to_category_id})
+    else:
+        # Check if transactions are in use without fallback
+        in_use = db.query(Transaction.id).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.category_id == category_id
+        ).first()
+        if in_use:
+            raise HTTPException(
+                status_code=400,
+                detail="Category is in use. Choose a destination category to reassign its transactions."
+            )
+
+    db.delete(cat)
     db.commit()
-    return None
-
-
+    return {"status": "success", "deleted_category_id": category_id}
 # -------------------------------------------------------------
 # TRANSACTIONS & TRANSFERS
 # -------------------------------------------------------------

@@ -313,6 +313,7 @@
             transition: background 0.15s ease;
         }
         .accordion-header:hover { background: var(--surface-hover); }
+        .accordion-header:focus-visible, .ledger-row:focus-visible { outline: 2px solid var(--palace-teal); outline-offset: -2px; }
 
         .accordion-header-left {
             display: flex;
@@ -575,6 +576,11 @@
 
         @media (max-width: 920px) {
             .mobile-bottom-nav { display: flex; }
+        }
+
+        /* phones: stack paired form fields so amounts/dates/selects are not cramped */
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; gap: 0; }
         }
     </style>
 </head>
@@ -1144,20 +1150,85 @@
         // ==========================================
         // DHANSUTRA API CLIENT
         // ==========================================
+        class ApiError extends Error {
+            constructor(message, status = 0, kind = 'http') { super(message); this.status = status; this.kind = kind; }
+        }
+
+        const API_TIMEOUT_READ_MS = 20000;
+        const API_TIMEOUT_WRITE_MS = 30000;
+        const apiSleep = ms => new Promise(r => setTimeout(r, ms));
+
+        // Friendly text for status codes the backend (rate limiter, auth, DB, cold start) can return
+        function apiStatusMessage(status, fallback) {
+            if (status === 403) return 'You do not have permission to do that.';
+            if (status === 404) return 'That item no longer exists. Refresh and try again.';
+            if (status === 408) return 'The request took too long. Please try again.';
+            if (status === 429) return 'Too many requests — please wait a moment and try again.';
+            if (status === 503) return 'The service is temporarily unavailable. Please try again shortly.';
+            if (status >= 500) return 'Server problem — please try again in a moment.';
+            return fallback;
+        }
+
         const API = {
+            lastError: null,
+            redirecting: false,
+
+            // Central request wrapper: timeout, bounded retry for safe GETs, session expiry.
+            // Returns the Response, or null if the request never got one (network/timeout/401).
+            // The reason for a null is left in API.lastError.
             async req(url, options = {}) {
-                options.headers = options.headers || {};
-                options.headers['x-requested-with'] = 'XMLHttpRequest';
-                const res = await fetch(url, options);
-                if (res.status === 401) {
-                    window.location.href = '/login?error=session_expired';
-                    return null;
+                const { timeout, retries, ...fetchOpts } = options;
+                const method = String(fetchOpts.method || 'GET').toUpperCase();
+                const isRead = method === 'GET';
+                const limit = timeout || (isRead ? API_TIMEOUT_READ_MS : API_TIMEOUT_WRITE_MS);
+                const maxRetries = retries ?? (isRead ? 2 : 0); // never auto-retry writes: could duplicate a transaction
+                fetchOpts.headers = { ...(fetchOpts.headers || {}), 'x-requested-with': 'XMLHttpRequest' };
+
+                for (let attempt = 0; ; attempt++) {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), limit);
+                    let res;
+                    try {
+                        res = await fetch(url, { ...fetchOpts, signal: ctrl.signal });
+                    } catch (err) {
+                        clearTimeout(timer);
+                        if (attempt < maxRetries) { await apiSleep(600 * (attempt + 1)); continue; }
+                        const timedOut = err && err.name === 'AbortError';
+                        this.lastError = timedOut
+                            ? (isRead ? 'The request took too long. Please try again.'
+                                      : 'The request timed out. It may or may not have been saved — check your ledger before retrying.')
+                            : 'Unable to reach the server. Check your connection and try again.';
+                        return null;
+                    }
+                    clearTimeout(timer);
+
+                    if (res.status === 401) {
+                        this.redirecting = true;
+                        this.lastError = 'Your session has expired.';
+                        window.location.href = '/login?error=session_expired';
+                        return null;
+                    }
+                    if (attempt < maxRetries && [429, 502, 503, 504].includes(res.status)) {
+                        const ra = Number(res.headers.get('Retry-After'));
+                        await apiSleep(ra > 0 ? Math.min(ra, 5) * 1000 : 600 * (attempt + 1));
+                        continue;
+                    }
+                    this.lastError = null;
+                    return res;
                 }
-                return res;
             },
+
+            // Read helper: returns parsed JSON or throws ApiError (so callers can't mistake a failure for "no data")
+            async getJson(url, options) {
+                const res = await this.req(url, options);
+                if (!res) throw new ApiError(this.lastError || 'Unable to reach the server.', 0, this.redirecting ? 'auth' : 'network');
+                if (!res.ok) throw new ApiError(await readError(res, 'Request failed (' + res.status + ')'), res.status, 'http');
+                try { return await res.json(); }
+                catch { throw new ApiError('The server sent an unreadable response.', res.status, 'parse'); }
+            },
+
             async getAccounts() {
-                const res = await this.req('/api/finance/accounts');
-                return res ? await res.json() : [];
+                return await this.getJson('/api/finance/accounts');
             },
             async createAccount(payload) {
                 const res = await this.req('/api/finance/accounts', {
@@ -1175,8 +1246,7 @@
                 });
             },
             async getCategories() {
-                const res = await this.req('/api/finance/categories');
-                return res ? await res.json() : [];
+                return await this.getJson('/api/finance/categories');
             },
             async createCategory(payload) {
                 return await this.req('/api/finance/categories', {
@@ -1190,8 +1260,7 @@
             },
             async getTransactions(params = {}) {
                 const q = new URLSearchParams(params).toString();
-                const res = await this.req(`/api/finance/transactions?${q}`);
-                return res ? await res.json() : [];
+                return await this.getJson(`/api/finance/transactions?${q}`);
             },
             async createTransaction(payload) {
                 return await this.req('/api/finance/transactions', {
@@ -1218,12 +1287,10 @@
                 return await this.req(`/api/finance/transactions/${id}`, { method: 'DELETE' });
             },
             async getBudgets(month) {
-                const res = await this.req(`/api/finance/budgets?month=${month}`);
-                return res ? await res.json() : [];
+                return await this.getJson(`/api/finance/budgets?month=${month}`);
             },
             async getBudgetStatus(month) {
-                const res = await this.req(`/api/finance/budgets/status?month=${month}`);
-                return res ? await res.json() : [];
+                return await this.getJson(`/api/finance/budgets/status?month=${month}`);
             },
             async setBudget(payload) {
                 return await this.req('/api/finance/budgets', {
@@ -1233,8 +1300,7 @@
                 });
             },
             async getGoals() {
-                const res = await this.req('/api/finance/goals');
-                return res ? await res.json() : [];
+                return await this.getJson('/api/finance/goals');
             },
             async createGoal(payload) {
                 return await this.req('/api/finance/goals', {
@@ -1252,8 +1318,7 @@
             },
             async getDashboardSummary(dateStr) {
                 const q = dateStr ? `?date=${dateStr}` : '';
-                const res = await this.req(`/api/finance/dashboard/summary${q}`);
-                return res ? await res.json() : null;
+                return await this.getJson(`/api/finance/dashboard/summary${q}`);
             },
             async stageReceipts(payload) {
                 const res = await this.req('/api/finance/imports/stage-receipts', {
@@ -1272,8 +1337,7 @@
                 return res ? await res.json() : [];
             },
             async getRecurring() {
-                const res = await this.req('/api/finance/recurring');
-                return res ? await res.json() : [];
+                return await this.getJson('/api/finance/recurring');
             },
             async createRecurring(payload) {
                 return await this.req('/api/finance/recurring', {
@@ -1340,12 +1404,28 @@
 
         // Pulls a readable message out of an API error response (handles FastAPI's list-style `detail`)
         async function readError(res, fallback) {
+            if (!res) return API.lastError || fallback; // no response at all: network / timeout
+            let detail = '';
             try {
                 const j = await res.json();
                 const d = j.detail ?? j.error ?? j.message;
-                if (Array.isArray(d)) return d.map(x => x.msg || JSON.stringify(x)).join('; ') || fallback;
-                return (typeof d === 'string' && d) || fallback;
-            } catch { return fallback; }
+                if (Array.isArray(d)) detail = d.map(x => x.msg || JSON.stringify(x)).join('; ');
+                else if (typeof d === 'string') detail = d;
+            } catch { /* non-JSON body (proxy error page etc.) */ }
+            if (res.status === 429 || res.status === 503 || res.status >= 500 || res.status === 403) {
+                return apiStatusMessage(res.status, detail || fallback);
+            }
+            return detail || apiStatusMessage(res.status, fallback);
+        }
+
+        // Reload helper for secondary reads: keeps the current value and tells the user instead of throwing
+        async function safeLoad(loader, current, msg = 'Could not reload data — showing what was loaded before.') {
+            try { return await loader(); }
+            catch (err) {
+                console.error(err);
+                if (!(err && err.kind === 'auth')) showToast(msg, 'error');
+                return current;
+            }
         }
 
         async function okOrToast(res, fallback) {
@@ -1454,9 +1534,16 @@
             await refreshData();
         }
 
+        let refreshSeq = 0;
+        let lastBudgetList = [];
+        let lastRefreshToastAt = 0;
+
+        // Loads everything the dashboard needs. A failing endpoint never blanks the UI:
+        // whatever loaded is applied, whatever failed keeps its previous value.
         async function refreshData() {
+            const seq = ++refreshSeq;
             const mStr = formatMonthStr(selectedMonth);
-            const [accs, txs, g, bStatus, bList, summary, recs] = await Promise.all([
+            const results = await Promise.allSettled([
                 API.getAccounts(),
                 API.getTransactions(),
                 API.getGoals(),
@@ -1465,20 +1552,61 @@
                 API.getDashboardSummary(todayStr()),
                 API.getRecurring()
             ]);
+            if (seq !== refreshSeq) return false; // a newer refresh superseded this one
 
-            if (Array.isArray(accs)) accounts = accs;
-            transactions = Array.isArray(txs) ? txs : [];
-            goals = Array.isArray(g) ? g : [];
-            budgets = Array.isArray(bStatus) ? bStatus : [];
-            dashboardData = summary;
-            recurringList = Array.isArray(recs) ? recs : [];
+            const failed = results.filter(r => r.status === 'rejected');
+            if (failed.length) {
+                failed.forEach(r => console.error(r.reason));
+                const authIssue = failed.some(r => r.reason && r.reason.kind === 'auth');
+                if (!authIssue && Date.now() - lastRefreshToastAt > 6000) {
+                    lastRefreshToastAt = Date.now();
+                    const first = failed[0].reason;
+                    const why = first && first.message ? ` (${first.message})` : '';
+                    showToast(failed.length === results.length
+                        ? `Unable to refresh data${why} Showing the last loaded data.`
+                        : 'Some data could not be refreshed — showing the last loaded values for it.', 'error');
+                }
+                if (failed.length === results.length) return false;
+            }
 
-            populateSelects();
-            updateNoteSuggestions();
-            renderUI(Array.isArray(bList) ? bList : []);
+            const val = (i, check) => (results[i].status === 'fulfilled' && check(results[i].value)) ? results[i].value : undefined;
+            const isArr = Array.isArray;
+            const accs = val(0, isArr), txs = val(1, isArr), g = val(2, isArr), bStatus = val(3, isArr),
+                  bList = val(4, isArr), summary = val(5, v => v && typeof v === 'object'), recs = val(6, isArr);
+
+            if (accs !== undefined) accounts = accs;
+            if (txs !== undefined) transactions = txs;
+            if (g !== undefined) goals = g;
+            if (bStatus !== undefined) budgets = bStatus;
+            if (bList !== undefined) lastBudgetList = bList;
+            if (summary !== undefined) dashboardData = summary;
+            if (recs !== undefined) recurringList = recs;
+
+            try {
+                populateSelects();
+                updateNoteSuggestions();
+                renderUI(lastBudgetList);
+            } catch (err) {
+                console.error(err);
+                showToast('Something went wrong while displaying your data.', 'error');
+                return false;
+            }
+            return failed.length === 0;
+        }
+
+        // Hook registry: feature scripts below register callbacks instead of re-assigning core functions.
+        const uiHooks = { renderUI: [], renderLedger: [], switchTab: [], beforeOpenSettings: [] };
+        function registerHook(name, fn) { uiHooks[name].push(fn); }
+        function runHooks(name, ...args) {
+            uiHooks[name].forEach(fn => { try { fn(...args); } catch (e) { console.error(e); } });
         }
 
         function switchTab(tabId, btn) {
+            switchTabCore(tabId, btn);
+            runHooks('switchTab', tabId, btn);
+        }
+
+        function switchTabCore(tabId, btn) {
             ['dashboard', 'ledger', 'budgets', 'goals'].forEach(t => {
                 const el = document.getElementById('tab-' + t);
                 if (el) el.style.display = (t === tabId) ? 'block' : 'none';
@@ -1585,6 +1713,11 @@
         }
 
         function renderUI(rawBudgets = []) {
+            renderUICore(rawBudgets);
+            runHooks('renderUI');
+        }
+
+        function renderUICore(rawBudgets = []) {
             if (dashboardData) {
                 document.getElementById('heroNetWorth').textContent = formatINR(dashboardData.net_worth);
                 renderAccountCards(dashboardData.accounts || []);
@@ -1791,6 +1924,11 @@
         }
 
         function renderLedger() {
+            renderLedgerCore();
+            runHooks('renderLedger');
+        }
+
+        function renderLedgerCore() {
             const container = document.getElementById('ledgerRowsContainer');
             const search = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
             const accountFilter = document.getElementById('accountFilter').value;
@@ -1849,7 +1987,7 @@
 
                 html += `
                     <div class="accordion-group ${isOpen ? 'open' : ''}">
-                        <div class="accordion-header" onclick="toggleDateAccordion('${sanitize(dateKey)}')">
+                        <div class="accordion-header" role="button" tabindex="0" aria-expanded="${isOpen ? 'true' : 'false'}" data-date="${sanitize(dateKey)}" onclick="toggleDateAccordion('${sanitize(dateKey)}')">
                             <div class="accordion-header-left">
                                 <span class="accordion-arrow">▶</span>
                                 <span>${sanitize(dateKey)}</span>
@@ -1891,7 +2029,7 @@
                     }
 
                     html += `
-                        <div class="ledger-row" onclick="inspectTransaction(${t.id})">
+                        <div class="ledger-row" role="button" tabindex="0" onclick="inspectTransaction(${t.id})">
                             <div class="row-left">
                                 <div class="row-icon">${icon}</div>
                                 <div>
@@ -1914,6 +2052,9 @@
             if (openAccordions.has(dateKey)) openAccordions.delete(dateKey);
             else openAccordions.add(dateKey);
             renderLedger();
+            // the ledger re-renders from scratch, so put keyboard focus back on the same header
+            const again = document.querySelector(`.accordion-header[data-date="${CSS.escape(dateKey)}"]`);
+            if (again) again.focus();
         }
 
         function inspectTransaction(id) {
@@ -2298,7 +2439,7 @@
                 return;
             }
             document.getElementById('formNewCat').reset();
-            categories = await API.getCategories();
+            categories = await safeLoad(() => API.getCategories(), categories);
             populateSelects();
             renderCategoryManagerList();
             showToast('✓ Category created');
@@ -2317,48 +2458,48 @@
         }
 
         async function deleteCategory(id) {
-            const cat = categories.find(c => c.id === id);
-            if (!cat) return;
-            const used = transactions.filter(t => t.category_id === id);
-            const others = categories.filter(c => c.id !== id && (c.type || '').toUpperCase() === (cat.type || '').toUpperCase());
-            if (used.length && !others.length) {
-                showToast(`Create another ${String(cat.type).toLowerCase()} category first — "${cat.name}" has ${used.length} transaction(s) that need a new home`, 'error');
-                return;
-            }
+    const cat = categories.find(c => c.id === id);
+    if (!cat) return;
+    const used = transactions.filter(t => t.category_id === id);
+    const others = categories.filter(c => c.id !== id && (c.type || '').toUpperCase() === (cat.type || '').toUpperCase());
 
-            document.getElementById('catDelMsg').textContent = used.length
-                ? `"${cat.name}" is used by ${used.length} transaction(s). Choose the category they should move to.`
-                : `Delete "${cat.name}"?`;
-            document.getElementById('catDelMoveWrap').style.display = used.length ? 'block' : 'none';
-            const target = document.getElementById('catDelTarget');
-            target.innerHTML = others.map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
+    if (used.length && !others.length) {
+        showToast(`Create another ${String(cat.type).toLowerCase()} category first   "${cat.name}" has ${used.length} transaction(s) needing reassignment`, 'error');
+        return;
+    }
 
-            const btn = document.getElementById('btnCatDelConfirm');
-            btn.onclick = async () => {
-                btn.disabled = true;
-                try {
-                    if (used.length) {
-                        const to = parseInt(target.value);
-                        for (const t of used) {
-                            const payload = {
-                                type: String(t.type || '').toUpperCase(), amount: Number(t.amount), date: t.date,
-                                description: t.description, account_id: t.account_id, category_id: to
-                            };
-                            if (t.source_id) payload.source_id = t.source_id;
-                            if (!(await okOrToast(await API.updateTransaction(t.id, payload), 'Could not move transactions — category not deleted'))) return;
-                        }
-                    }
-                    if (!(await okOrToast(await API.deleteCategory(id), 'Could not delete category'))) return;
-                    closeModal('modalCatDelete');
-                    const fresh = await API.getCategories();
-                    if (Array.isArray(fresh)) categories = fresh;
-                    renderCategoryManagerList();
-                    await refreshData();
-                    showToast(used.length ? `✓ Category deleted, ${used.length} transaction(s) moved` : '✓ Category deleted');
-                } finally { btn.disabled = false; }
-            };
-            openModal('modalCatDelete');
+    document.getElementById('catDelMsg').textContent = used.length
+        ? `"${cat.name}" is used by ${used.length} transaction(s). Choose destination category:`
+        : `Delete "${cat.name}"?`;
+    document.getElementById('catDelMoveWrap').style.display = used.length ? 'block' : 'none';
+
+    const target = document.getElementById('catDelTarget');
+    target.innerHTML = others.map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
+
+    const btn = document.getElementById('btnCatDelConfirm');
+    btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+            const payload = used.length ? { move_to_category_id: parseInt(target.value) } : null;
+            const res = await API.req(`/api/finance/categories/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload ? JSON.stringify(payload) : undefined
+            });
+
+            if (!(await okOrToast(res, 'Could not delete category'))) return;
+
+            closeModal('modalCatDelete');
+            categories = await safeLoad(() => API.getCategories(), categories);
+            renderCategoryManagerList();
+            await refreshData();
+            showToast('Category deleted successfully');
+        } finally {
+            btn.disabled = false;
         }
+    };
+    openModal('modalCatDelete');
+}
 
         function goalNeedText(g) {
             const remaining = Math.max((Number(g.target_amount) || 0) - (Number(g.saved_amount) || 0), 0);
@@ -2560,7 +2701,7 @@
                 const starting_balance = parseFloat(inp.value) || 0;
                 if (!(await okOrToast(await API.updateAccount(aid, { starting_balance }), 'Failed to update balances'))) return;
             }
-            accounts = await API.getAccounts();
+            accounts = await safeLoad(() => API.getAccounts(), accounts);
             closeModal('modalAccounts');
             await refreshData();
             showToast('✓ Balances updated');
@@ -2586,7 +2727,7 @@
                 const current_market_value = parseFloat(inp.value) || 0;
                 if (!(await okOrToast(await API.updateAccount(vid, { current_market_value }), 'Failed to update valuations'))) return;
             }
-            accounts = await API.getAccounts();
+            accounts = await safeLoad(() => API.getAccounts(), accounts);
             closeModal('modalValuations');
             await refreshData();
             showToast('✓ Valuations updated');
@@ -2631,132 +2772,125 @@
                 .map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
         }
 
-        async function fetchGmailTransactions() {
-            const url = document.getElementById('gmailScriptUrl').value.trim();
-            if (!url) {
-                showToast('Please enter Google Apps Script URL', 'error');
-                return;
-            }
-            localStorage.setItem('dhanSutraGmailScript', url);
-            showToast('Fetching from bank alerts...');
+        let gmailFetchInFlight = false;
 
-            const cb = 'dhanSutraJsonp_' + Date.now();
-            const s = document.createElement('script');
-            s.src = `${url}${url.includes('?') ? '&' : '?'}callback=${cb}`;
+async function fetchGmailTransactions() {
+    const url = document.getElementById('gmailScriptUrl').value.trim();
+    if (!url) {
+        showToast('Please enter Google Apps Script URL', 'error');
+        return;
+    }
+    if (gmailFetchInFlight) {
+        showToast('A fetch is already in progress', 'error');
+        return;
+    }
 
-            window[cb] = async function(response) {
-                delete window[cb];
-                if (s.parentNode) document.body.removeChild(s);
+    gmailFetchInFlight = true;
+    localStorage.setItem('dhanSutraGmailScript', url);
+    showToast('Fetching and deduplicating bank alerts via backend...');
 
-                if (response && response.error) {
-                    showToast('Script Error: ' + response.error, 'error');
-                    return;
-                }
-                const incoming = Array.isArray(response)
-                    ? response
-                    : (response && Array.isArray(response.transactions) ? response.transactions : []);
+    try {
+        const res = await API.req('/api/finance/imports/fetch-external', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ script_url: url })
+        });
 
-                // Skip receipts that are already in the database
-                const existing = await API.getTransactions();
-                const existingSourceIds = new Set((Array.isArray(existing) ? existing : []).map(t => t.source_id).filter(Boolean).map(String));
+        if (!res || !res.ok) {
+            showToast(await readError(res, 'Failed to fetch receipts via backend'), 'error');
+            return;
+        }
 
-                const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
-                                 || accounts.find(a => a.type === 'BANK')
-                                 || accounts[0];
-                const fresh = await API.getCategories();
-                if (Array.isArray(fresh)) categories = fresh;
+        const incoming = await res.json();
+        if (!incoming.length) {
+            showToast('All transactions from alerts are already imported!', 'success');
+            return;
+        }
 
-                const formatted = incoming.map(item => {
-                    const isIncome = String(item.type).toLowerCase() === 'income';
-                    const type = isIncome ? 'INCOME' : 'EXPENSE';
-                    const description = item.description || (isIncome ? 'Direct Credit' : 'Bank Outflow');
-                    return {
-                        source_id: String(item.sourceId || item.id || `axis_${item.date}_${item.amount}_${normDesc(description)}`),
-                        type,
-                        date: item.date || todayStr(),
-                        amount: Math.abs(parseFloat(item.amount) || 0),
-                        description,
-                        account_id: axisAccount ? axisAccount.id : null,
-                        category_id: guessCategoryId(description, type)
-                    };
-                }).filter(item => item.amount > 0 && item.account_id && !existingSourceIds.has(item.source_id));
+        const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
+                         || accounts.find(a => a.type === 'BANK')
+                         || accounts[0];
 
-                if (!formatted.length) {
-                    showToast('All transactions from alerts are already imported!', 'success');
-                    return;
-                }
+        stagedSync = incoming.map(item => ({
+            ...item,
+            account_id: axisAccount ? axisAccount.id : null,
+            category_id: guessCategoryId(item.description, item.type)
+        }));
 
-                stagedSync = formatted;
-                document.getElementById('stagingCount').textContent = stagedSync.length;
-                document.getElementById('stagingItemsList').innerHTML = stagedSync.map((t, idx) => {
-                    const isInc = t.type === 'INCOME';
-                    return `
-                        <div style="padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                    <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
-                                    <div>
-                                        <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
-                                            ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
-                                        </span>
-                                        <div class="caption-text" style="font-size:12px; margin-top:2px;">${sanitize(t.date)} · ${sanitize(t.description)}</div>
-                                    </div>
-                                </label>
-                                <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">${isInc ? '+' : '-'}${formatINR(t.amount)}</span>
+        document.getElementById('stagingCount').textContent = stagedSync.length;
+        document.getElementById('stagingItemsList').innerHTML = stagedSync.map((t, idx) => {
+            const isInc = t.type === 'INCOME';
+            return `
+                <div style="padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
+                            <div>
+                                <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
+                                    ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
+                                </span>
+                                <div class="caption-text" style="font-size:12px; margin-top:2px;">${sanitize(t.date)} — ${sanitize(t.description)}</div>
                             </div>
-                            <select class="form-control sel-stage-cat" data-idx="${idx}" aria-label="Category" style="margin-top:4px; padding:4px 8px; font-size:12px;">${categoryOptionsHtml(t.type, t.category_id)}</select>
-                        </div>
-                    `;
-                }).join('');
-                document.getElementById('gmailStagingWrap').style.display = 'block';
-            };
+                        </label>
+                        <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">${isInc ? '+' : '-'}${formatINR(t.amount)}</span>
+                    </div>
+                    <select class="form-control sel-stage-cat" data-idx="${idx}" aria-label="Category" style="margin-top:4px; padding:4px 8px; font-size:12px;">${categoryOptionsHtml(t.type, t.category_id)}</select>
+                </div>
+            `;
+        }).join('');
+        document.getElementById('gmailStagingWrap').style.display = 'block';
+    } catch (err) {
+        console.error(err);
+        showToast('Error syncing with backend', 'error');
+    } finally {
+        gmailFetchInFlight = false;
+    }
+}
 
-            s.onerror = () => {
-                delete window[cb];
-                if (s.parentNode) document.body.removeChild(s);
-                showToast('Failed to connect to Google Apps Script', 'error');
-            };
-            document.body.appendChild(s);
+async function commitStagedTransactions() {
+    const toCommit = [];
+    let missing = 0;
+    document.querySelectorAll('.chk-stage:checked').forEach(c => {
+        const idx = Number(c.dataset.idx);
+        const item = stagedSync[idx];
+        if (!item) return;
+        const category_id = parseInt(document.querySelector(`.sel-stage-cat[data-idx="${idx}"]`)?.value);
+        if (!category_id) { missing++; return; }
+        toCommit.push({ ...item, category_id });
+    });
+
+    if (missing) { showToast(`Choose a category for ${missing} selected item(s)`, 'error'); return; }
+    if (!toCommit.length) { showToast('No items selected', 'error'); return; }
+
+    showToast('Saving transactions...');
+    try {
+        const res = await API.req('/api/finance/imports/commit-receipts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transactions: toCommit })
+        });
+
+        if (!res || !res.ok) {
+            showToast(await readError(res, 'Failed to commit receipts'), 'error');
+            return;
         }
 
-        async function commitStagedTransactions() {
-            const toCommit = [];
-            let missing = 0;
-            document.querySelectorAll('.chk-stage:checked').forEach(c => {
-                const idx = Number(c.dataset.idx);
-                const item = stagedSync[idx];
-                if (!item) return;
-                const category_id = parseInt(document.querySelector(`.sel-stage-cat[data-idx="${idx}"]`)?.value);
-                if (!category_id) { missing++; return; }
-                toCommit.push({ ...item, category_id });
-            });
+        const data = await res.json();
+        const memory = loadCatMemory();
+        toCommit.forEach(item => { memory[normDesc(item.description)] = item.category_id; });
+        try { localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(memory)); } catch {}
 
-            if (missing) { showToast(`Choose a category for ${missing} selected item(s)`, 'error'); return; }
-            if (!toCommit.length) { showToast('No items selected', 'error'); return; }
-
-            showToast('Saving transactions...');
-            const memory = loadCatMemory();
-            let successCount = 0;
-            for (const item of toCommit) {
-                try {
-                    const res = await API.createTransaction({
-                        type: item.type, amount: item.amount, date: item.date, description: item.description,
-                        account_id: item.account_id, category_id: item.category_id,
-                        source_id: item.source_id  // lets the DB (and the duplicate check) know this receipt is saved
-                    });
-                    if (res && res.ok) { successCount++; memory[normDesc(item.description)] = item.category_id; }
-                } catch (err) { console.error(err); }
-            }
-            try { localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(memory)); } catch {}
-
-            stagedSync = [];
-            document.getElementById('stagingItemsList').innerHTML = '';
-            document.getElementById('gmailStagingWrap').style.display = 'none';
-            closeModal('modalGmail');
-            await refreshData();
-            if (successCount === toCommit.length) showToast(`Successfully saved ${successCount} transactions`);
-            else showToast(`Saved ${successCount} of ${toCommit.length}. Fetch again to retry the rest.`, 'error');
-        }
+        stagedSync = [];
+        document.getElementById('stagingItemsList').innerHTML = '';
+        document.getElementById('gmailStagingWrap').style.display = 'none';
+        closeModal('modalGmail');
+        await refreshData();
+        showToast(`Successfully saved ${data.committed_count} transaction(s)`);
+    } catch (err) {
+        console.error(err);
+        showToast('Network error while committing receipts', 'error');
+    }
+}
 
         function openCategoryModal() {
             closeModal('modalSettings');
@@ -2764,7 +2898,7 @@
             openModal('modalCategory');
         }
 
-        function openSettingsModal() { openModal('modalSettings'); }
+        function openSettingsModal() { runHooks('beforeOpenSettings'); openModal('modalSettings'); }
 
         function openModal(id) {
             lastFocusedElement = document.activeElement;
@@ -2795,16 +2929,55 @@
             else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
         });
 
+        // Enter / Space activate the div-based controls (accordion headers, ledger rows)
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const el = e.target;
+            if (el && el.matches && el.matches('.accordion-header[role="button"], .ledger-row[role="button"]')) {
+                e.preventDefault();
+                el.click();
+            }
+        });
+
         function confirmAction(title, msg, onConfirm) {
             document.getElementById('confirmTitle').textContent = title;
             document.getElementById('confirmMessage').textContent = msg;
             const btn = document.getElementById('btnConfirmAction');
-            btn.onclick = () => {
-                onConfirm();
-                closeModal('modalConfirm');
+            btn.disabled = false;
+            btn.textContent = 'Confirm';
+            btn.removeAttribute('aria-busy');
+            btn.onclick = async () => {
+                if (btn.disabled) return;
+                btn.disabled = true;
+                btn.setAttribute('aria-busy', 'true');
+                btn.textContent = 'Working…';
+                try {
+                    await onConfirm();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Something went wrong. Please try again.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                    btn.textContent = 'Confirm';
+                    closeModal('modalConfirm');
+                }
             };
             openModal('modalConfirm');
         }
+
+        // Last-resort handlers so a failed request never fails silently
+        let lastGlobalToastAt = 0;
+        window.addEventListener('unhandledrejection', e => {
+            const err = e.reason;
+            console.error(err);
+            if (err && err.kind === 'auth') return;
+            if (Date.now() - lastGlobalToastAt < 5000) return;
+            lastGlobalToastAt = Date.now();
+            showToast(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.', 'error');
+        });
+        window.addEventListener('offline', () => showToast('You are offline — changes cannot be saved until you reconnect.', 'error'));
+        window.addEventListener('online', () => { showToast('Back online — refreshing…'); refreshData(); });
 
         function toggleTheme() {
             const isDark = document.body.classList.toggle('dark');
@@ -2827,593 +3000,9 @@
             setTimeout(() => div.remove(), 4000);
         }
     </script>
-    <script>
-        
-(function () {
-    const $ = id => document.getElementById(id);
-    const T = () => (typeof transactions !== 'undefined' ? transactions : []);
-    const recs = () => (typeof recurringList !== 'undefined' ? recurringList : []);
-    const expenses = () => T().filter(t => (t.type || '').toUpperCase() === 'EXPENSE');
-    const mo = off => new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + off, 1);
-    const row = (l, r, cls = '') => `<div class="ins-row"><span>${l}</span><span class="${cls}" style="font-weight:700; text-align:right;">${r}</span></div>`;
-    const note = t => `<div class="caption-text" style="margin-top:0.6rem;">${t}</div>`;
-    const empty = t => `<div class="empty-state"><span class="caption-text">${t}</span></div>`;
-    const pctTxt = (a, b) => (b > 0 ? `${a >= b ? '+' : ''}${(((a - b) / b) * 100).toFixed(0)}%` : '—');
-
-    // ---------- UI shell ----------
-    document.head.insertAdjacentHTML('beforeend', `<style>
-        .ins-row { display:flex; justify-content:space-between; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid var(--border-subtle); }
-        .fab { display:none; position:fixed; right:16px; bottom:78px; z-index:1100; width:52px; height:52px; border-radius:50%; border:none; font-size:26px; color:#fff;
-               background:linear-gradient(135deg,var(--saffron),var(--gold)); box-shadow:0 6px 18px rgba(0,0,0,.3); cursor:pointer; }
-        .fab-menu { display:none; position:fixed; right:16px; bottom:140px; z-index:1100; flex-direction:column; gap:8px; }
-        .fab-menu.open { display:flex; }
-        @media (max-width:920px) { .fab { display:block; } }
-    </style>`);
-
-    document.querySelector('.desktop-nav').insertAdjacentHTML('beforeend', `<button class="nav-link" onclick="switchTab('insights')">Insights</button>`);
-    const mobItem = document.createElement('button');
-    mobItem.className = 'mob-item';
-    mobItem.innerHTML = '<span>💡</span><span>Insights</span>';
-    mobItem.onclick = () => switchTab('insights', mobItem);
-    document.querySelector('.mobile-bottom-nav').insertBefore(mobItem, document.querySelector('.mobile-bottom-nav').lastElementChild);
-
-    document.querySelector('main.container').insertAdjacentHTML('beforeend', `
-        <section id="tab-insights" style="display:none;">
-            <div class="dashboard-grid">
-                <div class="card"><div class="card-header"><h2 class="section-title">Next 30 Days</h2></div><div id="insForecast"></div></div>
-                <div class="card"><div class="card-header"><h2 class="section-title">Subscriptions</h2></div><div id="insSubs"></div></div>
-            </div>
-            <div class="dashboard-grid">
-                <div class="card"><div class="card-header"><h2 class="section-title">Top Merchants</h2></div><div id="insMerchants"></div></div>
-                <div class="card"><div class="card-header"><h2 class="section-title" id="insReviewTitle">Monthly Review</h2></div><div id="insReview"></div></div>
-            </div>
-        </section>`);
-
-    // ---------- Cash-flow forecast ----------
-    function occurrences(r, end) {
-        let n = 0, d = r.next_date;
-        while (d && d <= end && n < 40) { n++; d = advanceDate(d, r.frequency); }
-        return n;
-    }
-
-    function renderForecast() {
-        const endDate = toDateStr(new Date(Date.now() + 30 * 864e5));
-        let inc = 0, bills = 0;
-        recs().forEach(r => {
-            const v = occurrences(r, endDate) * (Number(r.amount) || 0);
-            if ((r.type || '').toUpperCase() === 'INCOME') inc += v; else bills += v;
-        });
-
-        const today = todayStr();
-        const ex = expenses().filter(t => t.date <= today);
-        const first = ex.map(t => t.date).sort()[0];
-        const days = first ? Math.min(90, Math.max(7, Math.round((Date.now() - new Date(first + 'T00:00:00')) / 864e5) + 1)) : 30;
-        const from = toDateStr(new Date(Date.now() - days * 864e5));
-        const spent = ex.filter(t => t.date >= from).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-        const other = Math.max((spent / days) * 30 - bills, 0);
-
-        const accs = (dashboardData && dashboardData.accounts) || [];
-        const cash = accs.filter(a => ['BANK', 'CASH'].includes(String(a.type || '').toUpperCase())).reduce((s, a) => s + (Number(a.current_balance) || 0), 0);
-        const free = cash + inc - bills - other;
-
-        $('insForecast').innerHTML =
-            row('Bank + cash today', formatINR(cash)) +
-            row('Expected income (recurring)', '+ ' + formatINR(inc), 'amount-pos') +
-            row('Scheduled bills (recurring)', '− ' + formatINR(bills), 'amount-neg') +
-            row('Other spending (estimate)', '− ' + formatINR(other), 'amount-neg') +
-            row('Projected balance in 30 days', formatINR(free), free >= 0 ? 'amount-pos' : 'amount-neg') +
-            note(recs().length ? `Estimate uses your recurring items plus your average daily spending over the last ${days} days.` : 'Add recurring items on the dashboard for a sharper forecast.') +
-            (free < 0 ? note('⚠ You are projected to run short of cash within 30 days.') : '');
-    }
-
-    // ---------- Subscription detection ----------
-    function detectSubs() {
-        const groups = {};
-        const cutoff = toDateStr(new Date(Date.now() - 190 * 864e5));
-        expenses().filter(t => t.date >= cutoff).forEach(t => {
-            const k = normDesc(t.description);
-            if (k) (groups[k] = groups[k] || []).push(t);
-        });
-        const subs = [];
-        Object.values(groups).forEach(list => {
-            const months = new Set(list.map(t => t.date.slice(0, 7)));
-            if (months.size < 3 || list.length > months.size * 1.5) return;
-            const amts = list.map(t => Number(t.amount)).sort((a, b) => a - b);
-            const med = amts[Math.floor(amts.length / 2)];
-            if (!amts.every(a => Math.abs(a - med) <= med * 0.1)) return;
-            subs.push({ name: list[0].description, amount: med, last: list.map(t => t.date).sort().pop() });
-        });
-        return subs.sort((a, b) => b.amount - a.amount);
-    }
-
-    function renderSubs() {
-        const subs = detectSubs();
-        if (!subs.length) { $('insSubs').innerHTML = empty('No subscriptions detected yet. A charge that repeats monthly for 3+ months shows up here.'); return; }
-        const monthly = subs.reduce((s, x) => s + x.amount, 0);
-        $('insSubs').innerHTML = subs.map(s => row(`${sanitize(s.name)}<div class="caption-text">last ${sanitize(s.last)}</div>`, formatINR(s.amount) + ' / mo')).join('') +
-            row('Monthly total', formatINR(monthly)) + row('Annualised', formatINR(monthly * 12), 'amount-neg');
-    }
-
-    // ---------- Merchants ----------
-    function renderMerchants() {
-        const sumFor = (k, d) => expenses().filter(t => normDesc(t.description) === k && String(t.date).startsWith(formatMonthStr(d)))
-            .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-        const cur = {}, names = {}, counts = {};
-        expenses().filter(t => String(t.date).startsWith(formatMonthStr(selectedMonth))).forEach(t => {
-            const k = normDesc(t.description);
-            cur[k] = (cur[k] || 0) + (Number(t.amount) || 0);
-            names[k] = names[k] || t.description;
-            counts[k] = (counts[k] || 0) + 1;
-        });
-        const top = Object.entries(cur).sort((a, b) => b[1] - a[1]).slice(0, 5);
-        if (!top.length) { $('insMerchants').innerHTML = empty('No spending recorded for this month.'); return; }
-        $('insMerchants').innerHTML = top.map(([k, amt]) => {
-            const last = sumFor(k, mo(-1));
-            const avg3 = [1, 2, 3].reduce((s, i) => s + sumFor(k, mo(-i)), 0) / 3;
-            return row(`${sanitize(names[k])}<div class="caption-text">${counts[k]} txn · last month ${formatINR(last)} (${pctTxt(amt, last)}) · 3-mo avg ${formatINR(avg3)}</div>`, formatINR(amt));
-        }).join('');
-    }
-
-    // ---------- Monthly review ----------
-    function stats(d) {
-        const k = formatMonthStr(d);
-        const s = { inc: 0, exp: 0, cats: {} };
-        T().forEach(t => {
-            if (!String(t.date).startsWith(k)) return;
-            const ty = (t.type || '').toUpperCase(), a = Number(t.amount) || 0;
-            if (ty === 'INCOME') s.inc += a;
-            else if (ty === 'EXPENSE') {
-                s.exp += a;
-                const c = categories.find(c => c.id === t.category_id);
-                const n = c ? c.name : 'Uncategorized';
-                s.cats[n] = (s.cats[n] || 0) + a;
-            }
-        });
-        s.saved = s.inc - s.exp;
-        s.rate = s.inc > 0 ? (s.saved / s.inc) * 100 : 0;
-        return s;
-    }
-
-    function renderReview() {
-        const c = stats(selectedMonth), p = stats(mo(-1));
-        $('insReviewTitle').textContent = selectedMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' }) + ' Review';
-        if (!c.inc && !c.exp) { $('insReview').innerHTML = empty('No transactions in this month yet.'); return; }
-        const topCat = Object.entries(c.cats).sort((a, b) => b[1] - a[1])[0];
-        const rises = Object.entries(c.cats).map(([n, v]) => [n, v - (p.cats[n] || 0), p.cats[n] || 0, v]).filter(x => x[1] > 0 && x[2] > 0).sort((a, b) => b[1] - a[1]);
-        const lines = [];
-        if (topCat) lines.push(`Biggest category: ${sanitize(topCat[0])} (${formatINR(topCat[1])}).`);
-        if (rises[0]) lines.push(`${sanitize(rises[0][0])} rose ${formatINR(rises[0][1])} (${pctTxt(rises[0][3], rises[0][2])}) vs last month.`);
-        if (p.inc > 0 && c.inc > 0) lines.push(`Savings rate ${c.rate >= p.rate ? 'improved' : 'fell'} from ${p.rate.toFixed(1)}% to ${c.rate.toFixed(1)}%.`);
-        $('insReview').innerHTML =
-            row('Income', formatINR(c.inc), 'amount-pos') + row('Expenses', formatINR(c.exp), 'amount-neg') +
-            row('Saved', formatINR(c.saved), c.saved >= 0 ? 'amount-pos' : 'amount-neg') + row('Savings rate', c.rate.toFixed(1) + '%') +
-            row('Expenses vs last month', pctTxt(c.exp, p.exp)) +
-            lines.map(l => note('• ' + l)).join('');
-    }
-
-    function renderInsights() { renderForecast(); renderSubs(); renderMerchants(); renderReview(); }
-
-    // ---------- hook into the dashboard ----------
-    const _renderUI = renderUI;
-    renderUI = function (...a) { _renderUI.apply(this, a); try { renderInsights(); } catch (e) { console.error(e); } };
-    const _switchTab = switchTab;
-    switchTab = function (tabId, btn) {
-        _switchTab(tabId, btn);
-        $('tab-insights').style.display = tabId === 'insights' ? 'block' : 'none';
-    };
-
-    // ---------- mobile quick-add ----------
-    const menu = document.createElement('div');
-    menu.className = 'fab-menu';
-    [['expense', '− Expense'], ['income', '+ Income'], ['transfer', '⇄ Transfer']].forEach(([type, label]) => {
-        const b = document.createElement('button');
-        b.className = 'btn btn-primary btn-pill';
-        b.textContent = label;
-        b.onclick = () => { menu.classList.remove('open'); openTransactionModal(); setFormType(type); };
-        menu.appendChild(b);
-    });
-    const fab = document.createElement('button');
-    fab.className = 'fab';
-    fab.textContent = '+';
-    fab.setAttribute('aria-label', 'Quick add transaction');
-    fab.onclick = () => menu.classList.toggle('open');
-    document.body.append(menu, fab);
-})();
-    </script>
-    <script>
-      
-(function () {
-    const $ = id => document.getElementById(id);
-    const recs = () => (typeof recurringList !== 'undefined' ? recurringList : []);
-    const compact = v => { const a = Math.abs(v); return (a >= 1e5 ? (a / 1e5).toFixed(1) + 'L' : a >= 1e3 ? (a / 1e3).toFixed(1) + 'K' : a.toFixed(0)); };
-
-    document.head.insertAdjacentHTML('beforeend', `<style>
-        .bulk-bar { display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:20px; z-index:1050; flex-wrap:wrap; gap:0.5rem; align-items:center; justify-content:center;
-                    background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow-modal); padding:0.6rem 0.85rem; border-radius:14px; max-width:calc(100vw - 24px); }
-        .bulk-bar .btn { padding:0.35rem 0.8rem; font-size:12px; }
-        .bulk-cb { width:16px; height:16px; margin-right:8px; flex-shrink:0; cursor:pointer; accent-color:var(--palace-teal); }
-        .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
-        .cal-dow { text-align:center; font-size:11px; font-weight:700; color:var(--text-muted); padding:4px 0; }
-        .cal-cell { min-height:62px; padding:4px; text-align:left; background:var(--surface-subtle); border:1px solid var(--border-subtle); border-radius:8px; cursor:pointer; color:var(--text-main); font-family:inherit; display:flex; flex-direction:column; gap:1px; overflow:hidden; }
-        .cal-cell.blank { visibility:hidden; cursor:default; }
-        .cal-cell.today { border-color:var(--saffron); }
-        .cal-cell.sel { border-color:var(--palace-teal); box-shadow:0 0 0 2px var(--palace-teal) inset; }
-        .cal-cell .n { font-size:12px; font-weight:700; }
-        .cal-cell .i, .cal-cell .e, .cal-cell .s { font-size:10px; line-height:1.2; white-space:nowrap; }
-        .cal-cell .i { color:var(--emerald); } .cal-cell .e { color:var(--terracotta); } .cal-cell .s { color:var(--palace-teal); }
-        @media (max-width:920px) { .bulk-bar { bottom:74px; } .cal-cell { min-height:52px; } }
-    </style>`);
-
-    // =========================================================
-    // BULK ACTIONS
-    // =========================================================
-    const sel = new Set();
-
-    $('ledgerRowsContainer').insertAdjacentHTML('beforebegin',
-        `<label class="caption-text" style="display:flex; align-items:center; gap:6px; margin-bottom:0.6rem; cursor:pointer;"><input type="checkbox" id="bulkSelectAll" class="bulk-cb" style="margin:0;"> Select all in view</label>`);
-    document.body.insertAdjacentHTML('beforeend', `
-        <div class="bulk-bar" id="bulkBar" role="toolbar" aria-label="Bulk actions">
-            <strong id="bulkCount" class="body-text"></strong>
-            <select id="bulkCat" class="form-control" aria-label="New category" style="width:auto; max-width:180px; padding:0.35rem 2rem 0.35rem 0.6rem;"></select>
-            <button type="button" class="btn btn-primary btn-pill" id="bulkApply">Move</button>
-            <button type="button" class="btn btn-secondary btn-pill" id="bulkExport">CSV</button>
-            <button type="button" class="btn btn-destructive btn-pill" id="bulkDelete">Delete</button>
-            <button type="button" class="btn btn-ghost btn-pill" id="bulkClear">Clear</button>
-        </div>`);
-
-    const visibleIds = () => Array.from(document.querySelectorAll('#ledgerRowsContainer .bulk-cb')).map(cb => Number(cb.dataset.id));
-
-    function sync() {
-        const ids = new Set(transactions.map(t => t.id));
-        sel.forEach(id => { if (!ids.has(id)) sel.delete(id); });
-        const vis = visibleIds(), chosen = vis.filter(id => sel.has(id)).length;
-        const all = $('bulkSelectAll');
-        all.checked = vis.length > 0 && chosen === vis.length;
-        all.indeterminate = chosen > 0 && chosen < vis.length;
-        const bar = $('bulkBar');
-        bar.style.display = sel.size ? 'flex' : 'none';
-        if (sel.size) {
-            $('bulkCount').textContent = `${sel.size} selected`;
-            const opt = type => categories.filter(c => (c.type || '').toUpperCase() === type)
-                .map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
-            const keep = $('bulkCat').value;
-            $('bulkCat').innerHTML = `<optgroup label="Expense">${opt('EXPENSE')}</optgroup><optgroup label="Income">${opt('INCOME')}</optgroup>`;
-            if (keep) $('bulkCat').value = keep;
-        }
-    }
-
-    function decorateLedger() {
-        document.querySelectorAll('#ledgerRowsContainer .ledger-row').forEach(row => {
-            const m = (row.getAttribute('onclick') || '').match(/inspectTransaction\((\d+)\)/);
-            if (!m) return;
-            const id = Number(m[1]);
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.className = 'bulk-cb';
-            cb.dataset.id = id;
-            cb.checked = sel.has(id);
-            cb.setAttribute('aria-label', 'Select transaction');
-            cb.onclick = e => { e.stopPropagation(); cb.checked ? sel.add(id) : sel.delete(id); sync(); };
-            row.querySelector('.row-left').insertBefore(cb, row.querySelector('.row-left').firstChild);
-        });
-        sync();
-    }
-
-    $('bulkSelectAll').onchange = e => {
-        visibleIds().forEach(id => e.target.checked ? sel.add(id) : sel.delete(id));
-        document.querySelectorAll('#ledgerRowsContainer .bulk-cb').forEach(cb => cb.checked = e.target.checked);
-        sync();
-    };
-    $('bulkClear').onclick = () => { sel.clear(); document.querySelectorAll('.bulk-cb').forEach(cb => cb.checked = false); sync(); };
-
-    const picked = () => Array.from(sel).map(id => transactions.find(t => t.id === id)).filter(Boolean);
-
-    $('bulkApply').onclick = async () => {
-        const cat = categories.find(c => c.id === parseInt($('bulkCat').value));
-        if (!cat) { showToast('Choose a category first', 'error'); return; }
-        const list = picked();
-        const ok = list.filter(t => (t.type || '').toUpperCase() === (cat.type || '').toUpperCase());
-        const skipped = list.length - ok.length;
-        if (!ok.length) { showToast(`Nothing to move: "${cat.name}" is an ${String(cat.type).toLowerCase()} category`, 'error'); return; }
-
-        const btn = $('bulkApply');
-        btn.disabled = true;
-        let done = 0;
-        try {
-            for (const t of ok) {
-                const payload = { type: String(t.type).toUpperCase(), amount: Number(t.amount), date: t.date, description: t.description, account_id: t.account_id, category_id: cat.id };
-                if (t.source_id) payload.source_id = t.source_id;
-                const res = await API.updateTransaction(t.id, payload);
-                if (!(await okOrToast(res, 'Could not update a transaction'))) break;
-                done++;
-            }
-        } finally { btn.disabled = false; }
-        sel.clear();
-        await refreshData();
-        showToast(`Moved ${done} of ${ok.length} to "${cat.name}"` + (skipped ? ` · ${skipped} skipped (different type / transfers)` : ''), done === ok.length ? 'success' : 'error');
-    };
-
-    $('bulkDelete').onclick = () => {
-        const n = sel.size;
-        confirmAction(`Delete ${n} transaction${n > 1 ? 's' : ''}`, 'This permanently deletes every selected transaction and cannot be undone.', async () => {
-            let done = 0;
-            for (const t of picked()) {
-                const res = await API.deleteTransaction(t.id);
-                if (res && res.ok) done++;
-            }
-            const total = n;
-            sel.clear();
-            await refreshData();
-            showToast(`Deleted ${done} of ${total} transactions`, done === total ? 'success' : 'error');
-        });
-    };
-
-    $('bulkExport').onclick = () => {
-        const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-        const lines = ['Date,Type,Description,Category,Account,Amount'].concat(picked().map(t => {
-            const cat = categories.find(c => c.id === t.category_id);
-            const acc = t.account_id ? accounts.find(a => a.id === t.account_id) : null;
-            const route = (t.type || '').toUpperCase() === 'TRANSFER'
-                ? `${(accounts.find(a => a.id === t.from_account_id) || {}).name || ''} -> ${(accounts.find(a => a.id === t.to_account_id) || {}).name || ''}`
-                : (acc ? acc.name : '');
-            return [t.date, t.type, t.description, cat ? cat.name : '', route, t.amount].map(q).join(',');
-        }));
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv' }));
-        a.download = 'dhansutra-selected.csv';
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    };
-
-    // =========================================================
-    // FINANCIAL CALENDAR
-    // =========================================================
-    document.querySelector('.desktop-nav').insertAdjacentHTML('beforeend', `<button class="nav-link" onclick="switchTab('calendar')">Calendar</button>`);
-    const mobNav = document.querySelector('.mobile-bottom-nav');
-    const mobItem = document.createElement('button');
-    mobItem.className = 'mob-item';
-    mobItem.innerHTML = '<span>📅</span><span>Calendar</span>';
-    mobItem.onclick = () => switchTab('calendar', mobItem);
-    mobNav.insertBefore(mobItem, mobNav.lastElementChild);
-
-    document.querySelector('main.container').insertAdjacentHTML('beforeend', `
-        <section id="tab-calendar" style="display:none;">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="section-title" id="calTitle">Calendar</h2>
-                    <div style="display:flex; gap:4px;">
-                        <button type="button" class="btn btn-secondary btn-pill" id="calPrev" aria-label="Previous month" style="padding:0.25rem 0.75rem;">‹</button>
-                        <button type="button" class="btn btn-secondary btn-pill" id="calToday" style="padding:0.25rem 0.75rem;">Today</button>
-                        <button type="button" class="btn btn-secondary btn-pill" id="calNext" aria-label="Next month" style="padding:0.25rem 0.75rem;">›</button>
-                    </div>
-                </div>
-                <div class="caption-text" id="calSummary" style="margin-bottom:0.75rem;"></div>
-                <div class="cal-grid" id="calGrid"></div>
-                <div class="caption-text" style="margin-top:0.6rem;">🔁 = scheduled recurring item · green = money in · red = money out</div>
-            </div>
-            <div class="card" id="calDayCard"><div class="card-header"><h2 class="section-title" id="calDayTitle">Pick a day</h2></div><div id="calDayBody"></div></div>
-        </section>`);
-
-    let calSel = null;
-    const monthKey = () => formatMonthStr(selectedMonth);
-
-    function scheduledByDay() {
-        const key = monthKey(), out = {};
-        recs().forEach(r => {
-            let d = r.next_date, guard = 0;
-            while (d && d.slice(0, 7) <= key && guard++ < 60) {
-                if (d.startsWith(key)) (out[d] = out[d] || []).push(r);
-                d = advanceDate(d, r.frequency);
-            }
-        });
-        return out;
-    }
-
-    function dayData() {
-        const key = monthKey(), out = {};
-        transactions.forEach(t => {
-            if (!String(t.date).startsWith(key)) return;
-            const o = out[t.date] = out[t.date] || { inc: 0, exp: 0, list: [] };
-            const ty = (t.type || '').toUpperCase(), a = Number(t.amount) || 0;
-            if (ty === 'INCOME') o.inc += a; else if (ty === 'EXPENSE') o.exp += a;
-            o.list.push(t);
-        });
-        return out;
-    }
-
-    function renderCalendar() {
-        const y = selectedMonth.getFullYear(), m = selectedMonth.getMonth(), key = monthKey();
-        $('calTitle').textContent = selectedMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-        const data = dayData(), sched = scheduledByDay(), today = todayStr();
-        const lead = (new Date(y, m, 1).getDay() + 6) % 7;      // Monday-first
-        const days = new Date(y, m + 1, 0).getDate();
-
-        let inc = 0, exp = 0;
-        Object.values(data).forEach(d => { inc += d.inc; exp += d.exp; });
-        const upcoming = Object.entries(sched).filter(([d]) => d >= today).reduce((s, [, rs]) => s + rs.reduce((a, r) => a + ((r.type || '').toUpperCase() === 'EXPENSE' ? -1 : 1) * (Number(r.amount) || 0), 0), 0);
-        $('calSummary').textContent = `In ${formatINR(inc)} · Out ${formatINR(exp)}` + (Object.keys(sched).length ? ` · Scheduled still to come this month: ${upcoming >= 0 ? '+' : '−'}${formatINR(Math.abs(upcoming))}` : '');
-
-        if (!calSel || !calSel.startsWith(key)) calSel = (today.startsWith(key)) ? today : null;
-
-        let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="cal-dow">${d}</div>`).join('');
-        for (let i = 0; i < lead; i++) html += '<div class="cal-cell blank" aria-hidden="true"></div>';
-        for (let d = 1; d <= days; d++) {
-            const ds = `${key}-${pad(d)}`, info = data[ds], sc = sched[ds];
-            html += `<button type="button" class="cal-cell${ds === today ? ' today' : ''}${ds === calSel ? ' sel' : ''}" data-d="${ds}" aria-label="${ds}">
-                <span class="n">${d}</span>
-                ${info && info.inc ? `<span class="i">+${compact(info.inc)}</span>` : ''}
-                ${info && info.exp ? `<span class="e">−${compact(info.exp)}</span>` : ''}
-                ${sc ? `<span class="s">🔁${sc.length > 1 ? sc.length : ''}</span>` : ''}
-            </button>`;
-        }
-        $('calGrid').innerHTML = html;
-        renderDay(data, sched);
-    }
-
-    function renderDay(data, sched) {
-        const body = $('calDayBody');
-        if (!calSel) { $('calDayTitle').textContent = 'Pick a day'; body.innerHTML = '<div class="empty-state"><span class="caption-text">Tap a date to see its transactions and scheduled items.</span></div>'; return; }
-        $('calDayTitle').textContent = new Date(calSel + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
-        const txs = (data[calSel] || { list: [] }).list, sc = sched[calSel] || [];
-        let html = '';
-        sc.forEach(r => {
-            const isExp = (r.type || '').toUpperCase() === 'EXPENSE';
-            html += `<div class="ins-row" style="display:flex; justify-content:space-between; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
-                <span>🔁 ${sanitize(r.description)} <span class="caption-text">· scheduled (${sanitize(r.frequency)})</span></span>
-                <span style="display:flex; align-items:center; gap:0.4rem;"><strong class="${isExp ? 'amount-neg' : 'amount-pos'}">${formatINR(r.amount)}</strong>
-                ${calSel === r.next_date ? `<button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring(${r.id})">Add now</button>` : ''}</span></div>`;
-        });
-        txs.forEach(t => {
-            const ty = (t.type || '').toUpperCase(), cat = categories.find(c => c.id === t.category_id);
-            const sign = ty === 'INCOME' ? '+' : ty === 'EXPENSE' ? '−' : '⇄';
-            html += `<div class="ledger-row" onclick="inspectTransaction(${t.id})"><div class="row-left"><div class="row-icon">${sanitize((cat && cat.icon) || (ty === 'TRANSFER' ? '🔁' : '🏷️'))}</div>
-                <div><div style="font-weight:600;">${sanitize(t.description)}</div><div class="caption-text">${sanitize(cat ? cat.name : ty === 'TRANSFER' ? 'Transfer' : 'Uncategorized')}</div></div></div>
-                <div class="${ty === 'INCOME' ? 'amount-pos' : ty === 'EXPENSE' ? 'amount-neg' : 'amount-neutral'}">${sign} ${formatINR(t.amount)}</div></div>`;
-        });
-        body.innerHTML = html || '<div class="empty-state"><span class="caption-text">Nothing recorded or scheduled on this day.</span></div>';
-    }
-
-    async function gotoMonth(target) {
-        const v = formatMonthStr(target), sel2 = $('monthSelector');
-        if (!Array.from(sel2.options).some(o => o.value === v)) { showToast('That month is outside the available range', 'error'); return; }
-        selectedMonth = target;
-        sel2.value = v;
-        await refreshData();
-    }
-    $('calPrev').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
-    $('calNext').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
-    $('calToday').onclick = async () => { await gotoMonth(startOfMonth(new Date())); calSel = todayStr(); renderCalendar(); };
-    $('calGrid').onclick = e => {
-        const b = e.target.closest('.cal-cell[data-d]');
-        if (!b) return;
-        calSel = b.dataset.d;
-        renderCalendar();
-    };
-
-    // =========================================================
-    // hooks into the dashboard
-    // =========================================================
-    const _renderLedger = renderLedger;
-    renderLedger = function (...a) { _renderLedger.apply(this, a); try { decorateLedger(); } catch (e) { console.error(e); } };
-    const _renderUI = renderUI;
-    renderUI = function (...a) { _renderUI.apply(this, a); try { renderCalendar(); } catch (e) { console.error(e); } };
-    const _switchTab = switchTab;
-    switchTab = function (tabId, btn) {
-        _switchTab(tabId, btn);
-        $('tab-calendar').style.display = tabId === 'calendar' ? 'block' : 'none';
-        if (tabId !== 'ledger') { /* keep selection, but hide the bar off the ledger tab */ }
-        $('bulkBar').style.visibility = tabId === 'ledger' ? 'visible' : 'hidden';
-    };
-})();
-    </script>
-    <script>
-(function () {
-    const $ = id => document.getElementById(id);
-    const MEMORY_KEY = 'dhanSutraCatMemory';
-    const recs = () => (typeof recurringList !== 'undefined' ? recurringList : []);
-    const learnedCount = () => { try { return Object.keys(JSON.parse(localStorage.getItem(MEMORY_KEY) || '{}')).length; } catch { return 0; } };
-
-    document.head.insertAdjacentHTML('beforeend', `<style>
-        .st-group { border:1px solid var(--border-subtle); border-radius:12px; margin-bottom:0.75rem; background:var(--surface); }
-        .st-group > summary { cursor:pointer; padding:0.7rem 0.9rem; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); list-style:none; display:flex; justify-content:space-between; align-items:center; }
-        .st-group > summary::-webkit-details-marker { display:none; }
-        .st-group > summary::after { content:'▸'; transition:transform 0.15s; }
-        .st-group[open] > summary::after { transform:rotate(90deg); }
-        .st-body { display:flex; flex-direction:column; gap:0.45rem; padding:0 0.75rem 0.75rem; }
-        .st-row { width:100%; justify-content:space-between !important; white-space:normal !important; text-align:left; text-decoration:none; padding:0.6rem 0.85rem !important; }
-        .st-row .t { display:block; font-weight:600; } .st-row .d { display:block; font-weight:400; }
-    </style>`);
-
-    const row = (icon, title, desc, action, id = '') => {
-        const inner = `<span style="display:flex; gap:10px; align-items:center;"><span aria-hidden="true">${icon}</span><span><span class="t">${title}</span><span class="caption-text d"${id ? ` id="${id}"` : ''}>${desc}</span></span></span><span aria-hidden="true">➔</span>`;
-        return action.startsWith('href:')
-            ? `<a class="btn btn-secondary st-row" href="${action.slice(5)}">${inner}</a>`
-            : `<button type="button" class="btn btn-secondary st-row" onclick="${action}">${inner}</button>`;
-    };
-    const group = (title, body, open = false) => `<details class="st-group"${open ? ' open' : ''}><summary>${title}</summary><div class="st-body">${body}</div></details>`;
-
-    // ---------- rebuild the Settings dialog ----------
-    const box = document.querySelector('#modalSettings .modal-box');
-    const header = box.querySelector('.card-header');
-    box.innerHTML = '';
-    box.appendChild(header);
-    box.insertAdjacentHTML('beforeend',
-        group('Accounts & Money',
-            row('🏦', 'Accounts & opening balances', 'Starting balance for each account', 'openAccountsModal()') +
-            row('📈', 'Investment valuations', 'Update market values without creating cash flow', 'openValuationsModal()') +
-            row('🏷️', 'Categories', 'Create, delete and reassign categories', 'openCategoryModal()'), true) +
-        group('Automation',
-            row('✉️', 'Gmail receipt sync', 'Fetch bank alerts, review and import', 'openGmailModal()') +
-            row('🔁', 'Recurring transactions', 'Rent, SIPs, salary, subscriptions', 'openRecurringManager()', 'stRecurringDesc') +
-            row('🧠', 'Categorisation memory', 'Merchants DhanSutra has learned', 'resetLearnedCategories()', 'stLearnedDesc'), true) +
-        group('Data',
-            row('📄', 'Export CSV statement', 'All transactions as a spreadsheet', 'href:/api/finance/imports/export/csv') +
-            row('🗄️', 'Download JSON archive', 'Full copy of your data', 'href:/api/finance/imports/export/json')) +
-        group('Preferences',
-            row('🌙', 'Theme', 'Light or dark', 'toggleTheme(); refreshSettings()', 'stThemeDesc')) +
-        group('Security',
-            row('🚪', 'Log out', 'End this session on this device', 'href:/auth/logout')));
-
-    // ---------- live descriptions ----------
-    window.refreshSettings = function () {
-        const n = recs().length, l = learnedCount();
-        $('stRecurringDesc').textContent = n ? `${n} scheduled · add, review or remove` : 'Rent, SIPs, salary, subscriptions — none yet';
-        $('stLearnedDesc').textContent = l ? `${l} merchant choice${l > 1 ? 's' : ''} remembered · tap to forget them` : 'Nothing learned yet — fills in as you import receipts';
-        $('stThemeDesc').textContent = document.body.classList.contains('dark') ? 'Dark mode is on · tap to switch to light' : 'Light mode is on · tap to switch to dark';
-    };
-
-    window.resetLearnedCategories = function () {
-        const l = learnedCount();
-        if (!l) { showToast('Nothing to reset yet'); return; }
-        confirmAction('Forget learned categories', `Forget ${l} remembered merchant → category choice${l > 1 ? 's' : ''}? Future imports will go back to keyword rules only.`, () => {
-            try { localStorage.removeItem(MEMORY_KEY); } catch {}
-            refreshSettings();
-            showToast('✓ Learned categories cleared');
-        });
-    };
-
-    // ---------- recurring manager (all items, not just the next 30 days) ----------
-    document.body.insertAdjacentHTML('beforeend', `
-        <div class="modal-overlay" id="modalRecurringMgr" role="dialog" aria-modal="true" aria-labelledby="recMgrTitle">
-            <div class="modal-box">
-                <div class="card-header">
-                    <h3 class="section-title" id="recMgrTitle">Recurring Transactions</h3>
-                    <button class="btn btn-ghost" onclick="closeModal('modalRecurringMgr')" aria-label="Close dialog">✕</button>
-                </div>
-                <div id="recMgrList"></div>
-                <button type="button" class="btn btn-primary" style="width:100%; margin-top:1rem;" onclick="closeModal('modalRecurringMgr'); openRecurringModal();">+ Add recurring item</button>
-            </div>
-        </div>`);
-
-    function renderRecurringMgr() {
-        const list = recs().slice().sort((a, b) => String(a.next_date).localeCompare(String(b.next_date)));
-        $('recMgrList').innerHTML = list.length ? list.map(r => `
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.55rem 0; border-bottom:1px solid var(--border-subtle);">
-                <div><div style="font-weight:600;">${(r.type || '').toUpperCase() === 'INCOME' ? '💰' : '🧾'} ${sanitize(r.description)}</div>
-                    <div class="caption-text">${sanitize(r.frequency)} · next ${sanitize(r.next_date)}</div></div>
-                <div style="display:flex; align-items:center; gap:0.4rem;">
-                    <strong class="${(r.type || '').toUpperCase() === 'INCOME' ? 'amount-pos' : 'amount-neg'}">${formatINR(r.amount)}</strong>
-                    <button type="button" class="btn btn-destructive btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" aria-label="Delete ${sanitize(r.description)}" onclick="removeRecurring(${r.id})">Delete</button>
-                </div>
-            </div>`).join('') : '<div class="empty-state"><span class="caption-text">No recurring items yet.</span></div>';
-    }
-
-    window.openRecurringManager = function () {
-        closeModal('modalSettings');
-        renderRecurringMgr();
-        openModal('modalRecurringMgr');
-    };
-
-    // ---------- hooks ----------
-    const _openSettings = openSettingsModal;
-    openSettingsModal = function () { refreshSettings(); _openSettings(); };
-    const _renderUI = renderUI;
-    renderUI = function (...a) {
-        _renderUI.apply(this, a);
-        try { if ($('modalRecurringMgr').classList.contains('active')) renderRecurringMgr(); refreshSettings(); } catch (e) { console.error(e); }
-    };
-    refreshSettings();
-})();
-    </script>
+<!-- Feature Modules Externalized -->
+    <script src="/static/js/insights.js"></script>
+    <script src="/static/js/calendar.js"></script>
+    <script src="/static/js/settings.js"></script>
 </body>
 </html>

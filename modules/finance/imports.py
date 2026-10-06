@@ -3,110 +3,140 @@ import io
 import json
 from datetime import datetime, date
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from typing import List, Optional
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from core.database import SessionLocal
-from modules.auth.userverification import get_current_user
+from modules.auth.userverification import get_db, get_current_user
+from modules.users.models import User
 from modules.finance.models import Account, Category, FinancialGoal, Transaction, TransactionType
 from modules.finance.schemas import TransactionResponse
-from modules.users.models import User
 
-router = APIRouter(prefix="/api/finance/imports", tags=["Imports & Exports"])
+router = APIRouter(prefix="/api/finance/imports", tags=["Imports"])
 
+ALLOWED_HOSTS = {"script.google.com", "script.googleusercontent.com"}
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+class SyncRequest(BaseModel):
+    script_url: str
 
-
-class StagedReceipt(BaseModel):
+class ReceiptItem(BaseModel):
     source_id: str
-    date: date
-    amount: Decimal = Field(..., gt=0)
+    date: str
+    amount: float
     description: str
-    type: Optional[str] = None
+    type: str
     account_id: Optional[int] = None
     category_id: Optional[int] = None
 
-
-class CommitStagedReceipts(BaseModel):
-    receipts: List[StagedReceipt]
+class CommitReceiptsRequest(BaseModel):
+    transactions: List[ReceiptItem]
 
 
 # -------------------------------------------------------------
-# GMAIL / APPS SCRIPT RECEIPT SYNC (STAGED)
+# APPS SCRIPT / GMAIL BACKEND PROXY
 # -------------------------------------------------------------
-@router.post("/stage-receipts", response_model=List[StagedReceipt])
-def check_staged_receipts(
-    incoming: List[StagedReceipt],
-    current_user: User = Depends(get_current_user),
+@router.post("/fetch-external")
+async def fetch_external_receipts(
+    payload: SyncRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Receives parsed transactions from Gmail/Apps Script and returns only
-    those that do not already exist in the database (preventing duplicates).
-    """
-    existing_ids = {
-        row[0]
-        for row in db.query(Transaction.source_id)
-        .filter(Transaction.user_id == current_user.id, Transaction.source_id.isnot(None))
-        .all()
-    }
+    try:
+        url = httpx.URL(payload.script_url.strip())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid URL format")
 
-    return [item for item in incoming if item.source_id not in existing_ids]
+    if url.scheme != "https" or url.host not in ALLOWED_HOSTS:
+        raise HTTPException(status_code=400, detail="URL must be a valid Google Apps Script endpoint")
+
+    # Fetch via server-side HTTP client without executing dynamic JavaScript
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        try:
+            resp = await client.get(str(url))
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="Google Apps Script request timed out")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to fetch external receipts: {str(e)}")
+
+    if isinstance(data, dict) and "error" in data:
+        raise HTTPException(status_code=400, detail=f"Apps Script Error: {data['error']}")
+
+    raw_items = data if isinstance(data, list) else data.get("transactions", [])
+
+    # Collect source IDs from incoming items
+    incoming_source_ids = [
+        str(item.get("sourceId") or item.get("id"))
+        for item in raw_items
+        if item.get("sourceId") or item.get("id")
+    ]
+
+    # Pre-filter existing source IDs for this user
+    existing_ids = set()
+    if incoming_source_ids:
+        query = db.query(Transaction.source_id).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.source_id.in_(incoming_source_ids),
+        ).all()
+        existing_ids = {r[0] for r in query}
+
+    staged = []
+    for item in raw_items:
+        sid = str(item.get("sourceId") or item.get("id") or f"gen_{item.get('date')}_{item.get('amount')}_{item.get('description')}")
+        if sid in existing_ids:
+            continue
+
+        raw_type = str(item.get("type", "EXPENSE")).upper()
+        tx_type = "INCOME" if "INC" in raw_type or raw_type == "CREDIT" else "EXPENSE"
+
+        staged.append({
+            "source_id": sid,
+            "date": item.get("date") or date.today().isoformat(),
+            "amount": abs(float(item.get("amount", 0))),
+            "description": (item.get("description") or "Bank Outflow").strip()[:255],
+            "type": tx_type,
+        })
+
+    return staged
 
 
-@router.post("/commit-receipts", response_model=List[TransactionResponse], status_code=status.HTTP_201_CREATED)
+@router.post("/commit-receipts", status_code=status.HTTP_201_CREATED)
 def commit_receipts(
-    payload: CommitStagedReceipts,
-    current_user: User = Depends(get_current_user),
+    payload: CommitReceiptsRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Commits approved receipts into real ledger transactions.
-    """
     created = []
-    for item in payload.receipts:
-        # Final duplicate guard
-        exists = (
-            db.query(Transaction)
-            .filter(Transaction.user_id == current_user.id, Transaction.source_id == item.source_id)
-            .first()
-        )
+    for item in payload.transactions:
+        # Prevent race condition duplicates
+        exists = db.query(Transaction.id).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.source_id == item.source_id,
+        ).first()
         if exists:
             continue
 
-        # Convert the incoming string safely to the TransactionType enum
-        raw_type = (item.type or "").strip().upper()
-        try:
-            tx_type = TransactionType[raw_type]
-        except (KeyError, ValueError):
-            tx_type = TransactionType.EXPENSE
+        tx_type = TransactionType.INCOME if item.type.upper() == "INCOME" else TransactionType.EXPENSE
 
         tx = Transaction(
             user_id=current_user.id,
-            type=tx_type,
-            amount=item.amount,
-            date=item.date,
-            description=item.description,
             account_id=item.account_id,
             category_id=item.category_id,
+            amount=Decimal(str(item.amount)),
+            date=datetime.strptime(item.date, "%Y-%m-%d").date(),
+            description=item.description,
+            type=tx_type,
             source="GMAIL",
             source_id=item.source_id,
         )
         db.add(tx)
-        created.append(tx)
+        created.append(item.source_id)
 
     db.commit()
-    for tx in created:
-        db.refresh(tx)
-    return created
+    return {"committed_count": len(created), "source_ids": created}
 
 
 # -------------------------------------------------------------
