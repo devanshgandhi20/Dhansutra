@@ -200,7 +200,13 @@ def get_transactions(
     query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
 
     if month:
-        query = query.filter(Transaction.date.startswith(month))
+        year_str, month_str = month.split("-")
+        yr, mo = int(year_str), int(month_str)
+        num_days = monthrange(yr, mo)[1]
+        start_date = _dt.date(yr, mo, 1)
+        end_date = _dt.date(yr, mo, num_days)
+        query = query.filter(Transaction.date >= start_date, Transaction.date <= end_date)
+
     if account_id:
         query = query.filter(
             or_(
@@ -215,7 +221,6 @@ def get_transactions(
         query = query.filter(Transaction.description.ilike(f"%{search.strip()}%"))
 
     return query.order_by(Transaction.date.desc(), Transaction.id.desc()).all()
-
 
 @router.post("/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_transaction(
