@@ -10,28 +10,18 @@ from sqlalchemy import or_
 from core.database import SessionLocal
 from modules.users.models import User
 from modules.auth.userverification import get_current_user
-from modules.finance.models import Account, AccountType, Category, Transaction, TransactionType, Budget, FinancialGoal, GoalContribution, RecurringTransaction, RecurringFrequency
+from modules.finance.models import (
+    Account, AccountType, Category, Transaction,
+    TransactionType, Budget, FinancialGoal,
+    GoalContribution, RecurringTransaction, RecurringFrequency
+)
 from modules.finance.schemas import (
-    AccountCreate,
-    AccountUpdate,
-    AccountResponse,
-    CategoryCreate,
-    CategoryResponse,
-    TransactionCreate,
-    TransactionResponse,
-    TransactionUpdate,
-    TransferCreate,
-    BudgetCreate,
-    BudgetResponse,
-    BudgetStatusResponse,
-    GoalCreate,
-    GoalResponse,
-    GoalContributionCreate,
-    GoalContributionResponse,
-    DashboardSummaryResponse,
-    RecurringCreate,
-    RecurringResponse,
-    TransactionResponse,
+    AccountCreate, AccountUpdate, AccountResponse,
+    CategoryCreate, CategoryResponse,
+    TransactionCreate, TransactionResponse, TransactionUpdate,
+    TransferCreate, BudgetCreate, BudgetResponse, BudgetStatusResponse,
+    GoalCreate, GoalResponse, GoalContributionCreate, GoalContributionResponse,
+    DashboardSummaryResponse, RecurringCreate, RecurringResponse
 )
 from datetime import date, datetime
 from modules.finance.services import FinanceService
@@ -114,7 +104,7 @@ def delete_account(
 
 
 # -------------------------------------------------------------
-# CATEGORIES (User + System defaults)
+# CATEGORIES
 # -------------------------------------------------------------
 @router.get("/categories", response_model=List[CategoryResponse])
 def get_categories(
@@ -144,15 +134,17 @@ def create_category(
     db.refresh(category)
     return category
 
+
 class DeleteCategoryRequest(BaseModel):
     move_to_category_id: Optional[int] = None
+
 
 @router.delete("/categories/{category_id}", status_code=status.HTTP_200_OK)
 def delete_category(
     category_id: int,
     payload: Optional[DeleteCategoryRequest] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     cat = db.query(Category).filter(
         Category.id == category_id,
@@ -165,7 +157,6 @@ def delete_category(
             detail="Category not found or is a protected system category"
         )
 
-    # Validate destination category if requested
     if payload and payload.move_to_category_id:
         target_cat = db.query(Category).filter(
             Category.id == payload.move_to_category_id,
@@ -174,13 +165,11 @@ def delete_category(
         if not target_cat:
             raise HTTPException(status_code=400, detail="Target reassignment category does not exist")
 
-        # Atomic bulk reassignment
         db.query(Transaction).filter(
             Transaction.user_id == current_user.id,
             Transaction.category_id == category_id
         ).update({"category_id": payload.move_to_category_id})
     else:
-        # Check if transactions are in use without fallback
         in_use = db.query(Transaction.id).filter(
             Transaction.user_id == current_user.id,
             Transaction.category_id == category_id
@@ -194,18 +183,24 @@ def delete_category(
     db.delete(cat)
     db.commit()
     return {"status": "success", "deleted_category_id": category_id}
+
+
 # -------------------------------------------------------------
 # TRANSACTIONS & TRANSFERS
 # -------------------------------------------------------------
 @router.get("/transactions", response_model=List[TransactionResponse])
 def get_transactions(
-    account_id: Optional[int] = Query(None),
-    type: Optional[TransactionType] = Query(None),
-    current_user: User = Depends(get_current_user),
+    month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    account_id: Optional[int] = None,
+    type: Optional[str] = None,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
 
+    if month:
+        query = query.filter(Transaction.date.startswith(month))
     if account_id:
         query = query.filter(
             or_(
@@ -214,8 +209,10 @@ def get_transactions(
                 Transaction.to_account_id == account_id,
             )
         )
-    if type:
-        query = query.filter(Transaction.type == type)
+    if type and type.upper() != "ALL":
+        query = query.filter(Transaction.type == type.upper())
+    if search:
+        query = query.filter(Transaction.description.ilike(f"%{search.strip()}%"))
 
     return query.order_by(Transaction.date.desc(), Transaction.id.desc()).all()
 
@@ -227,44 +224,59 @@ def create_transaction(
     db: Session = Depends(get_db),
 ):
     if data.type == TransactionType.TRANSFER:
-        raise HTTPException(
-            status_code=400,
-            detail="Transfers must be created via /api/finance/transfers",
-        )
+        raise HTTPException(status_code=400, detail="Transfers must be created via /api/finance/transfers")
 
     if data.account_id:
-        account = (
-            db.query(Account)
-            .filter(Account.id == data.account_id, Account.user_id == current_user.id)
-            .first()
-        )
+        account = db.query(Account).filter(Account.id == data.account_id, Account.user_id == current_user.id).first()
         if not account:
             raise HTTPException(status_code=404, detail="Selected account not found")
 
     if data.category_id:
-        category = (
-            db.query(Category)
-            .filter(
-                Category.id == data.category_id,
-                or_(Category.user_id == current_user.id, Category.is_system == True),
-            )
-            .first()
-        )
+        category = db.query(Category).filter(
+            Category.id == data.category_id,
+            or_(Category.user_id == current_user.id, Category.is_system == True),
+        ).first()
         if not category:
             raise HTTPException(status_code=404, detail="Selected category not found")
 
-    # Duplicate check if source_id is provided (e.g., from external sync or receipts)
     if data.source_id:
-        duplicate = (
-            db.query(Transaction)
-            .filter(Transaction.user_id == current_user.id, Transaction.source_id == data.source_id)
-            .first()
-        )
+        duplicate = db.query(Transaction).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.source_id == data.source_id
+        ).first()
         if duplicate:
             raise HTTPException(status_code=409, detail="Transaction with this source_id already exists")
 
     tx = Transaction(**data.model_dump(), user_id=current_user.id)
     db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+@router.put("/transactions/{transaction_id}", response_model=TransactionResponse)
+def update_transaction(
+    transaction_id: int,
+    data: TransactionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tx = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+    if not tx:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        if field == "type" and value is not None:
+            raw_type = value.value if hasattr(value, "value") else str(value).upper()
+            if raw_type in TransactionType.__members__:
+                tx.type = TransactionType[raw_type]
+        else:
+            setattr(tx, field, value)
+
     db.commit()
     db.refresh(tx)
     return tx
@@ -279,16 +291,8 @@ def create_transfer(
     if data.from_account_id == data.to_account_id:
         raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
 
-    from_acc = (
-        db.query(Account)
-        .filter(Account.id == data.from_account_id, Account.user_id == current_user.id)
-        .first()
-    )
-    to_acc = (
-        db.query(Account)
-        .filter(Account.id == data.to_account_id, Account.user_id == current_user.id)
-        .first()
-    )
+    from_acc = db.query(Account).filter(Account.id == data.from_account_id, Account.user_id == current_user.id).first()
+    to_acc = db.query(Account).filter(Account.id == data.to_account_id, Account.user_id == current_user.id).first()
 
     if not from_acc or not to_acc:
         raise HTTPException(status_code=404, detail="Source or destination account not found")
@@ -303,7 +307,6 @@ def create_transfer(
         to_account_id=to_acc.id,
         source="MANUAL",
     )
-
     db.add(transfer_tx)
     db.commit()
     db.refresh(transfer_tx)
@@ -316,17 +319,17 @@ def delete_transaction(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    tx = (
-        db.query(Transaction)
-        .filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id)
-        .first()
-    )
+    tx = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     db.delete(tx)
     db.commit()
     return None
+
 
 # -------------------------------------------------------------
 # BUDGETS
@@ -382,7 +385,7 @@ def get_budget_status(
 
 
 # -------------------------------------------------------------
-# FINANCIAL GOALS & CONTRIBUTIONS
+# GOALS & CONTRIBUTIONS
 # -------------------------------------------------------------
 @router.get("/goals", response_model=List[GoalResponse])
 def get_goals(
@@ -419,20 +422,13 @@ def contribute_to_goal(
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    account = db.query(Account).filter(
-        Account.id == data.account_id,
-        Account.user_id == current_user.id,
-    ).first()
+    account = db.query(Account).filter(Account.id == data.account_id, Account.user_id == current_user.id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Source account not found")
 
     if account.type == AccountType.CREDIT_CARD:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot contribute to goals using a Credit Card account"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot contribute to goals using a Credit Card")
 
-    # Record the contribution
     contribution = GoalContribution(
         goal_id=goal.id,
         account_id=account.id,
@@ -441,11 +437,8 @@ def contribute_to_goal(
         note=data.note,
     )
     db.add(contribution)
-
-    # Sync saved amount on the goal
     goal.saved_amount += data.amount
 
-    # Create corresponding outward ledger transaction
     tx = Transaction(
         user_id=current_user.id,
         type=TransactionType.EXPENSE,
@@ -474,41 +467,10 @@ def get_dashboard_summary(
     target = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else date.today()
     return FinanceService.get_dashboard_summary(db, current_user.id, target)
 
-@router.put("/transactions/{transaction_id}", response_model=TransactionResponse)
-def update_transaction(
-    transaction_id: int,
-    data: TransactionUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    tx = (
-        db.query(Transaction)
-        .filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id)
-        .first()
-    )
-    if not tx:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
-
-    # Extract only the fields sent in the request
-    update_data = data.model_dump(exclude_unset=True)
-
-    for field, value in update_data.items():
-        if field == "type" and value is not None:
-            # Handle enum conversion safely if passed as string or enum instance
-            raw_type = value.value if hasattr(value, "value") else str(value).upper()
-            if raw_type in TransactionType.__members__:
-                tx.type = TransactionType[raw_type]
-        else:
-            setattr(tx, field, value)
-
-    db.commit()
-    db.refresh(tx)
-    return tx
 
 # -------------------------------------------------------------
 # RECURRING TRANSACTIONS
 # -------------------------------------------------------------
-
 def calculate_next_date(current_date: _dt.date, freq: RecurringFrequency) -> _dt.date:
     if freq == RecurringFrequency.WEEKLY:
         return current_date + _dt.timedelta(days=7)
@@ -516,9 +478,8 @@ def calculate_next_date(current_date: _dt.date, freq: RecurringFrequency) -> _dt
         try:
             return current_date.replace(year=current_date.year + 1)
         except ValueError:
-            # Handles Feb 29 on leap years
             return current_date.replace(year=current_date.year + 1, day=28)
-    else:  # MONTHLY
+    else:
         year = current_date.year + (1 if current_date.month == 12 else 0)
         month = 1 if current_date.month == 12 else current_date.month + 1
         max_days = monthrange(year, month)[1]
@@ -545,7 +506,6 @@ def create_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Verify account and category exist
     acc = db.query(Account).filter(Account.id == data.account_id, Account.user_id == current_user.id).first()
     if not acc:
         raise HTTPException(status_code=404, detail="Selected account not found")
@@ -570,11 +530,10 @@ def delete_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    rec = (
-        db.query(RecurringTransaction)
-        .filter(RecurringTransaction.id == recurring_id, RecurringTransaction.user_id == current_user.id)
-        .first()
-    )
+    rec = db.query(RecurringTransaction).filter(
+        RecurringTransaction.id == recurring_id,
+        RecurringTransaction.user_id == current_user.id
+    ).first()
     if not rec:
         raise HTTPException(status_code=404, detail="Recurring transaction not found")
 
@@ -589,15 +548,13 @@ def execute_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    rec = (
-        db.query(RecurringTransaction)
-        .filter(RecurringTransaction.id == recurring_id, RecurringTransaction.user_id == current_user.id)
-        .first()
-    )
+    rec = db.query(RecurringTransaction).filter(
+        RecurringTransaction.id == recurring_id,
+        RecurringTransaction.user_id == current_user.id
+    ).first()
     if not rec:
         raise HTTPException(status_code=404, detail="Recurring transaction not found")
 
-    # 1. Create real transaction in the ledger
     new_tx = Transaction(
         user_id=current_user.id,
         account_id=rec.account_id,
@@ -609,10 +566,7 @@ def execute_recurring(
         source="RECURRING",
     )
     db.add(new_tx)
-
-    # 2. Advance the next_date on the recurring record
     rec.next_date = calculate_next_date(rec.next_date, rec.frequency)
-
     db.commit()
     db.refresh(new_tx)
     return new_tx

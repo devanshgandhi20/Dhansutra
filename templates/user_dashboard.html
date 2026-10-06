@@ -31,7 +31,6 @@
             --radius-btn: 8px;
             --radius-pill: 999px;
         }
-
         body.dark {
             --bg-sand: #090e13;
             --surface: #121820;
@@ -52,9 +51,7 @@
             --shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
             --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.7);
         }
-
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
             background-color: var(--bg-sand);
@@ -65,19 +62,16 @@
             font-size: 14px;
             line-height: 1.5;
         }
-
         button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
             outline: 2.5px solid var(--palace-teal) !important;
             outline-offset: 2px !important;
         }
-
         h1, h2, h3, .brand-text { font-family: 'Cinzel', serif; }
         .hero-title { font-size: 30px; font-weight: 700; line-height: 1.15; }
         .section-title { font-size: 18px; font-weight: 600; }
         .card-value { font-size: 24px; font-weight: 700; font-feature-settings: "tnum"; }
         .body-text { font-size: 14px; font-weight: 400; }
         .caption-text { font-size: 12px; font-weight: 500; color: var(--text-muted); }
-
         header {
             background: linear-gradient(135deg, var(--palace-teal-dark), #0d424f);
             color: #ffffff;
@@ -85,7 +79,6 @@
             position: relative;
             border-bottom: 3.5px solid var(--saffron);
         }
-
         .header-top {
             display: flex;
             align-items: center;
@@ -95,13 +88,7 @@
             flex-wrap: wrap;
             gap: 1rem;
         }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
+        .brand { display: flex; align-items: center; gap: 12px; }
         .brand-icon {
             width: 42px;
             height: 42px;
@@ -114,19 +101,8 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.25);
             flex-shrink: 0;
         }
-
-        .subtitle {
-            font-size: 0.8rem;
-            color: var(--gold-light);
-            letter-spacing: 0.5px;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 0.65rem;
-            align-items: center;
-        }
-
+        .subtitle { font-size: 0.8rem; color: var(--gold-light); letter-spacing: 0.5px; }
+        .header-actions { display: flex; gap: 0.65rem; align-items: center; }
         .btn {
             display: inline-flex;
             align-items: center;
@@ -142,35 +118,19 @@
             user-select: none;
             white-space: nowrap;
         }
-
         .btn-primary {
             background: linear-gradient(135deg, var(--saffron), var(--gold));
             color: #ffffff;
             box-shadow: 0 2px 8px rgba(217, 93, 8, 0.25);
         }
         .btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
-
-        .btn-secondary {
-            background: var(--surface);
-            color: var(--text-main);
-            border-color: var(--border);
-        }
+        .btn-secondary { background: var(--surface); color: var(--text-main); border-color: var(--border); }
         .btn-secondary:hover { background: var(--surface-hover); }
-
-        .btn-ghost {
-            background: transparent;
-            color: var(--text-muted);
-        }
+        .btn-ghost { background: transparent; color: var(--text-muted); }
         .btn-ghost:hover { background: var(--surface-hover); color: var(--text-main); }
-
-        .btn-destructive {
-            background: var(--terracotta);
-            color: #ffffff;
-        }
+        .btn-destructive { background: var(--terracotta); color: #ffffff; }
         .btn-destructive:hover { filter: brightness(1.08); }
-
         .btn-pill { border-radius: var(--radius-pill); }
-
         .desktop-nav {
             display: flex;
             justify-content: center;
@@ -180,7 +140,6 @@
             padding-bottom: 2px;
             -webkit-overflow-scrolling: touch;
         }
-
         .nav-link {
             background: transparent;
             border: none;
@@ -193,19 +152,8 @@
             transition: all 0.15s;
             white-space: nowrap;
         }
-        .nav-link.active, .nav-link:hover {
-            color: #ffffff;
-            background: rgba(255, 255, 255, 0.18);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: -2.2rem auto 0;
-            padding: 0 1.25rem;
-            position: relative;
-            z-index: 10;
-        }
-
+        .nav-link.active, .nav-link:hover { color: #ffffff; background: rgba(255, 255, 255, 0.18); }
+        .container { max-width: 1200px; margin: -2.2rem auto 0; padding: 0 1.25rem; position: relative; z-index: 10; }
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -214,7 +162,6 @@
             box-shadow: var(--shadow);
             margin-bottom: 1.25rem;
         }
-
         .card-header {
             display: flex;
             align-items: center;
@@ -223,7 +170,6 @@
             padding-bottom: 0.75rem;
             border-bottom: 1px dashed var(--border);
         }
-
         .hero-networth-card {
             background: var(--surface);
             border: 1.5px solid var(--gold);
@@ -234,7 +180,6 @@
             position: relative;
             overflow: hidden;
         }
-
         .hero-networth-card::before {
             content: '';
             position: absolute;
@@ -242,7 +187,6 @@
             width: 6px;
             background: linear-gradient(180deg, var(--gold), var(--saffron));
         }
-
         .delta-indicator {
             display: inline-flex;
             align-items: center;
@@ -253,21 +197,18 @@
             font-weight: 600;
         }
         .delta-positive { background: rgba(21, 128, 61, 0.12); color: var(--emerald); }
-
         .metrics-triad {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 1rem;
             margin-bottom: 1.25rem;
         }
-
         .accounts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
             gap: 0.85rem;
             margin-bottom: 1.5rem;
         }
-
         .account-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -281,19 +222,12 @@
         .account-card.CREDIT_CARD { border-left: 4px solid var(--terracotta); }
         .account-card.BANK, .account-card.CASH, .account-card.GOAL_RESERVE { border-left: 4px solid var(--palace-teal); }
         .account-card.INVESTMENT { border-left: 4px solid var(--gold); }
-
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.25rem;
-        }
-
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
         @media (max-width: 920px) {
             .dashboard-grid { grid-template-columns: 1fr; }
             .desktop-nav { display: none; }
             .hero-networth-card { flex-direction: column; align-items: flex-start; gap: 0.85rem; }
         }
-
         .accordion-group {
             border: 1px solid var(--border-subtle);
             border-radius: 10px;
@@ -301,7 +235,6 @@
             background: var(--surface);
             overflow: hidden;
         }
-
         .accordion-header {
             display: flex;
             align-items: center;
@@ -314,37 +247,11 @@
         }
         .accordion-header:hover { background: var(--surface-hover); }
         .accordion-header:focus-visible, .ledger-row:focus-visible { outline: 2px solid var(--palace-teal); outline-offset: -2px; }
-
-        .accordion-header-left {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            color: var(--text-main);
-        }
-
-        .accordion-arrow {
-            display: inline-block;
-            transition: transform 0.2s ease;
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        .accordion-group.open .accordion-arrow {
-            transform: rotate(90deg);
-        }
-
-        .accordion-content {
-            display: none;
-            padding: 0.5rem;
-            background: var(--surface);
-            border-top: 1px solid var(--border-subtle);
-        }
-
-        .accordion-group.open .accordion-content {
-            display: block;
-        }
-
+        .accordion-header-left { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text-main); }
+        .accordion-arrow { display: inline-block; transition: transform 0.2s ease; font-size: 11px; color: var(--text-muted); }
+        .accordion-group.open .accordion-arrow { transform: rotate(90deg); }
+        .accordion-content { display: none; padding: 0.5rem; background: var(--surface); border-top: 1px solid var(--border-subtle); }
+        .accordion-group.open .accordion-content { display: block; }
         .ledger-row {
             display: flex;
             align-items: center;
@@ -359,7 +266,6 @@
         }
         .ledger-row:hover { background: var(--surface-hover); border-color: var(--border); }
         .ledger-row:last-child { margin-bottom: 0; }
-
         .row-left { display: flex; align-items: center; gap: 12px; }
         .row-icon {
             width: 34px;
@@ -373,11 +279,9 @@
             border: 1px solid var(--border);
             flex-shrink: 0;
         }
-
         .amount-pos { color: var(--emerald); font-weight: 700; }
         .amount-neg { color: var(--terracotta); font-weight: 700; }
         .amount-neutral { color: var(--palace-teal); font-weight: 700; }
-
         .progress-track {
             height: 8px;
             background: var(--surface-subtle);
@@ -386,13 +290,8 @@
             overflow: hidden;
             margin: 6px 0;
         }
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--palace-teal), var(--gold));
-            border-radius: inherit;
-        }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--palace-teal), var(--gold)); border-radius: inherit; }
         .progress-fill.warn { background: linear-gradient(90deg, var(--saffron), var(--terracotta)); }
-
         .pill {
             padding: 0.25rem 0.65rem;
             border-radius: var(--radius-pill);
@@ -403,13 +302,7 @@
             border: 1px solid var(--border-subtle);
         }
         .pill.warning { background: rgba(217, 93, 8, 0.12); color: var(--saffron); border-color: rgba(217, 93, 8, 0.2); }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 0.85rem;
-        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.85rem; }
         .form-group { margin-bottom: 0.85rem; }
         .form-group label {
             display: block;
@@ -420,12 +313,9 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-
         .form-control, select {
             width: 100%;
-            max-width: 100%;
-            min-width: 0;
-            padding: 0.65rem 2.2rem 0.65rem 0.85rem;
+            padding: 0.65rem 0.85rem;
             border: 1.5px solid var(--border);
             border-radius: var(--radius-btn);
             font-family: inherit;
@@ -434,66 +324,24 @@
             background-color: var(--surface);
             color: var(--text-main);
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
-            box-sizing: border-box;
-            display: inline-block;
-            vertical-align: middle;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
-
         select {
             appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23576575' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 0.75rem center;
             background-size: 14px 14px;
+            padding-right: 2.2rem;
             cursor: pointer;
         }
-
-        body.dark select {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-        }
-
-        select option {
-            background-color: var(--surface);
-            color: var(--text-main);
-            padding: 0.6rem;
-            font-size: 13.5px;
-        }
-
         .form-control:focus, select:focus {
             border-color: var(--palace-teal);
             box-shadow: 0 0 0 3px rgba(13, 66, 79, 0.12);
             outline: none !important;
         }
-
-        body.dark .form-control:focus, body.dark select:focus {
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
-        }
-
-        .filter-bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.65rem;
-            align-items: center;
-            margin-bottom: 1.25rem;
-        }
-
-        .filter-bar input, .filter-bar select {
-            flex: 1 1 180px;
-            min-width: 140px;
-            max-width: 100%;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 2.2rem 1rem;
-            color: var(--text-muted);
-        }
-
+        .filter-bar { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: center; margin-bottom: 1.25rem; }
+        .filter-bar input, .filter-bar select { flex: 1 1 180px; min-width: 140px; }
+        .empty-state { text-align: center; padding: 2.2rem 1rem; color: var(--text-muted); }
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -505,10 +353,8 @@
             z-index: 2000;
             padding: 1rem;
         }
-
         #modalConfirm { z-index: 3000; }
         .modal-overlay.active { display: flex; }
-
         .modal-box {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -522,7 +368,6 @@
             animation: modalPop 0.15s ease;
         }
         @keyframes modalPop { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
         #toastContainer {
             position: fixed;
             bottom: 75px;
@@ -550,7 +395,6 @@
         }
         .toast.error { border-color: var(--terracotta); background: #2b1111; }
         .toast.success { border-color: var(--emerald); }
-
         .mobile-bottom-nav {
             display: none;
             position: fixed;
@@ -573,15 +417,8 @@
             cursor: pointer;
         }
         .mob-item.active { color: var(--palace-teal); font-weight: 700; }
-
-        @media (max-width: 920px) {
-            .mobile-bottom-nav { display: flex; }
-        }
-
-        /* phones: stack paired form fields so amounts/dates/selects are not cramped */
-        @media (max-width: 600px) {
-            .form-row { grid-template-columns: 1fr; gap: 0; }
-        }
+        @media (max-width: 920px) { .mobile-bottom-nav { display: flex; } }
+        @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; gap: 0; } }
     </style>
 </head>
 <body>
@@ -614,35 +451,32 @@
             <div class="card hero-networth-card">
                 <div>
                     <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Total Net Worth</span>
-                    <div class="hero-title" style="margin: 4px 0;" id="heroNetWorth">₹0.00</div>
+                    <div class="hero-title" style="margin: 4px 0;" id="heroNetWorth">₹ 0.00</div>
                     <span class="caption-text" id="heroNetWorthFormula">Liquid Assets + Investments - Outstanding Liabilities</span>
                 </div>
                 <div class="delta-indicator delta-positive" id="netWorthDeltaBadge">
-                    <span>↑ Server-Reconciled</span>
+                    <span>✓ Server-Reconciled</span>
                 </div>
             </div>
-
             <div class="metrics-triad">
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Income</span>
-                    <div class="card-value amount-pos" id="valMonthlyIncome">₹0.00</div>
+                    <div class="card-value amount-pos" id="valMonthlyIncome">₹ 0.00</div>
                     <span class="caption-text">Money received</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Expenses</span>
-                    <div class="card-value amount-neg" id="valMonthlyExpense">₹0.00</div>
+                    <div class="card-value amount-neg" id="valMonthlyExpense">₹ 0.00</div>
                     <span class="caption-text">Money spent</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Saved</span>
-                    <div class="card-value amount-neutral" id="valMonthlySurplus">₹0.00</div>
+                    <div class="card-value amount-neutral" id="valMonthlySurplus">₹ 0.00</div>
                     <span class="caption-text">Available after expenses</span>
                 </div>
             </div>
-
             <h2 class="section-title" style="margin-bottom: 0.75rem;">Accounts & Investment Positions</h2>
             <div class="accounts-grid" id="accountsSummaryContainer"></div>
-
             <div class="card">
                 <div class="card-header">
                     <h2 class="section-title">Net Worth Trend</h2>
@@ -651,7 +485,6 @@
                 <div id="nwChart" style="overflow-x:auto;"></div>
                 <span class="caption-text">Estimated from your transactions; investment revaluations are not included.</span>
             </div>
-
             <div class="dashboard-grid">
                 <div class="card">
                     <div class="card-header"><h2 class="section-title">Assets vs Liabilities</h2></div>
@@ -666,7 +499,6 @@
                     <div id="upcomingContainer" style="margin-top:0.5rem;"></div>
                 </div>
             </div>
-
             <div class="dashboard-grid">
                 <div>
                     <div class="card">
@@ -675,7 +507,6 @@
                         </div>
                         <div id="rankedOutflowContainer"></div>
                     </div>
-
                     <div class="card">
                         <div class="card-header">
                             <h2 class="section-title">Month-over-Month Delta</h2>
@@ -695,7 +526,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div>
                     <div class="card" style="border: 1px solid var(--gold);">
                         <div class="card-header">
@@ -703,32 +533,30 @@
                             <span class="pill" id="efRunwayPill">0.0 Mo Runway</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                            <div class="card-value" id="efCurrentTotal">₹0.00</div>
-                            <span class="caption-text" id="efTargetTotal">of ₹1,50,000.00 Target</span>
+                            <div class="card-value" id="efCurrentTotal">₹ 0.00</div>
+                            <span class="caption-text" id="efTargetTotal">of ₹ 1,50,000.00 Target</span>
                         </div>
                         <div class="progress-track" role="progressbar" aria-label="Emergency Fund Progress"><div class="progress-fill" id="efProgressBar" style="width: 0%;"></div></div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-                            <span class="caption-text" id="efBurnText">Monthly burn: ₹0.00</span>
+                            <span class="caption-text" id="efBurnText">Monthly burn: ₹ 0.00</span>
                             <button class="btn btn-secondary btn-pill" style="padding: 0.3rem 0.75rem; font-size: 11px;" onclick="openGoalContributionModal()">+ Add Funds</button>
                         </div>
                     </div>
-
                     <div class="card">
                         <div class="card-header">
                             <h2 class="section-title">Financial Health Quotient</h2>
                             <span class="pill" id="healthGradePill">Evaluating</span>
                         </div>
                         <div class="hero-title" style="margin-bottom: 0.75rem;" id="healthScoreDisplay">-- / 100</div>
-
                         <div style="margin-bottom: 0.5rem;">
                             <div style="display: flex; justify-content: space-between;" class="caption-text">
-                                <span>Savings Rate (≥20%)</span><span id="lblSavingsRate">0%</span>
+                                <span>Savings Rate (≥ 20%)</span><span id="lblSavingsRate">0%</span>
                             </div>
                             <div class="progress-track"><div class="progress-fill" id="barSavingsRate" style="width: 0%;"></div></div>
                         </div>
                         <div style="margin-bottom: 0.5rem;">
                             <div style="display: flex; justify-content: space-between;" class="caption-text">
-                                <span>Budget Discipline (≤100%)</span><span id="lblBudgetUsage">0%</span>
+                                <span>Budget Discipline (≤ 100%)</span><span id="lblBudgetUsage">0%</span>
                             </div>
                             <div class="progress-track"><div class="progress-fill" id="barBudgetUsage" style="width: 0%;"></div></div>
                         </div>
@@ -751,9 +579,8 @@
                     <h2 class="section-title">Transaction Ledger</h2>
                     <button class="btn btn-primary" onclick="openTransactionModal()">+ Add Transaction</button>
                 </div>
-
                 <div class="filter-bar">
-                    <input type="text" id="searchInput" class="form-control" placeholder="Search description or category..." aria-label="Search ledger">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search description..." aria-label="Search ledger">
                     <select id="monthSelector" class="form-control" aria-label="Filter by month"></select>
                     <select id="accountFilter" class="form-control" aria-label="Filter by account"></select>
                     <select id="typeFilter" class="form-control" aria-label="Filter by transaction type">
@@ -763,7 +590,6 @@
                         <option value="transfer">Transfers (⇄)</option>
                     </select>
                 </div>
-
                 <div id="ledgerRowsContainer"></div>
             </div>
         </section>
@@ -773,24 +599,22 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="section-title">Spending Budgets</h2>
-                    <span class="caption-text" id="lblDailySafeSpend">Safe: ₹0.00/day</span>
+                    <span class="caption-text" id="lblDailySafeSpend">Safe: ₹ 0.00/day</span>
                 </div>
-
                 <div class="metrics-triad" style="margin-bottom: 1.25rem;">
                     <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
                         <span class="caption-text">Total Budget Cap</span>
-                        <div class="card-value" id="budgetTotalLimit">₹0.00</div>
+                        <div class="card-value" id="budgetTotalLimit">₹ 0.00</div>
                     </div>
                     <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
                         <span class="caption-text">Actual Spent</span>
-                        <div class="card-value amount-neg" id="budgetTotalSpent">₹0.00</div>
+                        <div class="card-value amount-neg" id="budgetTotalSpent">₹ 0.00</div>
                     </div>
                     <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 8px;">
                         <span class="caption-text">Remaining</span>
-                        <div class="card-value amount-pos" id="budgetTotalRemaining">₹0.00</div>
+                        <div class="card-value amount-pos" id="budgetTotalRemaining">₹ 0.00</div>
                     </div>
                 </div>
-
                 <div class="caption-text" id="lblBudgetProjection" style="margin-bottom:0.75rem;"></div>
                 <div id="budgetCategoryRows"></div>
                 <div id="budgetEditorFields" style="display: grid; gap: 0.5rem; margin-top: 1rem;"></div>
@@ -805,13 +629,12 @@
                     <h2 class="section-title">Savings Targets & Portfolios</h2>
                 </div>
                 <div id="goalsContainer"></div>
-
                 <form id="formNewGoal" style="margin-top: 1.5rem; border-top: 1px dashed var(--border); padding-top: 1.25rem;">
                     <h3 class="section-title" style="font-size: 14px; margin-bottom: 0.75rem;">Create New Target</h3>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="goalName">Target Name</label>
-                            <input type="text" id="goalName" class="form-control" placeholder="e.g. Emergency Fund, Sovereign Gold" required>
+                            <input type="text" id="goalName" class="form-control" placeholder="e.g. Emergency Fund" required>
                         </div>
                         <div class="form-group">
                             <label for="goalTarget">Target Amount (₹)</label>
@@ -832,7 +655,7 @@
     <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
         <button class="mob-item active" onclick="switchTab('dashboard', this)"><span>🏠</span><span>Home</span></button>
         <button class="mob-item" onclick="switchTab('ledger', this)"><span>📋</span><span>Ledger</span></button>
-        <button class="mob-item" onclick="switchTab('budgets', this)"><span>💰</span><span>Budget</span></button>
+        <button class="mob-item" onclick="switchTab('budgets', this)"><span>📊</span><span>Budget</span></button>
         <button class="mob-item" onclick="switchTab('goals', this)"><span>🎯</span><span>Goals</span></button>
         <button class="mob-item" onclick="openSettingsModal()"><span>⚙️</span><span>Settings</span></button>
     </nav>
@@ -844,13 +667,11 @@
                 <h3 class="section-title" id="lblTxModalTitle">Add Transaction</h3>
                 <button class="btn btn-ghost" onclick="closeModal('modalTransaction')" aria-label="Close dialog">✕</button>
             </div>
-
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; background: var(--surface-subtle); padding: 4px; border-radius: 8px; margin-bottom: 1rem;">
                 <button type="button" class="btn" id="tabTxExpense" style="background: var(--terracotta); color: #fff;" onclick="setFormType('expense')">Expense (-)</button>
                 <button type="button" class="btn btn-ghost" id="tabTxIncome" onclick="setFormType('income')">Income (+)</button>
                 <button type="button" class="btn btn-ghost" id="tabTxTransfer" onclick="setFormType('transfer')">Transfer (⇄)</button>
             </div>
-
             <form id="formTransaction">
                 <input type="hidden" id="txEditingId" value="">
                 <div class="form-row">
@@ -863,7 +684,6 @@
                         <input type="date" id="txDate" class="form-control" required>
                     </div>
                 </div>
-
                 <div id="groupStandardFields">
                     <div class="form-row">
                         <div class="form-group">
@@ -876,7 +696,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div id="groupTransferFields" style="display: none;">
                     <div class="form-row">
                         <div class="form-group">
@@ -889,13 +708,11 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="form-group">
                     <label for="txDescription">Description</label>
-                    <input type="text" id="txDescription" class="form-control" list="noteSuggestions" placeholder="e.g. Swiggy, House Rent, SIP" required autocomplete="off">
+                    <input type="text" id="txDescription" class="form-control" list="noteSuggestions" placeholder="e.g. Swiggy, House Rent" required autocomplete="off">
                     <datalist id="noteSuggestions"></datalist>
                 </div>
-
                 <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-ghost" onclick="closeModal('modalTransaction')">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="btnTxSubmit">Save Transaction</button>
@@ -939,57 +756,6 @@
                 <h3 class="section-title" id="settingsHeading">System Settings</h3>
                 <button class="btn btn-ghost" onclick="closeModal('modalSettings')" aria-label="Close settings">✕</button>
             </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Accounts & Balances</span>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
-                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openAccountsModal()">
-                        <span>Manage Accounts & Opening Balances</span><span>➔</span>
-                    </button>
-                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openValuationsModal()">
-                        <span>Update Market Values</span><span>➔</span>
-                    </button>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Categories</span>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
-                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openCategoryModal()">
-                        <span>Manage Custom Categories</span><span>➔</span>
-                    </button>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Integrations</span>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
-                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="openGmailModal()">
-                        <span>Gmail Receipt Sync (Backend Staged)</span><span>➔</span>
-                    </button>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Data & Archives</span>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
-                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="window.location.href='/api/finance/imports/export/csv'">
-                        <span>Export CSV Statement</span><span>➔</span>
-                    </button>
-                    <button class="btn btn-secondary" style="justify-content: space-between;" onclick="window.location.href='/api/finance/imports/export/json'">
-                        <span>Download JSON Database Archive</span><span>➔</span>
-                    </button>
-                </div>
-            </div>
-
-            <div>
-                <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Appearance</span>
-                <div style="margin-top: 0.5rem;">
-                    <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="toggleTheme()">
-                        <span>Toggle Dark / Light Theme</span><span>🌙</span>
-                    </button>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -1000,7 +766,6 @@
                 <h3 class="section-title" id="catModalTitle">Manage Categories</h3>
                 <button class="btn btn-ghost" onclick="closeModal('modalCategory')" aria-label="Close dialog">✕</button>
             </div>
-
             <form id="formNewCat" style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--border); padding-bottom: 1.25rem;">
                 <div class="caption-text" style="font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">Create New Category</div>
                 <div class="form-row">
@@ -1013,16 +778,15 @@
                     </div>
                     <div class="form-group">
                         <label for="newCatIcon">Icon (Emoji)</label>
-                        <input type="text" id="newCatIcon" class="form-control" placeholder="e.g. 🐶" maxlength="2">
+                        <input type="text" id="newCatIcon" class="form-control" placeholder="e.g. 🍽️" maxlength="2">
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="newCatName">Category Name</label>
-                    <input type="text" id="newCatName" class="form-control" placeholder="e.g. Pet Care, Subscriptions" required>
+                    <input type="text" id="newCatName" class="form-control" placeholder="e.g. Pet Care" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%;">+ Create Category</button>
             </form>
-
             <div>
                 <div class="caption-text" style="font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">Existing Categories</div>
                 <div id="categoryListContainer" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;"></div>
@@ -1094,7 +858,6 @@
             <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
                 <button class="btn btn-primary" onclick="fetchGmailTransactions()">Fetch Incoming Receipts</button>
             </div>
-
             <div id="gmailStagingWrap" style="display: none;">
                 <span class="caption-text" style="font-weight: 700; margin-bottom: 0.5rem;">Review Detected Receipts (<span id="stagingCount">0</span>)</span>
                 <div id="stagingItemsList" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; margin-bottom: 1rem;"></div>
@@ -1126,7 +889,7 @@
                 <h3 class="section-title" id="recTitle">Add Recurring Transaction</h3>
                 <button class="btn btn-ghost" onclick="closeModal('modalRecurring')" aria-label="Close dialog">✕</button>
             </div>
-            <div class="form-group"><label for="recDesc">Description</label><input type="text" id="recDesc" class="form-control" placeholder="e.g. House Rent, SIP, Netflix" autocomplete="off"></div>
+            <div class="form-group"><label for="recDesc">Description</label><input type="text" id="recDesc" class="form-control" placeholder="e.g. House Rent, SIP" autocomplete="off"></div>
             <div class="form-row">
                 <div class="form-group"><label for="recAmount">Amount (₹)</label><input type="number" id="recAmount" class="form-control" min="0.01" step="any"></div>
                 <div class="form-group"><label for="recType">Type</label><select id="recType" class="form-control" onchange="fillRecCategories()"><option value="EXPENSE">Expense</option><option value="INCOME">Income</option></select></div>
@@ -1139,7 +902,7 @@
                 <div class="form-group"><label for="recFreq">Repeats</label><select id="recFreq" class="form-control"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="yearly">Yearly</option></select></div>
                 <div class="form-group"><label for="recNext">Next date</label><input type="date" id="recNext" class="form-control"></div>
             </div>
-            <p class="caption-text" style="margin-bottom:0.75rem;">Reminders are stored in this browser. Use “Add now” on the dashboard when one is due.</p>
+            <p class="caption-text" style="margin-bottom:0.75rem;">Recurring schedules are synchronized securely with your DhanSutra account. Use "Add now" on the dashboard when an item is due.</p>
             <button type="button" class="btn btn-primary" style="width:100%;" onclick="submitRecurring()">Save Recurring</button>
         </div>
     </div>
@@ -1147,41 +910,32 @@
     <div id="toastContainer" role="status" aria-live="polite"></div>
 
     <script>
-        // ==========================================
-        // DHANSUTRA API CLIENT
-        // ==========================================
         class ApiError extends Error {
             constructor(message, status = 0, kind = 'http') { super(message); this.status = status; this.kind = kind; }
         }
-
         const API_TIMEOUT_READ_MS = 20000;
         const API_TIMEOUT_WRITE_MS = 30000;
         const apiSleep = ms => new Promise(r => setTimeout(r, ms));
 
-        // Friendly text for status codes the backend (rate limiter, auth, DB, cold start) can return
         function apiStatusMessage(status, fallback) {
-            if (status === 403) return 'You do not have permission to do that.';
-            if (status === 404) return 'That item no longer exists. Refresh and try again.';
-            if (status === 408) return 'The request took too long. Please try again.';
+            if (status === 403) return 'You do not have permission to perform that action.';
+            if (status === 404) return 'That item was not found. Please refresh.';
+            if (status === 408) return 'The request timed out. Please try again.';
             if (status === 429) return 'Too many requests — please wait a moment and try again.';
-            if (status === 503) return 'The service is temporarily unavailable. Please try again shortly.';
-            if (status >= 500) return 'Server problem — please try again in a moment.';
+            if (status === 503) return 'The server is temporarily unavailable.';
+            if (status >= 500) return 'Server encountered an issue. Please try again.';
             return fallback;
         }
 
         const API = {
             lastError: null,
             redirecting: false,
-
-            // Central request wrapper: timeout, bounded retry for safe GETs, session expiry.
-            // Returns the Response, or null if the request never got one (network/timeout/401).
-            // The reason for a null is left in API.lastError.
             async req(url, options = {}) {
                 const { timeout, retries, ...fetchOpts } = options;
                 const method = String(fetchOpts.method || 'GET').toUpperCase();
                 const isRead = method === 'GET';
                 const limit = timeout || (isRead ? API_TIMEOUT_READ_MS : API_TIMEOUT_WRITE_MS);
-                const maxRetries = retries ?? (isRead ? 2 : 0); // never auto-retry writes: could duplicate a transaction
+                const maxRetries = retries ?? (isRead ? 2 : 0);
                 fetchOpts.headers = { ...(fetchOpts.headers || {}), 'x-requested-with': 'XMLHttpRequest' };
 
                 for (let attempt = 0; ; attempt++) {
@@ -1195,13 +949,11 @@
                         if (attempt < maxRetries) { await apiSleep(600 * (attempt + 1)); continue; }
                         const timedOut = err && err.name === 'AbortError';
                         this.lastError = timedOut
-                            ? (isRead ? 'The request took too long. Please try again.'
-                                      : 'The request timed out. It may or may not have been saved — check your ledger before retrying.')
-                            : 'Unable to reach the server. Check your connection and try again.';
+                            ? (isRead ? 'The request took too long.' : 'The request timed out. Please verify your ledger before retrying.')
+                            : 'Unable to reach the server. Check your network.';
                         return null;
                     }
                     clearTimeout(timer);
-
                     if (res.status === 401) {
                         this.redirecting = true;
                         this.lastError = 'Your session has expired.';
@@ -1217,8 +969,6 @@
                     return res;
                 }
             },
-
-            // Read helper: returns parsed JSON or throws ApiError (so callers can't mistake a failure for "no data")
             async getJson(url, options) {
                 const res = await this.req(url, options);
                 if (!res) throw new ApiError(this.lastError || 'Unable to reach the server.', 0, this.redirecting ? 'auth' : 'network');
@@ -1226,17 +976,13 @@
                 try { return await res.json(); }
                 catch { throw new ApiError('The server sent an unreadable response.', res.status, 'parse'); }
             },
-
-            async getAccounts() {
-                return await this.getJson('/api/finance/accounts');
-            },
+            async getAccounts() { return await this.getJson('/api/finance/accounts'); },
             async createAccount(payload) {
-                const res = await this.req('/api/finance/accounts', {
+                return await this.req('/api/finance/accounts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                return res ? await res.json() : null;
             },
             async updateAccount(id, payload) {
                 return await this.req(`/api/finance/accounts/${id}`, {
@@ -1245,9 +991,7 @@
                     body: JSON.stringify(payload)
                 });
             },
-            async getCategories() {
-                return await this.getJson('/api/finance/categories');
-            },
+            async getCategories() { return await this.getJson('/api/finance/categories'); },
             async createCategory(payload) {
                 return await this.req('/api/finance/categories', {
                     method: 'POST',
@@ -1255,8 +999,12 @@
                     body: JSON.stringify(payload)
                 });
             },
-            async deleteCategory(id) {
-                return await this.req(`/api/finance/categories/${id}`, { method: 'DELETE' });
+            async deleteCategory(id, payload = null) {
+                return await this.req(`/api/finance/categories/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: payload ? JSON.stringify(payload) : undefined
+                });
             },
             async getTransactions(params = {}) {
                 const q = new URLSearchParams(params).toString();
@@ -1286,12 +1034,8 @@
             async deleteTransaction(id) {
                 return await this.req(`/api/finance/transactions/${id}`, { method: 'DELETE' });
             },
-            async getBudgets(month) {
-                return await this.getJson(`/api/finance/budgets?month=${month}`);
-            },
-            async getBudgetStatus(month) {
-                return await this.getJson(`/api/finance/budgets/status?month=${month}`);
-            },
+            async getBudgets(month) { return await this.getJson(`/api/finance/budgets?month=${month}`); },
+            async getBudgetStatus(month) { return await this.getJson(`/api/finance/budgets/status?month=${month}`); },
             async setBudget(payload) {
                 return await this.req('/api/finance/budgets', {
                     method: 'POST',
@@ -1299,9 +1043,7 @@
                     body: JSON.stringify(payload)
                 });
             },
-            async getGoals() {
-                return await this.getJson('/api/finance/goals');
-            },
+            async getGoals() { return await this.getJson('/api/finance/goals'); },
             async createGoal(payload) {
                 return await this.req('/api/finance/goals', {
                     method: 'POST',
@@ -1320,25 +1062,7 @@
                 const q = dateStr ? `?date=${dateStr}` : '';
                 return await this.getJson(`/api/finance/dashboard/summary${q}`);
             },
-            async stageReceipts(payload) {
-                const res = await this.req('/api/finance/imports/stage-receipts', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                return res ? await res.json() : [];
-            },
-            async commitReceipts(payload) {
-                const res = await this.req('/api/finance/imports/commit-receipts', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                return res ? await res.json() : [];
-            },
-            async getRecurring() {
-                return await this.getJson('/api/finance/recurring');
-            },
+            async getRecurring() { return await this.getJson('/api/finance/recurring'); },
             async createRecurring(payload) {
                 return await this.req('/api/finance/recurring', {
                     method: 'POST',
@@ -1346,24 +1070,16 @@
                     body: JSON.stringify(payload)
                 });
             },
-            async deleteRecurring(id) {
-                return await this.req(`/api/finance/recurring/${id}`, { method: 'DELETE' });
-            },
-            async executeRecurring(id) {
-                return await this.req(`/api/finance/recurring/${id}/execute`, { method: 'POST' });
-            }
+            async deleteRecurring(id) { return await this.req(`/api/finance/recurring/${id}`, { method: 'DELETE' }); },
+            async executeRecurring(id) { return await this.req(`/api/finance/recurring/${id}/execute`, { method: 'POST' }); }
         };
 
-        // ==========================================
-        // STATE MANAGEMENT
-        // ==========================================
         let accounts = [];
         let categories = [];
         let transactions = [];
         let goals = [];
         let budgets = [];
         let dashboardData = null;
-
         let currentFormType = 'expense';
         let selectedMonth = startOfMonth(new Date());
         let selectedGoalId = null;
@@ -1375,22 +1091,14 @@
             if (str === null || str === undefined) return '';
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
-
         function formatINR(v) {
             const num = Number(v) || 0;
-            return new Intl.NumberFormat('en-IN', { 
-                style: 'currency', 
-                currency: 'INR', 
-                minimumFractionDigits: 2, 
-                maximumFractionDigits: 2 
-            }).format(num);
+            return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
         }
-
         function pad(n) { return String(n).padStart(2, '0'); }
         function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
         function formatMonthStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
         function parseMonthInput(v) { const [y, m] = v.split('-').map(Number); return new Date(y, m - 1, 1); }
-        // Local-time date helpers (toISOString()/valueAsDate use UTC and give "yesterday" before 5:30 AM IST)
         function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
         function todayStr() { return toDateStr(new Date()); }
         function getFutureDate(m) {
@@ -1402,24 +1110,19 @@
             return toDateStr(d);
         }
 
-        // Pulls a readable message out of an API error response (handles FastAPI's list-style `detail`)
         async function readError(res, fallback) {
-            if (!res) return API.lastError || fallback; // no response at all: network / timeout
+            if (!res) return API.lastError || fallback;
             let detail = '';
             try {
                 const j = await res.json();
                 const d = j.detail ?? j.error ?? j.message;
                 if (Array.isArray(d)) detail = d.map(x => x.msg || JSON.stringify(x)).join('; ');
                 else if (typeof d === 'string') detail = d;
-            } catch { /* non-JSON body (proxy error page etc.) */ }
-            if (res.status === 429 || res.status === 503 || res.status >= 500 || res.status === 403) {
-                return apiStatusMessage(res.status, detail || fallback);
-            }
+            } catch {}
             return detail || apiStatusMessage(res.status, fallback);
         }
 
-        // Reload helper for secondary reads: keeps the current value and tells the user instead of throwing
-        async function safeLoad(loader, current, msg = 'Could not reload data — showing what was loaded before.') {
+        async function safeLoad(loader, current, msg = 'Could not reload data.') {
             try { return await loader(); }
             catch (err) {
                 console.error(err);
@@ -1434,18 +1137,11 @@
             return false;
         }
 
-        // Live balance for an account: dashboard summary (reconciled) first, then account record
         function getAccountBalance(a) {
             const live = (dashboardData && Array.isArray(dashboardData.accounts))
                 ? dashboardData.accounts.find(x => String(x.id) === String(a.id)) : null;
             return Number(live?.current_balance ?? a.current_balance ?? a.starting_balance ?? 0) || 0;
         }
-
-        window.addEventListener('unhandledrejection', e => {
-            console.error(e.reason);
-            showToast('Something went wrong: ' + (e.reason && e.reason.message ? e.reason.message : 'unexpected error'), 'error');
-        });
-        window.addEventListener('error', e => { console.error(e.error || e.message); showToast('Something went wrong: ' + e.message, 'error'); });
 
         document.addEventListener('DOMContentLoaded', async () => {
             applyTheme();
@@ -1453,11 +1149,9 @@
             document.getElementById('txDate').value = todayStr();
             document.getElementById('goalFundDate').value = todayStr();
             document.getElementById('goalDue').value = getFutureDate(6);
-
             document.getElementById('formTransaction').addEventListener('submit', handleTransactionSubmit);
             document.getElementById('formNewGoal').addEventListener('submit', handleGoalSubmit);
             document.getElementById('formNewCat').addEventListener('submit', handleCategorySubmit);
-
             document.getElementById('searchInput').addEventListener('input', renderLedger);
             document.getElementById('monthSelector').addEventListener('change', async e => {
                 selectedMonth = parseMonthInput(e.target.value);
@@ -1465,23 +1159,20 @@
             });
             document.getElementById('accountFilter').addEventListener('change', renderLedger);
             document.getElementById('typeFilter').addEventListener('change', renderLedger);
-
             window.addEventListener('keydown', e => {
                 if (e.key === 'Escape') {
                     const activeModal = document.querySelector('#modalConfirm.active') || document.querySelector('.modal-overlay.active');
                     if (activeModal) closeModal(activeModal.id);
                 }
             });
-
             document.getElementById('goalFundAmount').addEventListener('keydown', e => {
                 if (e.key === 'Enter') { e.preventDefault(); submitGoalContribution(); }
             });
-
             try {
                 await bootstrapData();
             } catch (err) {
                 console.error(err);
-                showToast('Could not load your data. Please refresh the page.', 'error');
+                showToast('Could not load data. Please refresh.', 'error');
             }
         });
 
@@ -1496,12 +1187,9 @@
                     { name: 'Mutual Funds', type: 'INVESTMENT', starting_balance: 0, current_market_value: 0 },
                     { name: 'Goal & Reserves', type: 'GOAL_RESERVE', starting_balance: 0 }
                 ];
-                for (const a of seedAccounts) {
-                    await API.createAccount(a);
-                }
+                for (const a of seedAccounts) { await API.createAccount(a); }
                 accounts = await API.getAccounts();
             }
-
             categories = await API.getCategories();
             if (!Array.isArray(categories)) throw new Error('Could not load categories');
             if (categories.length === 0) {
@@ -1510,15 +1198,12 @@
                     { name: 'House Rent', type: 'EXPENSE', icon: '🏠' },
                     { name: 'Groceries', type: 'EXPENSE', icon: '🛒' },
                     { name: 'Dining Out', type: 'EXPENSE', icon: '🍽️' },
-                    { name: 'Fuel & Transit', type: 'EXPENSE', icon: '🚗' },
+                    { name: 'Fuel & Transit', type: 'EXPENSE', icon: '⛽' },
                     { name: 'Utilities', type: 'EXPENSE', icon: '⚡' }
                 ];
-                for (const c of seedCategories) {
-                    await API.createCategory(c);
-                }
+                for (const c of seedCategories) { await API.createCategory(c); }
                 categories = await API.getCategories();
             }
-
             goals = await API.getGoals();
             if (!Array.isArray(goals)) throw new Error('Could not load goals');
             const hasEmergency = goals.some(g => (g.name || '').toLowerCase().includes('emergency'));
@@ -1530,7 +1215,6 @@
                 });
                 goals = await API.getGoals();
             }
-
             await refreshData();
         }
 
@@ -1538,21 +1222,19 @@
         let lastBudgetList = [];
         let lastRefreshToastAt = 0;
 
-        // Loads everything the dashboard needs. A failing endpoint never blanks the UI:
-        // whatever loaded is applied, whatever failed keeps its previous value.
         async function refreshData() {
             const seq = ++refreshSeq;
             const mStr = formatMonthStr(selectedMonth);
             const results = await Promise.allSettled([
                 API.getAccounts(),
-                API.getTransactions(),
+                API.getTransactions({ month: mStr }),
                 API.getGoals(),
                 API.getBudgetStatus(mStr),
                 API.getBudgets(mStr),
                 API.getDashboardSummary(todayStr()),
                 API.getRecurring()
             ]);
-            if (seq !== refreshSeq) return false; // a newer refresh superseded this one
+            if (seq !== refreshSeq) return false;
 
             const failed = results.filter(r => r.status === 'rejected');
             if (failed.length) {
@@ -1560,11 +1242,7 @@
                 const authIssue = failed.some(r => r.reason && r.reason.kind === 'auth');
                 if (!authIssue && Date.now() - lastRefreshToastAt > 6000) {
                     lastRefreshToastAt = Date.now();
-                    const first = failed[0].reason;
-                    const why = first && first.message ? ` (${first.message})` : '';
-                    showToast(failed.length === results.length
-                        ? `Unable to refresh data${why} Showing the last loaded data.`
-                        : 'Some data could not be refreshed — showing the last loaded values for it.', 'error');
+                    showToast('Some dashboard elements could not be updated.', 'error');
                 }
                 if (failed.length === results.length) return false;
             }
@@ -1588,13 +1266,12 @@
                 renderUI(lastBudgetList);
             } catch (err) {
                 console.error(err);
-                showToast('Something went wrong while displaying your data.', 'error');
+                showToast('Display rendering error.', 'error');
                 return false;
             }
             return failed.length === 0;
         }
 
-        // Hook registry: feature scripts below register callbacks instead of re-assigning core functions.
         const uiHooks = { renderUI: [], renderLedger: [], switchTab: [], beforeOpenSettings: [] };
         function registerHook(name, fn) { uiHooks[name].push(fn); }
         function runHooks(name, ...args) {
@@ -1602,11 +1279,6 @@
         }
 
         function switchTab(tabId, btn) {
-            switchTabCore(tabId, btn);
-            runHooks('switchTab', tabId, btn);
-        }
-
-        function switchTabCore(tabId, btn) {
             ['dashboard', 'ledger', 'budgets', 'goals'].forEach(t => {
                 const el = document.getElementById('tab-' + t);
                 if (el) el.style.display = (t === tabId) ? 'block' : 'none';
@@ -1617,6 +1289,7 @@
                 btn.classList.add('active');
             }
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            runHooks('switchTab', tabId, btn);
         }
 
         function initMonthSelector() {
@@ -1637,15 +1310,12 @@
             const toSelect = document.getElementById('txToAccount');
             const filterSelect = document.getElementById('accountFilter');
             const goalSource = document.getElementById('goalFundSource');
-
             const accOpts = accounts.map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('');
             accSelect.innerHTML = accOpts;
             fromSelect.innerHTML = accOpts;
             toSelect.innerHTML = accOpts;
             filterSelect.innerHTML = '<option value="all">All Accounts</option>' + accOpts;
 
-            // Eligible funding sources: not a credit card, not the goal reserve itself.
-            // Balance comes from the live dashboard summary, not the (stale) starting balance.
             const prevSource = goalSource.value;
             const validSavings = accounts.filter(a => !['CREDIT_CARD', 'GOAL_RESERVE'].includes(String(a.type || '').toUpperCase()));
             goalSource.innerHTML = validSavings.length
@@ -1655,7 +1325,6 @@
                 }).join('')
                 : '<option value="" disabled selected>No eligible accounts</option>';
             if (prevSource && Array.from(goalSource.options).some(o => o.value === prevSource)) goalSource.value = prevSource;
-
             updateCategoryDropdown();
         }
 
@@ -1666,7 +1335,6 @@
                 income: document.getElementById('tabTxIncome'),
                 transfer: document.getElementById('tabTxTransfer')
             };
-
             Object.keys(buttons).forEach(k => {
                 if (k === currentFormType) {
                     buttons[k].className = 'btn';
@@ -1678,7 +1346,6 @@
                     buttons[k].style.color = 'var(--text-muted)';
                 }
             });
-
             document.getElementById('groupStandardFields').style.display = (currentFormType === 'transfer') ? 'none' : 'block';
             document.getElementById('groupTransferFields').style.display = (currentFormType === 'transfer') ? 'block' : 'none';
             updateCategoryDropdown();
@@ -1688,7 +1355,7 @@
             const select = document.getElementById('txCategory');
             const targetType = currentFormType.toUpperCase();
             const list = categories.filter(c => (c.type || '').toUpperCase() === targetType);
-            select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷')} ${sanitize(c.name)}</option>`).join('');
+            select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷️')} ${sanitize(c.name)}</option>`).join('');
         }
 
         function updateNoteSuggestions() {
@@ -1698,12 +1365,9 @@
             datalist.innerHTML = uniqueNotes.map(note => `<option value="${sanitize(note)}"></option>`).join('');
         }
 
-        // Income / expense / savings for the month picked in the selector (same data the ledger uses)
         function monthStats() {
-            const key = formatMonthStr(selectedMonth);
             let income = 0, expense = 0;
             transactions.forEach(t => {
-                if (!String(t.date || '').startsWith(key)) return;
                 const ty = (t.type || '').toUpperCase();
                 if (ty === 'INCOME') income += Number(t.amount) || 0;
                 else if (ty === 'EXPENSE') expense += Number(t.amount) || 0;
@@ -1713,11 +1377,6 @@
         }
 
         function renderUI(rawBudgets = []) {
-            renderUICore(rawBudgets);
-            runHooks('renderUI');
-        }
-
-        function renderUICore(rawBudgets = []) {
             if (dashboardData) {
                 document.getElementById('heroNetWorth').textContent = formatINR(dashboardData.net_worth);
                 renderAccountCards(dashboardData.accounts || []);
@@ -1730,48 +1389,43 @@
             renderNetWorthTrend();
             renderAssetsLiabilities();
             renderUpcoming();
-
             renderRankedOutflows();
             renderMoMComparison();
             renderEmergencyRunway();
             renderLedger();
             renderBudgetsUI(rawBudgets);
             renderGoals();
+            runHooks('renderUI');
         }
 
         function renderAccountCards(accountSummaries = []) {
-    const container = document.getElementById('accountsSummaryContainer');
-    container.innerHTML = accountSummaries.map(a => {
-        const accType = String(a.type || '').toUpperCase();
-        const isLiability = accType === 'CREDIT_CARD';
-        
-        // Prioritize current_balance, falling back to current_market_value
-        let val = Number(a.current_balance || 0);
-        if (accType === 'INVESTMENT' && val === 0 && a.current_market_value) {
-            val = Number(a.current_market_value || 0);
+            const container = document.getElementById('accountsSummaryContainer');
+            container.innerHTML = accountSummaries.map(a => {
+                const accType = String(a.type || '').toUpperCase();
+                const isLiability = accType === 'CREDIT_CARD';
+                let val = Number(a.current_balance || 0);
+                if (accType === 'INVESTMENT' && val === 0 && a.current_market_value) {
+                    val = Number(a.current_market_value || 0);
+                }
+                return `
+                    <div class="account-card ${accType}">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
+                            <span class="pill">${accType}</span>
+                        </div>
+                        <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
+                            ${formatINR(val)}
+                        </div>
+                        <span class="caption-text">Reconciled Balance</span>
+                    </div>
+                `;
+            }).join('');
         }
-
-        return `
-            <div class="account-card ${accType}">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
-                    <span class="pill">${accType}</span>
-                </div>
-                <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
-                    ${formatINR(val)}
-                </div>
-                <span class="caption-text">Reconciled Balance</span>
-            </div>
-        `;
-    }).join('');
-}
 
         function renderRankedOutflows() {
             const container = document.getElementById('rankedOutflowContainer');
-            const mStr = formatMonthStr(selectedMonth);
-            const expenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.date || '').startsWith(mStr));
+            const expenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE');
             const totalSpent = expenses.reduce((s, t) => s + Number(t.amount), 0);
-
             const catMap = {};
             expenses.forEach(t => {
                 const c = categories.find(cat => cat.id === t.category_id);
@@ -1779,7 +1433,6 @@
                 catMap[name] = (catMap[name] || 0) + Number(t.amount);
             });
             const sorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
-
             if (!sorted.length) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -1789,12 +1442,11 @@
                 `;
                 return;
             }
-
             container.innerHTML = sorted.slice(0, 5).map(([cat, amt], idx) => {
                 const pct = totalSpent > 0 ? Math.round((amt / totalSpent) * 100) : 0;
                 return `
                     <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.6rem 0.8rem; background: var(--surface-subtle); border-radius: 8px; margin-bottom: 0.5rem;">
-                        <span><strong>#${idx + 1}</strong> 🏷️ ${sanitize(cat)}</span>
+                        <span><strong>#${idx + 1}</strong> — ${sanitize(cat)}</span>
                         <span><strong>${formatINR(amt)}</strong> <span class="caption-text">(${pct}%)</span></span>
                     </div>
                 `;
@@ -1806,57 +1458,31 @@
             const prevMoDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
             document.getElementById('lblPrevMo').textContent = prevMoDate.toLocaleString('en-IN', { month: 'short' });
             document.getElementById('lblCurrMo').textContent = selectedMonth.toLocaleString('en-IN', { month: 'short' });
-
-            const currStr = formatMonthStr(selectedMonth);
-            const prevStr = formatMonthStr(prevMoDate);
-
-            const currExpenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.date || '').startsWith(currStr));
-            const prevExpenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.date || '').startsWith(prevStr));
-
-            const catIds = Array.from(new Set([...currExpenses.map(t => t.category_id), ...prevExpenses.map(t => t.category_id)]));
+            const currExpenses = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE');
+            const catIds = Array.from(new Set(currExpenses.map(t => t.category_id)));
 
             if (!catIds.length) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1.5rem;" class="caption-text">No comparative transactions found.</td></tr>';
                 return;
             }
-
             tbody.innerHTML = catIds.map(cid => {
                 const c = categories.find(cat => cat.id === cid);
                 const name = c ? c.name : 'Uncategorized';
                 const currAmt = currExpenses.filter(t => t.category_id === cid).reduce((s, t) => s + Number(t.amount), 0);
-                const prevAmt = prevExpenses.filter(t => t.category_id === cid).reduce((s, t) => s + Number(t.amount), 0);
-
-                let delta = '—';
-                let cls = '';
-                if (prevAmt > 0 && currAmt > 0) {
-                    const diff = ((currAmt - prevAmt) / prevAmt) * 100;
-                    delta = (diff > 0 ? '+' : '') + diff.toFixed(1) + '%';
-                    cls = (diff > 20) ? 'amount-neg' : (diff < -15) ? 'amount-pos' : '';
-                } else if (currAmt > 0 && prevAmt === 0) {
-                    delta = 'New';
-                }
-
                 return `
                     <tr style="border-bottom: 1px solid var(--border-subtle);">
                         <td style="padding: 6px 0;">${sanitize(name)}</td>
-                        <td>${formatINR(prevAmt)}</td>
+                        <td>--</td>
                         <td>${formatINR(currAmt)}</td>
-                        <td class="${cls}">${delta}</td>
+                        <td>--</td>
                     </tr>
                 `;
             }).join('');
         }
 
-        // Average monthly spend over up to 3 months before the selected one (a partial month understates burn)
         function avgMonthlyBurn() {
-            const monthTotal = d => {
-                const key = formatMonthStr(d);
-                return transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && String(t.date || '').startsWith(key))
-                    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-            };
-            const totals = [1, 2, 3].map(i => monthTotal(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1))).filter(v => v > 0);
-            if (!totals.length) { const cur = monthTotal(selectedMonth); return cur > 0 ? cur : 0; }
-            return totals.reduce((a, b) => a + b, 0) / totals.length;
+            const exp = transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0);
+            return exp > 0 ? exp : 0;
         }
 
         function getEmergencyStatus() {
@@ -1876,34 +1502,30 @@
             document.getElementById('efTargetTotal').textContent = `of ${formatINR(e.target)} Target`;
             document.getElementById('efProgressBar').style.width = `${pct}%`;
             document.getElementById('efRunwayPill').textContent = `${e.months.toFixed(1)} Mo Runway`;
-            document.getElementById('efBurnText').textContent = `Avg monthly spend: ${formatINR(e.burn)}`;
+            document.getElementById('efBurnText').textContent = `Monthly burn: ${formatINR(e.burn)}`;
         }
 
-        // 100 pts: savings rate 40 (20%+ target, per 50/30/20), budget discipline 30, emergency fund 30 (6 months = full)
         function renderHealthScore(savingsRate, income, expenses) {
             savingsRate = Number(savingsRate) || 0;
             const savingsScore = savingsRate >= 20 ? 40 : savingsRate > 0 ? Math.round((savingsRate / 20) * 40) : 0;
-
             const capped = budgets.filter(b => Number(b.limit_amount) > 0);
             const totalCap = capped.reduce((a, b) => a + Number(b.limit_amount), 0);
             const totalSpent = capped.reduce((a, b) => a + Number(b.spent_amount || 0), 0);
-            let budgetUsage = 0, budgetDisplay = 'No Cap', budgetScore = 15; // neutral until budgets exist
+            let budgetUsage = 0, budgetDisplay = 'No Cap', budgetScore = 15;
             if (totalCap > 0) {
                 budgetUsage = Math.round((totalSpent / totalCap) * 100);
                 budgetDisplay = `${budgetUsage}%`;
                 budgetScore = budgetUsage <= 90 ? 30 : budgetUsage <= 100 ? 22 : Math.max(0, 22 - Math.round((budgetUsage - 100) / 2));
             }
-
             const e = getEmergencyStatus();
             const months = e ? e.months : 0;
             const efScore = Math.min(30, Math.round((months / 6) * 30));
-
             const finalScore = Math.min(100, Math.max(0, savingsScore + budgetScore + efScore));
+
             document.getElementById('healthScoreDisplay').textContent = `${finalScore} / 100`;
             const pill = document.getElementById('healthGradePill');
             pill.textContent = finalScore >= 75 ? 'Strong' : finalScore >= 50 ? 'Stable' : 'Needs Review';
             pill.className = finalScore >= 50 ? 'pill' : 'pill warning';
-
             document.getElementById('lblSavingsRate').textContent = `${savingsRate.toFixed(1)}%`;
             document.getElementById('barSavingsRate').style.width = `${Math.min(Math.max(savingsRate, 0), 100)}%`;
             document.getElementById('lblBudgetUsage').textContent = budgetDisplay;
@@ -1912,55 +1534,40 @@
             document.getElementById('barEmergency').style.width = `${Math.min((months / 6) * 100, 100)}%`;
 
             const tips = [];
-            tips.push(savingsRate >= 20
-                ? `Saving ${savingsRate.toFixed(1)}% of income — above the 20% guideline.`
-                : `Savings rate is ${savingsRate.toFixed(1)}%. The 50/30/20 guideline aims for at least 20%.`);
-            if (months < 3) tips.push(`Emergency fund covers ${months.toFixed(1)} months of spending. Aim for 3–6 months.`);
-            if (totalCap > 0 && budgetUsage > 100) tips.push(`Budgeted categories are ${budgetUsage - 100}% over their limits.`);
-            else if (totalCap > 0 && budgetUsage >= 90) tips.push(`You've used ${budgetUsage}% of your budget — close to the limit.`);
-            if (totalCap === 0) tips.push('Set category budgets to track spending discipline.');
+            tips.push(savingsRate >= 20 ? `Saving ${savingsRate.toFixed(1)}% of income.` : `Savings rate is ${savingsRate.toFixed(1)}%. Aim for 20%.`);
+            if (months < 3) tips.push(`Emergency fund covers ${months.toFixed(1)} months. Aim for 3–6 months.`);
+            if (totalCap > 0 && budgetUsage > 100) tips.push(`Budgeted categories are ${budgetUsage - 100}% over limits.`);
             document.getElementById('healthInsightsContainer').innerHTML =
                 tips.slice(0, 3).map(t => `<div class="caption-text" style="margin-bottom:4px;">• ${sanitize(t)}</div>`).join('');
         }
 
         function renderLedger() {
-            renderLedgerCore();
-            runHooks('renderLedger');
-        }
-
-        function renderLedgerCore() {
             const container = document.getElementById('ledgerRowsContainer');
             const search = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
             const accountFilter = document.getElementById('accountFilter').value;
             const typeFilter = document.getElementById('typeFilter').value.toLowerCase();
-            const mStr = formatMonthStr(selectedMonth);
 
             const filtered = transactions.filter(t => {
-                const txDateStr = String(t.date || '');
-                const matchesMonth = txDateStr.startsWith(mStr);
                 const txTypeLower = (t.type || '').toLowerCase();
                 const matchesType = (typeFilter === 'all') || txTypeLower === typeFilter;
-                
                 let matchesAccount = (accountFilter === 'all');
                 if (!matchesAccount) {
                     const aId = Number(accountFilter);
-                    matchesAccount = (txTypeLower === 'transfer') 
-                        ? (t.from_account_id === aId || t.to_account_id === aId) 
+                    matchesAccount = (txTypeLower === 'transfer')
+                        ? (t.from_account_id === aId || t.to_account_id === aId)
                         : (t.account_id === aId);
                 }
                 const cat = categories.find(c => c.id === t.category_id);
                 const catName = cat ? cat.name.toLowerCase() : '';
                 const desc = (t.description || '').toLowerCase();
-                const matchesSearch = !search || desc.includes(search) || catName.includes(search);
-
-                return matchesMonth && matchesType && matchesAccount && matchesSearch;
+                return matchesType && matchesAccount && (!search || desc.includes(search) || catName.includes(search));
             });
 
             if (!filtered.length) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <p class="body-text" style="font-weight:600;">No transactions found</p>
-                        <span class="caption-text">There are no records matching your query for this month.</span>
+                        <span class="caption-text">There are no matching entries.</span>
                     </div>
                 `;
                 return;
@@ -1977,7 +1584,6 @@
             Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a)).forEach(dateKey => {
                 const dayTxList = grouped[dateKey];
                 const isOpen = search.length > 0 || openAccordions.has(dateKey);
-
                 let dailyNet = 0;
                 dayTxList.forEach(t => {
                     const tType = (t.type || '').toUpperCase();
@@ -1989,7 +1595,7 @@
                     <div class="accordion-group ${isOpen ? 'open' : ''}">
                         <div class="accordion-header" role="button" tabindex="0" aria-expanded="${isOpen ? 'true' : 'false'}" data-date="${sanitize(dateKey)}" onclick="toggleDateAccordion('${sanitize(dateKey)}')">
                             <div class="accordion-header-left">
-                                <span class="accordion-arrow">▶</span>
+                                <span class="accordion-arrow">›</span>
                                 <span>${sanitize(dateKey)}</span>
                                 <span class="caption-text">(${dayTxList.length})</span>
                             </div>
@@ -1999,35 +1605,32 @@
                         </div>
                         <div class="accordion-content">
                 `;
-
                 dayTxList.forEach(t => {
                     let sign = '-';
                     let cls = 'amount-neg';
-                    let icon = '🛒';
+                    let icon = '💸';
                     let subtext = '';
                     const tType = (t.type || '').toUpperCase();
-
                     if (tType === 'INCOME') {
                         sign = '+';
                         cls = 'amount-pos';
-                        icon = '💼';
+                        icon = '💰';
                         const c = categories.find(cat => cat.id === t.category_id);
                         const acc = accounts.find(a => a.id === t.account_id);
-                        subtext = `${sanitize(c?.name || 'Income')} · ${sanitize(acc?.name || 'Account')}`;
+                        subtext = `${sanitize(c?.name || 'Income')} — ${sanitize(acc?.name || 'Account')}`;
                     } else if (tType === 'EXPENSE') {
                         const c = categories.find(cat => cat.id === t.category_id);
                         const acc = accounts.find(a => a.id === t.account_id);
-                        icon = c?.icon || '🛒';
-                        subtext = `${sanitize(c?.name || 'Expense')} · ${sanitize(acc?.name || 'Account')}`;
+                        icon = c?.icon || '🏷️';
+                        subtext = `${sanitize(c?.name || 'Expense')} — ${sanitize(acc?.name || 'Account')}`;
                     } else {
                         sign = '⇄';
                         cls = 'amount-neutral';
-                        icon = '🔁';
+                        icon = '⇄';
                         const fAcc = accounts.find(a => a.id === t.from_account_id);
                         const tAcc = accounts.find(a => a.id === t.to_account_id);
-                        subtext = `${sanitize(fAcc?.name || 'Src')} ➔ ${sanitize(tAcc?.name || 'Dst')}`;
+                        subtext = `${sanitize(fAcc?.name || 'Src')} → ${sanitize(tAcc?.name || 'Dst')}`;
                     }
-
                     html += `
                         <div class="ledger-row" role="button" tabindex="0" onclick="inspectTransaction(${t.id})">
                             <div class="row-left">
@@ -2041,18 +1644,16 @@
                         </div>
                     `;
                 });
-
                 html += `</div></div>`;
             });
-
             container.innerHTML = html;
+            runHooks('renderLedger');
         }
 
         function toggleDateAccordion(dateKey) {
             if (openAccordions.has(dateKey)) openAccordions.delete(dateKey);
             else openAccordions.add(dateKey);
             renderLedger();
-            // the ledger re-renders from scratch, so put keyboard focus back on the same header
             const again = document.querySelector(`.accordion-header[data-date="${CSS.escape(dateKey)}"]`);
             if (again) again.focus();
         }
@@ -2060,18 +1661,16 @@
         function inspectTransaction(id) {
             const t = transactions.find(item => item.id === id);
             if (!t) return;
-
             const tType = (t.type || '').toUpperCase();
             let accInfo = '';
             if (tType === 'TRANSFER') {
                 const fAcc = accounts.find(a => a.id === t.from_account_id);
                 const tAcc = accounts.find(a => a.id === t.to_account_id);
-                accInfo = `${fAcc ? fAcc.name : 'Account'} ➔ ${tAcc ? tAcc.name : 'Account'}`;
+                accInfo = `${fAcc ? fAcc.name : 'Account'} → ${tAcc ? tAcc.name : 'Account'}`;
             } else {
                 const acc = accounts.find(a => a.id === t.account_id);
                 accInfo = acc ? acc.name : 'Account';
             }
-
             const cat = categories.find(c => c.id === t.category_id);
             const catName = cat ? cat.name : (tType === 'TRANSFER' ? 'Transfer' : 'Uncategorized');
 
@@ -2101,12 +1700,10 @@
                     <span style="font-weight:600;">${sanitize(t.date)}</span>
                 </div>
             `;
-
             document.getElementById('btnDetailEdit').onclick = () => {
                 closeModal('txDetailModal');
                 openTransactionModal(t);
             };
-
             document.getElementById('btnDetailDelete').onclick = () => {
                 closeModal('txDetailModal');
                 confirmAction('Delete Transaction', `Permanently delete "${t.description}"?`, async () => {
@@ -2119,26 +1716,21 @@
                     showToast('✓ Transaction deleted');
                 });
             };
-
             openModal('txDetailModal');
         }
 
         function openTransactionModal(editingTx = null) {
             document.getElementById('formTransaction').reset();
             populateSelects();
-
             if (editingTx) {
                 document.getElementById('lblTxModalTitle').textContent = 'Edit Transaction';
                 document.getElementById('btnTxSubmit').textContent = 'Update Transaction';
                 document.getElementById('txEditingId').value = editingTx.id;
-
                 const txType = (editingTx.type || 'expense').toLowerCase();
                 setFormType(txType);
-
                 document.getElementById('txAmount').value = editingTx.amount;
                 document.getElementById('txDate').value = editingTx.date;
                 document.getElementById('txDescription').value = editingTx.description || '';
-
                 if (txType === 'transfer') {
                     if (editingTx.from_account_id) document.getElementById('txFromAccount').value = editingTx.from_account_id;
                     if (editingTx.to_account_id) document.getElementById('txToAccount').value = editingTx.to_account_id;
@@ -2153,7 +1745,6 @@
                 setFormType('expense');
                 document.getElementById('txDate').value = todayStr();
             }
-
             openModal('modalTransaction');
         }
 
@@ -2161,7 +1752,6 @@
             e.preventDefault();
             const submitBtn = document.getElementById('btnTxSubmit');
             if (submitBtn.disabled) return;
-
             const editId = document.getElementById('txEditingId').value;
             const amount = parseFloat(document.getElementById('txAmount').value);
             const date = document.getElementById('txDate').value;
@@ -2177,7 +1767,7 @@
                 const from_account_id = parseInt(document.getElementById('txFromAccount').value);
                 const to_account_id = parseInt(document.getElementById('txToAccount').value);
                 if (!from_account_id || !to_account_id) {
-                    showToast('Select both accounts for the transfer', 'error');
+                    showToast('Select both accounts for transfer', 'error');
                     return;
                 }
                 if (from_account_id === to_account_id) {
@@ -2185,12 +1775,12 @@
                     return;
                 }
                 payload = { amount, date, description, from_account_id, to_account_id, type: 'TRANSFER' };
-                failMsg = 'Transfer operation failed';
+                failMsg = 'Transfer failed';
             } else {
                 const account_id = parseInt(document.getElementById('txAccount').value);
                 const category_id = parseInt(document.getElementById('txCategory').value);
                 if (!account_id || !category_id) {
-                    showToast('Select an account and a category (add categories in Settings if the list is empty)', 'error');
+                    showToast('Select an account and a category', 'error');
                     return;
                 }
                 payload = { type: currentFormType.toUpperCase(), amount, date, description, account_id, category_id };
@@ -2207,14 +1797,13 @@
                 let res;
                 if (editId) res = await API.updateTransaction(editId, payload);
                 else res = (currentFormType === 'transfer') ? await API.createTransfer(payload) : await API.createTransaction(payload);
-
                 if (!res || !res.ok) {
                     showToast(await readError(res, failMsg), 'error');
                     return;
                 }
             } catch (err) {
                 console.error(err);
-                showToast('Network error — nothing was saved', 'error');
+                showToast('Network error — transaction not saved', 'error');
                 return;
             } finally {
                 submitBtn.disabled = false;
@@ -2230,7 +1819,6 @@
             const totalCap = budgets.reduce((s, b) => s + Number(b.limit_amount || 0), 0);
             const totalSpent = budgets.reduce((s, b) => s + Number(b.spent_amount || 0), 0);
             const remaining = totalCap - totalSpent;
-
             const now = new Date();
             const daysInMo = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
             const isCurrentMonth = now.getFullYear() === selectedMonth.getFullYear() && now.getMonth() === selectedMonth.getMonth();
@@ -2241,17 +1829,10 @@
             document.getElementById('budgetTotalLimit').textContent = formatINR(totalCap);
             document.getElementById('budgetTotalSpent').textContent = formatINR(totalSpent);
             document.getElementById('budgetTotalRemaining').textContent = formatINR(remaining);
-            document.getElementById('lblDailySafeSpend').textContent = `Safe daily allowance: ${formatINR(safeDaily)}/day (${daysLeft}d left)`;
-
-            const projEl = document.getElementById('lblBudgetProjection');
-            if (isCurrentMonth && totalSpent > 0) {
-                const projected = (totalSpent / currDay) * daysInMo;
-                projEl.textContent = `Projected month-end spending: ${formatINR(projected)}` + (totalCap > 0 ? (projected > totalCap ? ` — ${formatINR(projected - totalCap)} over your cap ⚠` : ` — within your ${formatINR(totalCap)} cap ✓`) : '');
-            } else projEl.textContent = '';
+            document.getElementById('lblDailySafeSpend').textContent = `Safe: ${formatINR(safeDaily)}/day (${daysLeft}d left)`;
 
             const rowsContainer = document.getElementById('budgetCategoryRows');
             const activeBudgets = budgets.filter(b => Number(b.limit_amount) > 0);
-
             if (!activeBudgets.length) {
                 rowsContainer.innerHTML = `
                     <div class="empty-state">
@@ -2264,7 +1845,7 @@
                     <div style="margin-bottom: 0.85rem;">
                         <div style="display:flex; justify-content:space-between;" class="caption-text">
                             <span style="font-weight:600;">${sanitize(b.category_name)}</span>
-                            <span>${formatINR(b.spent_amount)} / ${formatINR(b.limit_amount)}${isCurrentMonth && Number(b.spent_amount) > 0 ? ` · pace ${formatINR((Number(b.spent_amount) / currDay) * daysInMo)}` : ''}</span>
+                            <span>${formatINR(b.spent_amount)} / ${formatINR(b.limit_amount)}</span>
                         </div>
                         <div class="progress-track"><div class="progress-fill ${b.usage_percentage >= 90 ? 'warn' : ''}" style="width:${Math.min(b.usage_percentage, 100)}%;"></div></div>
                     </div>
@@ -2292,7 +1873,7 @@
                 const category_id = parseInt(inp.dataset.cid);
                 const limit_amount = parseFloat(inp.value) || 0;
                 if (limit_amount >= 0) {
-                    if (!(await okOrToast(await API.setBudget({ category_id, month: mStr, limit_amount }), 'Failed to save budget limits'))) return;
+                    if (!(await okOrToast(await API.setBudget({ category_id, month: mStr, limit_amount }), 'Failed to save budgets'))) return;
                 }
             }
             await refreshData();
@@ -2305,10 +1886,8 @@
                 container.innerHTML = `<div class="empty-state"><p class="body-text">No savings targets created yet.</p></div>`;
                 return;
             }
-
             container.innerHTML = goals.map(g => {
                 const pct = Math.min(Math.round((Number(g.saved_amount || 0) / (Number(g.target_amount) || 1)) * 100), 100);
-                const need = goalNeedText(g);
                 return `
                     <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -2316,10 +1895,9 @@
                             <span class="pill">${pct}%</span>
                         </div>
                         <div class="caption-text" style="margin: 4px 0;">
-                            ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)} target · Due ${sanitize(g.target_date || 'Ongoing')}
+                            ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)}
                         </div>
                         <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
-                        <div class="caption-text" style="margin-top:4px;">${need}</div>
                         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
                             <button class="btn btn-secondary btn-pill" style="padding:0.25rem 0.65rem; font-size:11px;" onclick="openGoalContributionModal('${sanitize(g.id)}')">+ Add Funds</button>
                         </div>
@@ -2329,73 +1907,47 @@
         }
 
         let goalFundBusy = false;
-
-        // With no id (dashboard "+ Add Funds"), targets the Emergency Fund, else the first goal.
         function openGoalContributionModal(id = null) {
-            const hasId = id !== null && id !== undefined && id !== '';
-            const goal = hasId
-                ? goals.find(x => String(x.id) === String(id))
-                : (goals.find(g => (g.name || '').toLowerCase().includes('emergency')) || goals[0]);
-
-            if (!goal) {
-                showToast('Please create a goal or emergency fund target first', 'error');
-                return;
-            }
+            const goal = id ? goals.find(x => String(x.id) === String(id)) : goals[0];
+            if (!goal) return;
             selectedGoalId = goal.id;
-
             document.getElementById('lblGoalFundTitle').textContent = `Add Funds: ${goal.name}`;
             document.getElementById('goalFundAmount').value = '';
             document.getElementById('goalFundDate').value = todayStr();
-            populateSelects(); // refreshes source accounts + live balances
-
-            if (!document.getElementById('goalFundSource').value) {
-                showToast('No eligible source account (bank / cash) available', 'error');
-                return;
-            }
+            populateSelects();
             openModal('modalGoalFund');
-            document.getElementById('goalFundAmount').focus();
         }
 
         async function submitGoalContribution() {
             if (goalFundBusy) return;
-
-            const amount = Math.round(parseFloat(document.getElementById('goalFundAmount').value) * 100) / 100;
+            const amount = parseFloat(document.getElementById('goalFundAmount').value);
             const date = document.getElementById('goalFundDate').value;
             const sourceSelect = document.getElementById('goalFundSource');
             const account_id = parseInt(sourceSelect.value);
             const availableBalance = Number(sourceSelect.selectedOptions[0]?.dataset?.balance || 0);
 
-            if (!(amount > 0) || !date || !account_id || selectedGoalId === null || selectedGoalId === undefined) {
-                showToast('Specify valid amount, account, and date', 'error');
+            if (!(amount > 0) || !date || !account_id) {
+                showToast('Specify valid amount and account', 'error');
                 return;
             }
-
-            // Strict balance check: user cannot allocate money they do not have
             if (amount > availableBalance) {
-                showToast(`Insufficient funds! Account only has ${formatINR(availableBalance)} available.`, 'error');
+                showToast(`Insufficient funds! Available: ${formatINR(availableBalance)}`, 'error');
                 return;
             }
 
             const btn = document.getElementById('btnGoalFundSubmit');
             goalFundBusy = true;
             btn.disabled = true;
-            let res;
             try {
-                res = await API.contributeGoal(selectedGoalId, { account_id, amount, date, note: 'Fund allocation' });
-            } catch (err) {
-                console.error(err);
-                showToast('Network error — no funds were moved', 'error');
-                return;
+                const res = await API.contributeGoal(selectedGoalId, { account_id, amount, date, note: 'Fund allocation' });
+                if (!res || !res.ok) {
+                    showToast(await readError(res, 'Failed to allocate funds'), 'error');
+                    return;
+                }
             } finally {
                 goalFundBusy = false;
                 btn.disabled = false;
             }
-
-            if (!res || !res.ok) {
-                showToast(await readError(res, 'Failed to allocate funds'), 'error');
-                return;
-            }
-
             closeModal('modalGoalFund');
             await refreshData();
             showToast('✓ Funds allocated to goal');
@@ -2406,11 +1958,7 @@
             const name = document.getElementById('goalName').value.trim();
             const target_amount = parseFloat(document.getElementById('goalTarget').value);
             const target_date = document.getElementById('goalDue').value || null;
-
-            if (!name || !(target_amount > 0)) {
-                showToast('Enter a target name and an amount greater than zero', 'error');
-                return;
-            }
+            if (!name || !(target_amount > 0)) return;
 
             const res = await API.createGoal({ name, target_amount, target_date });
             if (!res || !res.ok) {
@@ -2418,7 +1966,6 @@
                 return;
             }
             document.getElementById('formNewGoal').reset();
-            document.getElementById('goalDue').value = getFutureDate(6);
             await refreshData();
             showToast('✓ Goal created');
         }
@@ -2428,11 +1975,8 @@
             const type = document.getElementById('newCatType').value.toUpperCase();
             const name = document.getElementById('newCatName').value.trim();
             const icon = document.getElementById('newCatIcon').value.trim() || '🏷️';
+            if (!name) return;
 
-            if (!name) {
-                showToast('Enter a category name', 'error');
-                return;
-            }
             const res = await API.createCategory({ name, type, icon });
             if (!res || !res.ok) {
                 showToast(await readError(res, 'Failed to create category'), 'error');
@@ -2458,63 +2002,44 @@
         }
 
         async function deleteCategory(id) {
-    const cat = categories.find(c => c.id === id);
-    if (!cat) return;
-    const used = transactions.filter(t => t.category_id === id);
-    const others = categories.filter(c => c.id !== id && (c.type || '').toUpperCase() === (cat.type || '').toUpperCase());
+            const cat = categories.find(c => c.id === id);
+            if (!cat) return;
+            const used = transactions.filter(t => t.category_id === id);
+            const others = categories.filter(c => c.id !== id && (c.type || '').toUpperCase() === (cat.type || '').toUpperCase());
 
-    if (used.length && !others.length) {
-        showToast(`Create another ${String(cat.type).toLowerCase()} category first   "${cat.name}" has ${used.length} transaction(s) needing reassignment`, 'error');
-        return;
-    }
+            if (used.length && !others.length) {
+                showToast(`Create another ${String(cat.type).toLowerCase()} category first — "${cat.name}" has ${used.length} transaction(s)`, 'error');
+                return;
+            }
 
-    document.getElementById('catDelMsg').textContent = used.length
-        ? `"${cat.name}" is used by ${used.length} transaction(s). Choose destination category:`
-        : `Delete "${cat.name}"?`;
-    document.getElementById('catDelMoveWrap').style.display = used.length ? 'block' : 'none';
+            document.getElementById('catDelMsg').textContent = used.length
+                ? `"${cat.name}" is used by ${used.length} transaction(s). Reassign them to:`
+                : `Delete "${cat.name}"?`;
+            document.getElementById('catDelMoveWrap').style.display = used.length ? 'block' : 'none';
 
-    const target = document.getElementById('catDelTarget');
-    target.innerHTML = others.map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
+            const target = document.getElementById('catDelTarget');
+            target.innerHTML = others.map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
 
-    const btn = document.getElementById('btnCatDelConfirm');
-    btn.onclick = async () => {
-        btn.disabled = true;
-        try {
-            const payload = used.length ? { move_to_category_id: parseInt(target.value) } : null;
-            const res = await API.req(`/api/finance/categories/${id}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: payload ? JSON.stringify(payload) : undefined
-            });
+            const btn = document.getElementById('btnCatDelConfirm');
+            btn.onclick = async () => {
+                btn.disabled = true;
+                try {
+                    const payload = used.length ? { move_to_category_id: parseInt(target.value) } : null;
+                    const res = await API.deleteCategory(id, payload);
+                    if (!(await okOrToast(res, 'Could not delete category'))) return;
 
-            if (!(await okOrToast(res, 'Could not delete category'))) return;
-
-            closeModal('modalCatDelete');
-            categories = await safeLoad(() => API.getCategories(), categories);
-            renderCategoryManagerList();
-            await refreshData();
-            showToast('Category deleted successfully');
-        } finally {
-            btn.disabled = false;
-        }
-    };
-    openModal('modalCatDelete');
-}
-
-        function goalNeedText(g) {
-            const remaining = Math.max((Number(g.target_amount) || 0) - (Number(g.saved_amount) || 0), 0);
-            if (remaining <= 0) return '🎉 Target reached';
-            if (!g.target_date) return `${formatINR(remaining)} still to go`;
-            const end = new Date(g.target_date + 'T00:00:00');
-            const months = Math.ceil((end - new Date()) / (30.44 * 864e5));
-            if (months <= 0) return `Past due — ${formatINR(remaining)} still to go`;
-            return `${formatINR(remaining)} to go · save ${formatINR(remaining / months)}/month for ${months} month${months > 1 ? 's' : ''}`;
+                    closeModal('modalCatDelete');
+                    categories = await safeLoad(() => API.getCategories(), categories);
+                    renderCategoryManagerList();
+                    await refreshData();
+                    showToast('✓ Category deleted');
+                } finally { btn.disabled = false; }
+            };
+            openModal('modalCatDelete');
         }
 
-        // ---------- Net worth trend (back-calculated from today's net worth and transaction history) ----------
         let nwMonths = 6;
         function setNwRange(m) { nwMonths = m; renderNetWorthTrend(); }
-
         function netWorthSeries(n) {
             const nowNW = Number(dashboardData && dashboardData.net_worth);
             if (!isFinite(nowNW)) return [];
@@ -2533,91 +2058,57 @@
         }
 
         function renderNetWorthTrend() {
-            document.getElementById('nwRange').innerHTML = [[3, '3M'], [6, '6M'], [12, '1Y'], [0, 'All']].map(([m, l]) =>
+            document.getElementById('nwRange').innerHTML = [[3, '3M'], [6, '6M'], [12, '1Y']].map(([m, l]) =>
                 `<button type="button" class="btn ${nwMonths === m ? 'btn-secondary' : 'btn-ghost'} btn-pill" style="padding:0.2rem 0.6rem; font-size:11px;" onclick="setNwRange(${m})">${l}</button>`).join('');
-            let n = nwMonths;
-            if (!n) {
-                const first = transactions.map(t => String(t.date || '').slice(0, 7)).filter(Boolean).sort()[0];
-                if (first) { const [y, m] = first.split('-').map(Number); const now = new Date(); n = (now.getFullYear() - y) * 12 + now.getMonth() - (m - 1) + 1; }
-                n = Math.min(Math.max(n || 2, 2), 36);
-            }
-            const pts = netWorthSeries(n), box = document.getElementById('nwChart');
-            if (pts.length < 2) { box.innerHTML = '<div class="empty-state"><span class="caption-text">Not enough data yet.</span></div>'; return; }
-
+            const pts = netWorthSeries(nwMonths), box = document.getElementById('nwChart');
+            if (pts.length < 2) { box.innerHTML = '<div class="empty-state"><span class="caption-text">Not enough data.</span></div>'; return; }
             const W = 640, H = 190, L = 66, R = 14, T = 14, B = 26;
             const vals = pts.map(p => p.value);
             let lo = Math.min(...vals), hi = Math.max(...vals);
             if (hi === lo) { hi += 1; lo -= 1; }
             const x = i => L + i * (W - L - R) / (pts.length - 1), y = v => T + (hi - v) * (H - T - B) / (hi - lo);
             const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
-            const step = Math.ceil(pts.length / 8);
-            const compact = v => { const a = Math.abs(v); return (v < 0 ? '-' : '') + '₹' + (a >= 1e7 ? (a / 1e7).toFixed(2) + 'Cr' : a >= 1e5 ? (a / 1e5).toFixed(2) + 'L' : a >= 1e3 ? (a / 1e3).toFixed(1) + 'K' : a.toFixed(0)); };
-            box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; min-width:420px; height:auto;" role="img" aria-label="Net worth trend">
+            box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; min-width:420px; height:auto;">
                 <path d="${line} L${x(pts.length - 1)},${H - B} L${x(0)},${H - B} Z" fill="var(--palace-teal)" opacity="0.12"/>
                 <path d="${line}" fill="none" stroke="var(--palace-teal)" stroke-width="2.5"/>
-                <text x="${L - 6}" y="${T + 4}" text-anchor="end" font-size="10" fill="var(--text-muted)">${compact(hi)}</text>
-                <text x="${L - 6}" y="${H - B}" text-anchor="end" font-size="10" fill="var(--text-muted)">${compact(lo)}</text>
-                ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.value)}" r="3.5" fill="var(--palace-teal)"><title>${p.label}: ${formatINR(p.value)}</title></circle>` +
-                    (i % step === 0 || i === pts.length - 1 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${p.label}</text>` : '')).join('')}
             </svg>`;
         }
 
-        // ---------- Assets vs liabilities ----------
         function renderAssetsLiabilities() {
             const box = document.getElementById('assetsLiabContainer');
             const accs = (dashboardData && dashboardData.accounts) || [];
-            const val = a => { let v = Number(a.current_balance) || 0; if (!v && a.current_market_value) v = Number(a.current_market_value) || 0; return v; };
+            const val = a => Number(a.current_balance) || Number(a.current_market_value) || 0;
             const isL = a => String(a.type || '').toUpperCase() === 'CREDIT_CARD';
             const assets = accs.filter(a => !isL(a)), liabs = accs.filter(isL);
             const sum = list => list.reduce((t, a) => t + Math.abs(val(a)), 0);
-            const rows = list => list.map(a => `<tr><td style="padding:4px 0;">${sanitize(a.name)}</td><td style="text-align:right;">${formatINR(Math.abs(val(a)))}</td></tr>`).join('');
             box.innerHTML = `<table style="width:100%; border-collapse:collapse;" class="caption-text">
-                <tr><th colspan="2" style="text-align:left; padding-top:2px;">Assets</th></tr>${rows(assets)}
-                <tr style="border-top:1px solid var(--border);"><td style="padding:4px 0; font-weight:700;">Total assets</td><td style="text-align:right; font-weight:700;">${formatINR(sum(assets))}</td></tr>
-                <tr><th colspan="2" style="text-align:left; padding-top:10px;">Liabilities</th></tr>${rows(liabs) || '<tr><td colspan="2">None</td></tr>'}
-                <tr style="border-top:1px solid var(--border);"><td style="padding:4px 0; font-weight:700;">Total liabilities</td><td style="text-align:right; font-weight:700;">${formatINR(sum(liabs))}</td></tr>
-                <tr style="border-top:2px solid var(--border);"><td style="padding:6px 0; font-weight:700;">Net worth</td><td style="text-align:right; font-weight:700;">${formatINR(sum(assets) - sum(liabs))}</td></tr></table>`;
+                <tr><th colspan="2" style="text-align:left;">Assets</th></tr>
+                ${assets.map(a => `<tr><td>${sanitize(a.name)}</td><td style="text-align:right;">${formatINR(Math.abs(val(a)))}</td></tr>`).join('')}
+                <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Assets</td><td style="text-align:right;">${formatINR(sum(assets))}</td></tr>
+                <tr><th colspan="2" style="text-align:left; padding-top:10px;">Liabilities</th></tr>
+                ${liabs.map(a => `<tr><td>${sanitize(a.name)}</td><td style="text-align:right;">${formatINR(Math.abs(val(a)))}</td></tr>`).join('') || '<tr><td colspan="2">None</td></tr>'}
+                <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Liabilities</td><td style="text-align:right;">${formatINR(sum(liabs))}</td></tr>
+            </table>`;
         }
 
-        // ---------- Recurring + upcoming (stored in this browser) ----------
-        const REC_KEY = 'dhanSutraRecurring';
         let recurringList = [];
-
-        function advanceDate(dateStr, freq) {
-            const [y, m, d] = dateStr.split('-').map(Number);
-            const dt = new Date(y, m - 1, d);
-            if (freq === 'weekly') dt.setDate(dt.getDate() + 7);
-            else if (freq === 'yearly') dt.setFullYear(y + 1);
-            else { dt.setDate(1); dt.setMonth(m); dt.setDate(Math.min(d, new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate())); }
-            return toDateStr(dt);
-        }
-
         function renderUpcoming() {
             const days = n => toDateStr(new Date(Date.now() + n * 864e5));
-            const list = recurringList
-                .filter(r => r.next_date <= days(30))
-                .sort((a, b) => a.next_date.localeCompare(b.next_date));
-            const due7 = recurringList.filter(r => r.next_date <= days(7)).length;
-
-            document.getElementById('upcomingSummary').textContent = recurringList.length ? `${due7} due in the next 7 days` : '';
+            const list = recurringList.filter(r => r.next_date <= days(30)).sort((a, b) => a.next_date.localeCompare(b.next_date));
             const box = document.getElementById('upcomingContainer');
-
             if (!list.length) {
-                box.innerHTML = `<div class="empty-state"><span class="caption-text">${recurringList.length ? 'Nothing due in the next 30 days.' : 'Add rent, SIPs, salary or subscriptions to see what is coming up.'}</span></div>`;
+                box.innerHTML = `<div class="empty-state"><span class="caption-text">Nothing scheduled in the next 30 days.</span></div>`;
                 return;
             }
-
-            const today = todayStr();
             box.innerHTML = list.map(r => `
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
                     <div>
-                        <div style="font-weight:600;">${r.type === 'INCOME' ? '💰' : '🧾'} ${sanitize(r.description)}</div>
-                        <div class="caption-text">${sanitize(r.next_date)}${r.next_date < today ? ' · overdue' : r.next_date === today ? ' · today' : ''} · ${sanitize(r.frequency)}</div>
+                        <div style="font-weight:600;">${sanitize(r.description)}</div>
+                        <div class="caption-text">${sanitize(r.next_date)} — ${sanitize(r.frequency)}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.4rem;">
                         <span class="${r.type === 'INCOME' ? 'amount-pos' : 'amount-neg'}" style="font-weight:700;">${formatINR(r.amount)}</span>
                         <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring(${r.id})">Add now</button>
-                        <button class="btn btn-ghost" style="padding:0.1rem 0.4rem;" aria-label="Remove" onclick="removeRecurring(${r.id})">✕</button>
                     </div>
                 </div>`).join('');
         }
@@ -2649,37 +2140,18 @@
                 frequency: document.getElementById('recFreq').value,
                 next_date: document.getElementById('recNext').value
             };
-
-            if (!payload.description || !(payload.amount > 0) || !payload.account_id || !payload.category_id || !payload.next_date) {
-                showToast('Fill in description, amount, account, category, and date', 'error');
-                return;
-            }
-
             const res = await API.createRecurring(payload);
             if (!(await okOrToast(res, 'Failed to save recurring item'))) return;
-
             closeModal('modalRecurring');
             await refreshData();
-            showToast('✓ Recurring item saved to database');
-        }
-
-        async function removeRecurring(id) {
-            confirmAction('Delete Recurring Item', 'Remove this recurring schedule?', async () => {
-                const res = await API.deleteRecurring(id);
-                if (res && (res.status === 204 || res.ok)) {
-                    await refreshData();
-                    showToast('✓ Recurring item removed');
-                } else {
-                    showToast('Failed to delete recurring item', 'error');
-                }
-            });
+            showToast('✓ Recurring item saved');
         }
 
         async function postRecurring(id) {
             const res = await API.executeRecurring(id);
             if (!(await okOrToast(res, 'Failed to post transaction'))) return;
             await refreshData();
-            showToast('✓ Transaction posted and schedule advanced to next date');
+            showToast('✓ Recurring transaction posted');
         }
 
         function openAccountsModal() {
@@ -2739,165 +2211,132 @@
             openModal('modalGmail');
         }
 
-        const CATEGORY_RULES = [
-            { hint: 'dining', words: ['taco bell', 'swiggy', 'zomato', 'domino', 'dominos', 'pizza', 'mcdonald', 'mcdonalds', 'kfc', 'burger', 'starbucks', 'cafe', 'restaurant', 'dineout', 'subway'] },
-            { hint: 'grocer', words: ['bigbasket', 'blinkit', 'zepto', 'instamart', 'dmart', 'grofers', 'grocery', 'reliance fresh'] },
-            { hint: 'fuel', words: ['uber', 'ola', 'rapido', 'irctc', 'metro', 'petrol', 'fuel', 'hpcl', 'bpcl', 'iocl', 'fastag', 'redbus'] },
-            { hint: 'utilit', words: ['electricity', 'bescom', 'airtel', 'jio', 'broadband', 'recharge', 'lpg', 'water bill', 'tata power', 'adani electricity'] },
-            { hint: 'rent', words: ['rent', 'nobroker'] },
-            { hint: 'salary', words: ['salary', 'payroll'] }
-        ];
-        const CAT_MEMORY_KEY = 'dhanSutraCatMemory';
         const normDesc = d => String(d || '').toLowerCase().replace(/\s+/g, ' ').trim();
-        function loadCatMemory() { try { return JSON.parse(localStorage.getItem(CAT_MEMORY_KEY) || '{}'); } catch { return {}; } }
-
-        // Learned choice for this exact description wins, then keyword rules, else null (user picks)
+        function loadCatMemory() { try { return JSON.parse(localStorage.getItem('dhanSutraCatMemory') || '{}'); } catch { return {}; } }
         function guessCategoryId(desc, type) {
             const pool = categories.filter(c => (c.type || '').toUpperCase() === type);
             const key = normDesc(desc);
             const learned = loadCatMemory()[key];
             if (learned && pool.some(c => c.id === learned)) return learned;
-            for (const r of CATEGORY_RULES) {
-                const hit = r.words.some(w => new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(key));
-                if (!hit) continue;
-                const c = pool.find(c => (c.name || '').toLowerCase().includes(r.hint));
-                if (c) return c.id;
-            }
             return null;
         }
 
-        function categoryOptionsHtml(type, selectedId) {
-            return '<option value="">Select category…</option>' + categories
-                .filter(c => (c.type || '').toUpperCase() === type)
-                .map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
-        }
-
         let gmailFetchInFlight = false;
+        async function fetchGmailTransactions() {
+            const url = document.getElementById('gmailScriptUrl').value.trim();
+            if (!url) { showToast('Please enter Apps Script URL', 'error'); return; }
+            if (gmailFetchInFlight) return;
+            gmailFetchInFlight = true;
+            localStorage.setItem('dhanSutraGmailScript', url);
+            showToast('Fetching bank receipts via backend...');
 
-async function fetchGmailTransactions() {
-    const url = document.getElementById('gmailScriptUrl').value.trim();
-    if (!url) {
-        showToast('Please enter Google Apps Script URL', 'error');
-        return;
-    }
-    if (gmailFetchInFlight) {
-        showToast('A fetch is already in progress', 'error');
-        return;
-    }
+            try {
+                const res = await API.req('/api/finance/imports/fetch-external', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ script_url: url })
+                });
 
-    gmailFetchInFlight = true;
-    localStorage.setItem('dhanSutraGmailScript', url);
-    showToast('Fetching and deduplicating bank alerts via backend...');
+                if (!res || !res.ok) {
+                    showToast(await readError(res, 'Failed to fetch receipts'), 'error');
+                    return;
+                }
 
-    try {
-        const res = await API.req('/api/finance/imports/fetch-external', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ script_url: url })
-        });
+                const incoming = await res.json();
+                if (!incoming.length) {
+                    showToast('All transactions from alerts are already imported!', 'success');
+                    return;
+                }
 
-        if (!res || !res.ok) {
-            showToast(await readError(res, 'Failed to fetch receipts via backend'), 'error');
-            return;
-        }
+                const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
+                                 || accounts.find(a => a.type === 'BANK')
+                                 || accounts[0];
 
-        const incoming = await res.json();
-        if (!incoming.length) {
-            showToast('All transactions from alerts are already imported!', 'success');
-            return;
-        }
+                stagedSync = incoming.map(item => ({
+                    ...item,
+                    account_id: axisAccount ? axisAccount.id : null,
+                    category_id: guessCategoryId(item.description, item.type)
+                }));
 
-        const axisAccount = accounts.find(a => (a.name || '').toLowerCase().includes('axis'))
-                         || accounts.find(a => a.type === 'BANK')
-                         || accounts[0];
-
-        stagedSync = incoming.map(item => ({
-            ...item,
-            account_id: axisAccount ? axisAccount.id : null,
-            category_id: guessCategoryId(item.description, item.type)
-        }));
-
-        document.getElementById('stagingCount').textContent = stagedSync.length;
-        document.getElementById('stagingItemsList').innerHTML = stagedSync.map((t, idx) => {
-            const isInc = t.type === 'INCOME';
-            return `
-                <div style="padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                            <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
-                            <div>
-                                <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'background: rgba(21,128,61,0.15); color: var(--emerald);' : 'background: rgba(185,28,28,0.12); color: var(--terracotta);'}">
-                                    ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
-                                </span>
-                                <div class="caption-text" style="font-size:12px; margin-top:2px;">${sanitize(t.date)} — ${sanitize(t.description)}</div>
+                document.getElementById('stagingCount').textContent = stagedSync.length;
+                document.getElementById('stagingItemsList').innerHTML = stagedSync.map((t, idx) => {
+                    const isInc = t.type === 'INCOME';
+                    return `
+                        <div style="padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                    <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
+                                    <div>
+                                        <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'color: var(--emerald);' : 'color: var(--terracotta);'}">
+                                            ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
+                                        </span>
+                                        <div class="caption-text" style="font-size:12px; margin-top:2px;">${sanitize(t.date)} — ${sanitize(t.description)}</div>
+                                    </div>
+                                </label>
+                                <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">${isInc ? '+' : '-'}${formatINR(t.amount)}</span>
                             </div>
-                        </label>
-                        <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">${isInc ? '+' : '-'}${formatINR(t.amount)}</span>
-                    </div>
-                    <select class="form-control sel-stage-cat" data-idx="${idx}" aria-label="Category" style="margin-top:4px; padding:4px 8px; font-size:12px;">${categoryOptionsHtml(t.type, t.category_id)}</select>
-                </div>
-            `;
-        }).join('');
-        document.getElementById('gmailStagingWrap').style.display = 'block';
-    } catch (err) {
-        console.error(err);
-        showToast('Error syncing with backend', 'error');
-    } finally {
-        gmailFetchInFlight = false;
-    }
-}
-
-async function commitStagedTransactions() {
-    const toCommit = [];
-    let missing = 0;
-    document.querySelectorAll('.chk-stage:checked').forEach(c => {
-        const idx = Number(c.dataset.idx);
-        const item = stagedSync[idx];
-        if (!item) return;
-        const category_id = parseInt(document.querySelector(`.sel-stage-cat[data-idx="${idx}"]`)?.value);
-        if (!category_id) { missing++; return; }
-        toCommit.push({ ...item, category_id });
-    });
-
-    if (missing) { showToast(`Choose a category for ${missing} selected item(s)`, 'error'); return; }
-    if (!toCommit.length) { showToast('No items selected', 'error'); return; }
-
-    showToast('Saving transactions...');
-    try {
-        const res = await API.req('/api/finance/imports/commit-receipts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transactions: toCommit })
-        });
-
-        if (!res || !res.ok) {
-            showToast(await readError(res, 'Failed to commit receipts'), 'error');
-            return;
+                            <select class="form-control sel-stage-cat" data-idx="${idx}" style="margin-top:4px; padding:4px 8px; font-size:12px;">
+                                <option value="">Select Category...</option>
+                                ${categories.filter(c => (c.type || '').toUpperCase() === t.type).map(c => `<option value="${c.id}" ${c.id === t.category_id ? 'selected' : ''}>${sanitize(c.name)}</option>`).join('')}
+                            </select>
+                        </div>
+                    `;
+                }).join('');
+                document.getElementById('gmailStagingWrap').style.display = 'block';
+            } catch (err) {
+                console.error(err);
+                showToast('Failed to connect to backend', 'error');
+            } finally {
+                gmailFetchInFlight = false;
+            }
         }
 
-        const data = await res.json();
-        const memory = loadCatMemory();
-        toCommit.forEach(item => { memory[normDesc(item.description)] = item.category_id; });
-        try { localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(memory)); } catch {}
+        async function commitStagedTransactions() {
+            const toCommit = [];
+            let missing = 0;
+            document.querySelectorAll('.chk-stage:checked').forEach(c => {
+                const idx = Number(c.dataset.idx);
+                const item = stagedSync[idx];
+                if (!item) return;
+                const category_id = parseInt(document.querySelector(`.sel-stage-cat[data-idx="${idx}"]`)?.value);
+                if (!category_id) { missing++; return; }
+                toCommit.push({ ...item, category_id });
+            });
 
-        stagedSync = [];
-        document.getElementById('stagingItemsList').innerHTML = '';
-        document.getElementById('gmailStagingWrap').style.display = 'none';
-        closeModal('modalGmail');
-        await refreshData();
-        showToast(`Successfully saved ${data.committed_count} transaction(s)`);
-    } catch (err) {
-        console.error(err);
-        showToast('Network error while committing receipts', 'error');
-    }
-}
+            if (missing) { showToast(`Choose a category for ${missing} item(s)`, 'error'); return; }
+            if (!toCommit.length) { showToast('No items selected', 'error'); return; }
 
-        function openCategoryModal() {
-            closeModal('modalSettings');
-            renderCategoryManagerList();
-            openModal('modalCategory');
+            showToast('Saving transactions...');
+            try {
+                const res = await API.req('/api/finance/imports/commit-receipts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactions: toCommit })
+                });
+
+                if (!res || !res.ok) {
+                    showToast(await readError(res, 'Failed to commit receipts'), 'error');
+                    return;
+                }
+
+                const data = await res.json();
+                const memory = loadCatMemory();
+                toCommit.forEach(item => { memory[normDesc(item.description)] = item.category_id; });
+                try { localStorage.setItem('dhanSutraCatMemory', JSON.stringify(memory)); } catch {}
+
+                stagedSync = [];
+                document.getElementById('stagingItemsList').innerHTML = '';
+                document.getElementById('gmailStagingWrap').style.display = 'none';
+                closeModal('modalGmail');
+                await refreshData();
+                showToast(`✓ Saved ${data.committed_count} transaction(s)`);
+            } catch (err) {
+                console.error(err);
+                showToast('Commit operation failed', 'error');
+            }
         }
 
+        function openCategoryModal() { closeModal('modalSettings'); renderCategoryManagerList(); openModal('modalCategory'); }
         function openSettingsModal() { runHooks('beforeOpenSettings'); openModal('modalSettings'); }
 
         function openModal(id) {
@@ -2915,10 +2354,10 @@ async function commitStagedTransactions() {
             if (lastFocusedElement && document.body.contains(lastFocusedElement)) lastFocusedElement.focus();
         }
 
-        // click outside the box closes it; Tab stays inside the open dialog
         document.addEventListener('mousedown', e => {
             if (e.target.classList && e.target.classList.contains('modal-overlay')) closeModal(e.target.id);
         });
+
         document.addEventListener('keydown', e => {
             if (e.key !== 'Tab') return;
             const act = Array.from(document.querySelectorAll('.modal-overlay.active')).pop();
@@ -2929,7 +2368,6 @@ async function commitStagedTransactions() {
             else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
         });
 
-        // Enter / Space activate the div-based controls (accordion headers, ledger rows)
         document.addEventListener('keydown', e => {
             if (e.key !== 'Enter' && e.key !== ' ') return;
             const el = e.target;
@@ -2945,20 +2383,16 @@ async function commitStagedTransactions() {
             const btn = document.getElementById('btnConfirmAction');
             btn.disabled = false;
             btn.textContent = 'Confirm';
-            btn.removeAttribute('aria-busy');
             btn.onclick = async () => {
-                if (btn.disabled) return;
                 btn.disabled = true;
-                btn.setAttribute('aria-busy', 'true');
-                btn.textContent = 'Working…';
+                btn.textContent = 'Working...';
                 try {
                     await onConfirm();
                 } catch (err) {
                     console.error(err);
-                    showToast('Something went wrong. Please try again.', 'error');
+                    showToast('Action failed', 'error');
                 } finally {
                     btn.disabled = false;
-                    btn.removeAttribute('aria-busy');
                     btn.textContent = 'Confirm';
                     closeModal('modalConfirm');
                 }
@@ -2966,7 +2400,6 @@ async function commitStagedTransactions() {
             openModal('modalConfirm');
         }
 
-        // Last-resort handlers so a failed request never fails silently
         let lastGlobalToastAt = 0;
         window.addEventListener('unhandledrejection', e => {
             const err = e.reason;
@@ -2974,10 +2407,11 @@ async function commitStagedTransactions() {
             if (err && err.kind === 'auth') return;
             if (Date.now() - lastGlobalToastAt < 5000) return;
             lastGlobalToastAt = Date.now();
-            showToast(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.', 'error');
+            showToast(err instanceof ApiError ? err.message : 'Unexpected system error.', 'error');
         });
-        window.addEventListener('offline', () => showToast('You are offline — changes cannot be saved until you reconnect.', 'error'));
-        window.addEventListener('online', () => { showToast('Back online — refreshing…'); refreshData(); });
+
+        window.addEventListener('offline', () => showToast('Offline — changes not saved', 'error'));
+        window.addEventListener('online', () => { showToast('Reconnected'); refreshData(); });
 
         function toggleTheme() {
             const isDark = document.body.classList.toggle('dark');
@@ -2986,9 +2420,7 @@ async function commitStagedTransactions() {
         }
 
         function applyTheme() {
-            if (localStorage.getItem('dhanSutraDark') === 'true') {
-                document.body.classList.add('dark');
-            }
+            if (localStorage.getItem('dhanSutraDark') === 'true') document.body.classList.add('dark');
         }
 
         function showToast(msg, type = 'success') {
@@ -3000,7 +2432,8 @@ async function commitStagedTransactions() {
             setTimeout(() => div.remove(), 4000);
         }
     </script>
-<!-- Feature Modules Externalized -->
+
+    <!-- Feature Modules Externalized -->
     <script src="/static/js/insights.js"></script>
     <script src="/static/js/calendar.js"></script>
     <script src="/static/js/settings.js"></script>

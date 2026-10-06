@@ -1,9 +1,13 @@
 import csv
 import io
+import ipaddress
 import json
+import socket
 from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Optional
+from urllib.parse import urlparse
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
@@ -12,11 +16,11 @@ from sqlalchemy.orm import Session
 from modules.auth.userverification import get_db, get_current_user
 from modules.users.models import User
 from modules.finance.models import Account, Category, FinancialGoal, Transaction, TransactionType
-from modules.finance.schemas import TransactionResponse
 
 router = APIRouter(prefix="/api/finance/imports", tags=["Imports"])
 
-ALLOWED_HOSTS = {"script.google.com", "script.googleusercontent.com"}
+ALLOWED_HOST = "script.google.com"
+ALLOWED_PATH_PREFIX = "/macros/s/"
 
 class SyncRequest(BaseModel):
     script_url: str
@@ -34,8 +38,33 @@ class CommitReceiptsRequest(BaseModel):
     transactions: List[ReceiptItem]
 
 
+def validate_external_script_url(url_str: str) -> str:
+    parsed = urlparse(url_str.strip())
+
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Only HTTPS endpoints are allowed")
+
+    if parsed.netloc.lower() != ALLOWED_HOST:
+        raise HTTPException(status_code=400, detail="Endpoint must be hosted strictly on script.google.com")
+
+    if not parsed.path.startswith(ALLOWED_PATH_PREFIX) or not parsed.path.endswith("/exec"):
+        raise HTTPException(status_code=400, detail="Invalid Google Apps Script web app URL format")
+
+    # Anti-SSRF: Prevent DNS rebinding to internal or private subnets
+    try:
+        ip_list = socket.gethostbyname_ex(parsed.hostname)[2]
+        for ip in ip_list:
+            ip_obj = ipaddress.ip_address(ip)
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved:
+                raise HTTPException(status_code=400, detail="Target resolves to a restricted network address")
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail="Could not resolve Apps Script host")
+
+    return parsed.geturl()
+
+
 # -------------------------------------------------------------
-# APPS SCRIPT / GMAIL BACKEND PROXY
+# APPS SCRIPT / GMAIL BACKEND PROXY (SECURE SSRF-HARDENED)
 # -------------------------------------------------------------
 @router.post("/fetch-external")
 async def fetch_external_receipts(
@@ -43,22 +72,28 @@ async def fetch_external_receipts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        url = httpx.URL(payload.script_url.strip())
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid URL format")
+    safe_url = validate_external_script_url(payload.script_url)
 
-    if url.scheme != "https" or url.host not in ALLOWED_HOSTS:
-        raise HTTPException(status_code=400, detail="URL must be a valid Google Apps Script endpoint")
-
-    # Fetch via server-side HTTP client without executing dynamic JavaScript
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
         try:
-            resp = await client.get(str(url))
+            resp = await client.get(safe_url)
+            if resp.is_redirect:
+                redirect_target = resp.headers.get("location", "")
+                parsed_loc = urlparse(redirect_target)
+                if not (parsed_loc.scheme == "https" and parsed_loc.netloc.endswith("googleusercontent.com")):
+                    raise HTTPException(status_code=502, detail="Untrusted redirect target from Google Apps Script")
+                resp = await client.get(redirect_target)
+
             resp.raise_for_status()
+
+            if len(resp.content) > 1_048_576:
+                raise HTTPException(status_code=413, detail="Response payload exceeds 1MB limit")
+
             data = resp.json()
         except httpx.TimeoutException:
-            raise HTTPException(status_code=504, detail="Google Apps Script request timed out")
+            raise HTTPException(status_code=504, detail="Apps Script endpoint timed out")
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Failed to fetch external receipts: {str(e)}")
 
@@ -67,14 +102,12 @@ async def fetch_external_receipts(
 
     raw_items = data if isinstance(data, list) else data.get("transactions", [])
 
-    # Collect source IDs from incoming items
     incoming_source_ids = [
         str(item.get("sourceId") or item.get("id"))
         for item in raw_items
         if item.get("sourceId") or item.get("id")
     ]
 
-    # Pre-filter existing source IDs for this user
     existing_ids = set()
     if incoming_source_ids:
         query = db.query(Transaction.source_id).filter(
@@ -111,7 +144,6 @@ def commit_receipts(
 ):
     created = []
     for item in payload.transactions:
-        # Prevent race condition duplicates
         exists = db.query(Transaction.id).filter(
             Transaction.user_id == current_user.id,
             Transaction.source_id == item.source_id,
