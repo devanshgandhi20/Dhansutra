@@ -24,8 +24,6 @@ from core.database import engine, Base
 import modules.users.models  # Registers User
 import modules.finance.models  # Registers finance models
 
-Base.metadata.create_all(bind=engine)
-
 templates = Jinja2Templates(directory="templates")
 
 app = FastAPI(title="DhanSutra API")
