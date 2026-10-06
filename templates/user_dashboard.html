@@ -1101,6 +1101,23 @@
         function parseMonthInput(v) { const [y, m] = v.split('-').map(Number); return new Date(y, m - 1, 1); }
         function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
         function todayStr() { return toDateStr(new Date()); }
+        window.advanceDate = function(dateStr, frequency) {
+            const d = new Date(dateStr + 'T00:00:00');
+            const freq = String(frequency || 'monthly').toLowerCase();
+            if (freq === 'weekly') {
+                d.setDate(d.getDate() + 7);
+            } else if (freq === 'yearly') {
+                d.setFullYear(d.getFullYear() + 1);
+            } else {
+                // Default: monthly with end-of-month clamp
+                const day = d.getDate();
+                d.setDate(1);
+                d.setMonth(d.getMonth() + 1);
+                const maxDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+                d.setDate(Math.min(day, maxDay));
+            }
+            return toDateStr(d);
+        };
         function getFutureDate(m) {
             const d = new Date();
             const day = d.getDate();
