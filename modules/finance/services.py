@@ -21,66 +21,6 @@ from modules.finance.schemas import (
 class FinanceService:
 
     @staticmethod
-    def calculate_account_balances(db: Session, user_id: int) -> List[AccountBalanceSummary]:
-        accounts = db.query(Account).filter(Account.user_id == user_id).all()
-        # Query all transactions belonging to this user from the DB
-        user_txs = db.query(Transaction).filter(Transaction.user_id == user_id).all()
-        summaries: List[AccountBalanceSummary] = []
-
-        # In calculate_account_balances in services.py:
-        for account in accounts:
-            # 1. For Investment accounts, prioritize a non-zero current_market_value, then starting_balance
-            if account.type == AccountType.INVESTMENT:
-                if account.current_market_value is not None and account.current_market_value > Decimal("0.00"):
-                    balance = account.current_market_value
-                elif account.starting_balance is not None and account.starting_balance > Decimal("0.00"):
-                    balance = account.starting_balance
-                else:
-                    balance = Decimal("0.00")
-            else:
-                # 2. Standard cash/bank accounts use starting balance + transactions
-                account_inflows = sum(
-                    (t.amount for t in user_txs if t.account_id == account.id and t.type == TransactionType.INCOME),
-                    Decimal("0.00"),
-                )
-                account_outflows = sum(
-                    (t.amount for t in user_txs if t.account_id == account.id and t.type == TransactionType.EXPENSE),
-                    Decimal("0.00"),
-                )
-
-                transfers_in = sum(
-                    (t.amount for t in user_txs if t.to_account_id == account.id and t.type == TransactionType.TRANSFER),
-                    Decimal("0.00"),
-                )
-                transfers_out = sum(
-                    (t.amount for t in user_txs if t.from_account_id == account.id and t.type == TransactionType.TRANSFER),
-                    Decimal("0.00"),
-                )
-
-                balance = (
-                    (account.starting_balance or Decimal("0.00"))
-                    + account_inflows
-                    + transfers_in
-                    - account_outflows
-                    - transfers_out
-                )
-
-            # Convert type to raw string value (e.g., 'INVESTMENT') to guarantee clean JSON serialization
-            raw_type = account.type.value if hasattr(account.type, 'value') else str(account.type)
-
-            summaries.append(
-                AccountBalanceSummary(
-                    id=account.id,
-                    name=account.name,
-                    type=account.type,
-                    current_balance=Decimal(str(balance or "0.00")),
-                    current_market_value=account.current_market_value
-                )
-            )
-
-        return summaries
-
-    @staticmethod
     def get_monthly_budget_status(db: Session, user_id: int, month_str: str) -> List[BudgetStatusResponse]:
         year, month = map(int, month_str.split("-"))
         budgets = db.query(Budget).filter(Budget.user_id == user_id, Budget.month == month_str).all()
@@ -115,6 +55,81 @@ class FinanceService:
         return results
 
     @staticmethod
+    def calculate_account_balances(db: Session, user_id: int) -> List[AccountBalanceSummary]:
+        accounts = db.query(Account).filter(Account.user_id == user_id).all()
+        summaries = []
+
+        for acc in accounts:
+            starting = Decimal(str(acc.starting_balance or "0.00"))
+
+            # 1. Standard income and expense directly on this account
+            income_sum = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+                Transaction.user_id == user_id,
+                Transaction.account_id == acc.id,
+                Transaction.type == TransactionType.INCOME,
+            ).scalar()
+
+            expense_sum = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+                Transaction.user_id == user_id,
+                Transaction.account_id == acc.id,
+                Transaction.type == TransactionType.EXPENSE,
+            ).scalar()
+
+            # 2. Transfers into this account (Inflow)
+            transfers_in = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+                Transaction.user_id == user_id,
+                Transaction.to_account_id == acc.id,
+                Transaction.type == TransactionType.TRANSFER,
+            ).scalar()
+
+            # 3. Transfers out of this account (Outflow)
+            transfers_out = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+                Transaction.user_id == user_id,
+                Transaction.from_account_id == acc.id,
+                Transaction.type == TransactionType.TRANSFER,
+            ).scalar()
+
+            # Calculate reconciled balance
+            if acc.type == AccountType.CREDIT_CARD:
+                # Credit cards: starting liability + expenses - payments/inflows + cash advances/outflows
+                current_balance = (
+                    starting
+                    + Decimal(str(expense_sum))
+                    - Decimal(str(income_sum))
+                    - Decimal(str(transfers_in))
+                    + Decimal(str(transfers_out))
+                )
+            else:
+                # Standard Bank, Cash, Demat, and Investment accounts
+                current_balance = (
+                    starting
+                    + Decimal(str(income_sum))
+                    - Decimal(str(expense_sum))
+                    + Decimal(str(transfers_in))
+                    - Decimal(str(transfers_out))
+                )
+
+            # For investment accounts, use current_market_value if set, otherwise fallback to current_balance
+            market_val = (
+                Decimal(str(acc.current_market_value))
+                if acc.current_market_value is not None
+                else current_balance
+            )
+
+            summaries.append(
+                AccountBalanceSummary(
+                    id=acc.id,
+                    name=acc.name,
+                    type=acc.type,
+                    starting_balance=starting,
+                    current_balance=current_balance,
+                    current_market_value=market_val,
+                )
+            )
+
+        return summaries
+
+    @staticmethod
     def get_dashboard_summary(db: Session, user_id: int, target_date: date) -> DashboardSummaryResponse:
         account_summaries = FinanceService.calculate_account_balances(db, user_id)
 
@@ -123,10 +138,16 @@ class FinanceService:
 
         for acc in account_summaries:
             if acc.type == AccountType.CREDIT_CARD:
-                if acc.current_balance < Decimal("0.00"):
-                    total_liabilities += abs(acc.current_balance)
+                # A positive credit card balance is an outstanding debt (liability)
+                # If negative, it indicates an overpayment credit (asset)
+                if acc.current_balance > Decimal("0.00"):
+                    total_liabilities += acc.current_balance
                 else:
-                    total_assets += acc.current_balance
+                    total_assets += abs(acc.current_balance)
+            elif acc.type == AccountType.INVESTMENT:
+                # Investment asset value prefers market valuation over cost basis
+                val = acc.current_market_value if acc.current_market_value is not None else acc.current_balance
+                total_assets += val
             else:
                 total_assets += acc.current_balance
 
