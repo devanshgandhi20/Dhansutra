@@ -922,7 +922,11 @@
             <div class="form-group"><label for="recDesc">Description</label><input type="text" id="recDesc" class="form-control" placeholder="e.g. House Rent, SIP" autocomplete="off"></div>
             <div class="form-row">
                 <div class="form-group"><label for="recAmount">Amount (₹)</label><input type="number" id="recAmount" class="form-control" min="0.01" step="any"></div>
-                <div class="form-group"><label for="recType">Type</label><select id="recType" class="form-control" onchange="fillRecCategories()"><option value="EXPENSE">Expense</option><option value="INCOME">Income</option></select></div>
+                <div class="form-group"><label for="recType">Type</label><select id="recType" class="form-control" onchange="toggleRecTypeFields()">
+                        <option value="EXPENSE">Expense (-)</option>
+                        <option value="INCOME">Income (+)</option>
+                        <option value="TRANSFER">Transfer (SIP / Move) (⇄)</option>
+                    </select></div>
             </div>
             <div class="form-row">
                 <div class="form-group"><label for="recAccount">Account</label><select id="recAccount" class="form-control"></select></div>
@@ -1101,7 +1105,14 @@
                 });
             },
             async deleteRecurring(id) { return await this.req(`/api/finance/recurring/${id}`, { method: 'DELETE' }); },
-            async executeRecurring(id) { return await this.req(`/api/finance/recurring/${id}/execute`, { method: 'POST' }); }
+            async executeRecurring(id) { return await this.req(`/api/finance/recurring/${id}/execute`, { method: 'POST' }); },
+            async updateRecurring(id, payload) {
+                return await this.req(`/api/finance/recurring/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            },
         };
 
         let accounts = [];
@@ -1131,6 +1142,14 @@
         function parseMonthInput(v) { const [y, m] = v.split('-').map(Number); return new Date(y, m - 1, 1); }
         function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
         function todayStr() { return toDateStr(new Date()); }
+        window.removeRecurring = function(id) {
+            confirmAction('Delete Recurring Item', 'Are you sure you want to stop this scheduled transaction?', async () => {
+                const res = await API.deleteRecurring(id);
+                if (!(await okOrToast(res, 'Failed to delete recurring item'))) return;
+                await refreshData();
+                showToast('✓ Recurring item removed');
+            });
+        };
         window.advanceDate = function(dateStr, frequency) {
             const d = new Date(dateStr + 'T00:00:00');
             const freq = String(frequency || 'monthly').toLowerCase();

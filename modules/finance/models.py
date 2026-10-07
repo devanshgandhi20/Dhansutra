@@ -42,6 +42,12 @@ class Account(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="accounts")
+    recurring_transactions = relationship(
+        "RecurringTransaction",
+        foreign_keys="RecurringTransaction.account_id",
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
     transactions = relationship(
         "Transaction",
         foreign_keys="Transaction.account_id",
@@ -148,8 +154,8 @@ class RecurringTransaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     description = Column(String(255), nullable=False)
-    amount = Column(Numeric(14, 2), nullable=False)
-    type = Column(SAEnum(TransactionType), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    type = Column(SAEnum(TransactionType, name="transactiontype", native_enum=False), nullable=False)
     account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     to_account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
@@ -157,30 +163,6 @@ class RecurringTransaction(Base):
     next_date = Column(Date, nullable=False, index=True)
 
     user = relationship("User", back_populates="recurring_transactions")
-    account = relationship("Account", foreign_keys=[account_id])
+    account = relationship("Account", foreign_keys=[account_id], back_populates="recurring_transactions")
     to_account = relationship("Account", foreign_keys=[to_account_id])
-    category = relationship("Category")
-    __tablename__ = "recurring_transactions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    description = Column(String(255), nullable=False)
-    amount = Column(Numeric(14, 2), nullable=False)
-    type = Column(SAEnum(TransactionType), nullable=False)
-    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
-    frequency = Column(
-        SAEnum(
-            RecurringFrequency,
-            name="recurringfrequency",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=False,
-        default=RecurringFrequency.MONTHLY,
-    )
-    next_date = Column(Date, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    user = relationship("User", backref="recurring_transactions")
-    account = relationship("Account")
     category = relationship("Category")

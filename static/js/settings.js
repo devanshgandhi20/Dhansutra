@@ -87,7 +87,8 @@
              <div class="caption-text">${sanitize(r.frequency)} — next ${sanitize(r.next_date)}</div></div>
         <div style="display:flex; align-items:center; gap:0.4rem;">
           <strong class="${(r.type || '').toUpperCase() === 'INCOME' ? 'amount-pos' : 'amount-neg'}">${formatINR(r.amount)}</strong>
-          <button type="button" class="btn btn-destructive btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" aria-label="Delete ${sanitize(r.description)}" onclick="removeRecurring(${r.id})">Delete</button>
+          <button type="button" class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="openRecurringModal(${r.id})">Edit</button>
+        <button type="button" class="btn btn-destructive btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="removeRecurring(${r.id})">Delete</button>
         </div>
       </div>`).join('') : '<div class="empty-state"><span class="caption-text">No recurring items yet.</span></div>';
   }
