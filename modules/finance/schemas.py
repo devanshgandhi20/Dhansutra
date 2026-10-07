@@ -198,22 +198,30 @@ class TransactionUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
 class RecurringBase(BaseModel):
-    description: str = Field(..., min_length=1, max_length=255)
-    amount: Decimal = Field(..., gt=0)
+    description: str
+    amount: Decimal
     type: TransactionType
     account_id: int
-    category_id: int
+    to_account_id: Optional[int] = None
+    category_id: Optional[int] = None
     frequency: RecurringFrequency
-    next_date: _dt.date
-
+    next_date: _dt.datetime
 
 class RecurringCreate(RecurringBase):
     pass
 
+class RecurringUpdate(BaseModel):
+    description: Optional[str] = None
+    amount: Optional[Decimal] = None
+    type: Optional[TransactionType] = None
+    account_id: Optional[int] = None
+    to_account_id: Optional[int] = None
+    category_id: Optional[int] = None
+    frequency: Optional[RecurringFrequency] = None
+    next_date: Optional[_dt.datetime] = None
 
 class RecurringResponse(RecurringBase):
     id: int
     user_id: int
-    created_at: _dt.datetime
 
     model_config = ConfigDict(from_attributes=True)

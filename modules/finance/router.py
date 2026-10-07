@@ -21,7 +21,8 @@ from modules.finance.schemas import (
     TransactionCreate, TransactionResponse, TransactionUpdate,
     TransferCreate, BudgetCreate, BudgetResponse, BudgetStatusResponse,
     GoalCreate, GoalResponse, GoalContributionCreate, GoalContributionResponse,
-    DashboardSummaryResponse, RecurringCreate, RecurringResponse
+    DashboardSummaryResponse,
+    RecurringCreate, RecurringUpdate, RecurringResponse
 )
 from datetime import date, datetime
 from modules.finance.services import FinanceService
@@ -515,12 +516,23 @@ def create_recurring(
     if not acc:
         raise HTTPException(status_code=404, detail="Selected account not found")
 
-    cat = db.query(Category).filter(
-        Category.id == data.category_id,
-        or_(Category.user_id == current_user.id, Category.is_system == True)
-    ).first()
-    if not cat:
-        raise HTTPException(status_code=404, detail="Selected category not found")
+    if data.type == TransactionType.TRANSFER:
+        if not data.to_account_id:
+            raise HTTPException(status_code=400, detail="Destination account required for recurring transfers")
+        if data.account_id == data.to_account_id:
+            raise HTTPException(status_code=400, detail="Source and destination cannot be identical")
+        to_acc = db.query(Account).filter(Account.id == data.to_account_id, Account.user_id == current_user.id).first()
+        if not to_acc:
+            raise HTTPException(status_code=404, detail="Destination account not found")
+    else:
+        if not data.category_id:
+            raise HTTPException(status_code=400, detail="Category required for income or expense recurring items")
+        cat = db.query(Category).filter(
+            Category.id == data.category_id,
+            or_(Category.user_id == current_user.id, Category.is_system == True)
+        ).first()
+        if not cat:
+            raise HTTPException(status_code=404, detail="Selected category not found")
 
     rec = RecurringTransaction(**data.model_dump(), user_id=current_user.id)
     db.add(rec)
@@ -528,6 +540,83 @@ def create_recurring(
     db.refresh(rec)
     return rec
 
+
+@router.put("/recurring/{recurring_id}", response_model=RecurringResponse)
+def update_recurring(
+    recurring_id: int,
+    data: RecurringUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rec = db.query(RecurringTransaction).filter(
+        RecurringTransaction.id == recurring_id,
+        RecurringTransaction.user_id == current_user.id
+    ).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+
+    update_dict = data.model_dump(exclude_unset=True)
+    
+    # Check accounts if changing
+    new_acc_id = update_dict.get("account_id", rec.account_id)
+    new_to_acc_id = update_dict.get("to_account_id", rec.to_account_id)
+    new_type = update_dict.get("type", rec.type)
+
+    if new_type == TransactionType.TRANSFER:
+        if not new_to_acc_id:
+            raise HTTPException(status_code=400, detail="Destination account required for transfers")
+        if new_acc_id == new_to_acc_id:
+            raise HTTPException(status_code=400, detail="Source and destination cannot be identical")
+
+    for field, value in update_dict.items():
+        setattr(rec, field, value)
+
+    db.commit()
+    db.refresh(rec)
+    return rec
+
+
+@router.post("/recurring/{recurring_id}/execute", response_model=TransactionResponse)
+def execute_recurring(
+    recurring_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rec = db.query(RecurringTransaction).filter(
+        RecurringTransaction.id == recurring_id,
+        RecurringTransaction.user_id == current_user.id
+    ).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+
+    if rec.type == TransactionType.TRANSFER:
+        new_tx = Transaction(
+            user_id=current_user.id,
+            type=TransactionType.TRANSFER,
+            amount=rec.amount,
+            date=rec.next_date,
+            description=rec.description,
+            from_account_id=rec.account_id,
+            to_account_id=rec.to_account_id,
+            source="RECURRING",
+        )
+    else:
+        new_tx = Transaction(
+            user_id=current_user.id,
+            account_id=rec.account_id,
+            category_id=rec.category_id,
+            type=rec.type,
+            amount=rec.amount,
+            date=rec.next_date,
+            description=rec.description,
+            source="RECURRING",
+        )
+
+    db.add(new_tx)
+    rec.next_date = calculate_next_date(rec.next_date, rec.frequency)
+    db.commit()
+    db.refresh(new_tx)
+    return new_tx
 
 @router.delete("/recurring/{recurring_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_recurring(
