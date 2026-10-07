@@ -202,6 +202,7 @@
             font-weight: 600;
         }
         .delta-positive { background: rgba(21, 128, 61, 0.12); color: var(--emerald); }
+        .delta-negative { background: rgba(185, 28, 28, 0.12); color: var(--terracotta); }
         .metrics-triad {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -358,7 +359,7 @@
             z-index: 2000;
             padding: 1rem;
         }
-        #modalConfirm { z-index: 3000; }
+        #modalConfirm { z-index: 5000 !important; }
         .modal-overlay.active { display: flex; }
         .modal-box {
             background: var(--surface);
@@ -761,6 +762,13 @@
                 <h3 class="section-title" id="settingsHeading">System Settings</h3>
                 <button class="btn btn-ghost" onclick="closeModal('modalSettings')" aria-label="Close settings">✕</button>
             </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <button class="btn btn-secondary" onclick="openAccountsModal()">🏦 Manage Accounts</button>
+                <button class="btn btn-secondary" onclick="openCategoryModal()">🏷️ Manage Categories</button>
+                <button class="btn btn-secondary" onclick="openValuationsModal()">📈 Update Market Values</button>
+                <button class="btn btn-secondary" onclick="openGmailModal()">📧 Gmail Cloud Sync</button>
+                <button class="btn btn-secondary" onclick="toggleTheme()">🌓 Toggle Dark Mode</button>
+            </div>
         </div>
     </div>
 
@@ -1132,15 +1140,17 @@
         let stagedSync = [];
         let openAccordions = new Set();
         let lastFocusedElement = null;
+        let recurringList = [];
+        let editingRecurringId = null;
 
         let refreshSeq = 0;
         let lastBudgetList = [];
         let lastRefreshToastAt = 0;
         let trendCache = {}, trendGen = 0, prevTransactions = null;
 
-        function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } } 
+        function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
         function round2(v) { return Math.round((Number(v) || 0) * 100) / 100; }
-        function pctOf(b) { const l = Number(b.limit_amount) || 0; return b.usage_percentage ?? (l > 0 ? (Number(b.spent_amount) || 0) / l * 100 : 0); } 
+        function pctOf(b) { const l = Number(b.limit_amount) || 0; return b.usage_percentage ?? (l > 0 ? (Number(b.spent_amount) || 0) / l * 100 : 0); }
 
         function sanitize(str) {
             if (str === null || str === undefined) return '';
@@ -1511,6 +1521,7 @@
             document.getElementById('valMonthlySurplus').textContent = formatINR(ms.savings);
             renderHealthScore(ms.rate, ms.income, ms.expense);
             renderNetWorthTrend();
+            renderNetWorthDelta();
             renderAssetsLiabilities();
             renderUpcoming();
             renderRankedOutflows();
@@ -2174,29 +2185,81 @@
         function setNwRange(m) { nwMonths = m; renderNetWorthTrend(); }
 
         async function ensureTrendData(n) {
-            const gen = trendGen, t = new Date(), ms = []; 
-            for (let i = 0; i < n - 1; i++) ms.push(formatMonthStr(new Date(t.getFullYear(), t.getMonth() - i, 1))); 
-            await Promise.all(ms.filter(m => !trendCache[m]).map(m => 
-                API.getTransactions({ month: m }).then(r => { if (gen === trendGen && Array.isArray(r)) trendCache[m] = r; }).catch(() => {}))); 
-            return ms.every(m => trendCache[m]); 
+            const gen = trendGen;
+            const t = new Date();
+            const months = [];
+            for (let i = 0; i < n; i++) {
+                months.push(formatMonthStr(new Date(t.getFullYear(), t.getMonth() - i, 1)));
+            }
+            const missing = months.filter(m => !Array.isArray(trendCache[m]));
+            if (missing.length) {
+                const results = await Promise.allSettled(
+                    missing.map(m => API.getTransactions({ month: m }))
+                );
+                if (gen !== trendGen) return false;
+                results.forEach((r, idx) => {
+                    if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+                        trendCache[missing[idx]] = r.value;
+                    }
+                });
+            }
+            return months.every(m => Array.isArray(trendCache[m]));
         }
 
         function netWorthSeries(n) {
-            const nowNW = Number(dashboardData && dashboardData.net_worth); 
-            if (!isFinite(nowNW)) return []; 
-            const t = new Date(), today = todayStr(), all = Object.values(trendCache).flat(), pts = []; 
-            for (let i = n - 1; i >= 0; i--) { 
-                const d = new Date(t.getFullYear(), t.getMonth() - i, 1); 
-                const cutoff = toDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0)); 
-                const after = i === 0 ? 0 : all.reduce((sum, x) => { 
-                    const dt = String(x.date || ''); 
-                    if (dt <= cutoff || dt > today) return sum; 
-                    const ty = (x.type || '').toUpperCase(), a = Number(x.amount) || 0; 
-                    return sum + (ty === 'INCOME' ? a : ty === 'EXPENSE' ? -a : 0); 
-                }, 0); 
-                pts.push({ label: d.toLocaleString('en-IN', { month: 'short' }), value: nowNW - after }); 
+            const nowNW = Number(dashboardData && dashboardData.net_worth);
+            if (!isFinite(nowNW)) return [];
+            
+            const t = new Date();
+            const today = todayStr();
+            
+            // Deduplicate transactions across cached months
+            const txMap = new Map();
+            Object.values(trendCache).flat().forEach(x => {
+                if (!x) return;
+                const key = x.id != null ? `id:${x.id}` : `${x.date}|${x.description}|${x.amount}|${x.type}`;
+                txMap.set(key, x);
+            });
+            const all = Array.from(txMap.values());
+            
+            const pts = [];
+            for (let i = n - 1; i >= 0; i--) {
+                const d = new Date(t.getFullYear(), t.getMonth() - i, 1);
+                const monthEnd = toDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+                const cutoff = i === 0 ? today : monthEnd;
+                
+                let afterNet = 0;
+                all.forEach(x => {
+                    const dt = String(x.date || '');
+                    if (dt <= cutoff) return;
+                    const ty = (x.type || '').toUpperCase();
+                    const a = Number(x.amount) || 0;
+                    if (ty === 'INCOME') afterNet += a;
+                    else if (ty === 'EXPENSE') afterNet -= a;
+                });
+                
+                pts.push({
+                    label: d.toLocaleString('en-IN', { month: 'short' }),
+                    value: nowNW - afterNet
+                });
             }
-            return pts; 
+            return pts;
+        }
+
+        function renderNetWorthDelta() {
+            const badge = document.getElementById('netWorthDeltaBadge');
+            if (!badge) return;
+            const pts = netWorthSeries(2);
+            if (pts.length === 2 && dashboardData) {
+                const delta = pts[1].value - pts[0].value;
+                const pct = pts[0].value !== 0 ? (delta / Math.abs(pts[0].value)) * 100 : 0;
+                const sign = delta >= 0 ? '+' : '';
+                badge.className = `delta-indicator ${delta >= 0 ? 'delta-positive' : 'delta-negative'}`;
+                badge.innerHTML = `<span>${sign}${formatINR(delta)} (${sign}${pct.toFixed(1)}%) MoM</span>`;
+            } else {
+                badge.className = 'delta-indicator delta-positive';
+                badge.innerHTML = '<span>✓ Server-Reconciled</span>';
+            }
         }
 
         let nwSeq = 0;
@@ -2257,7 +2320,6 @@
             </table>`; 
         }
 
-        let recurringList = [];
         function renderUpcoming() {
             const days = n => toDateStr(new Date(Date.now() + n * 864e5));
             const list = recurringList.filter(r => r.next_date <= days(30)).sort((a, b) => a.next_date.localeCompare(b.next_date));
@@ -2268,26 +2330,76 @@
             }
             box.innerHTML = list.map(r => `
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
-                    <div>
-                        <div style="font-weight:600;">${sanitize(r.description)}</div>
+                    <div style="min-width:0; flex:1;">
+                        <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitize(r.description)}</div>
                         <div class="caption-text">${sanitize(r.next_date)} — ${sanitize(r.frequency)}</div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:0.4rem;">
-                        <span class="${r.type === 'INCOME' ? 'amount-pos' : 'amount-neg'}" style="font-weight:700;">${formatINR(r.amount)}</span>
-                        <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring(${r.id})">Add now</button>
+                    <div style="display:flex; align-items:center; gap:0.3rem; flex-shrink:0;">
+                        <span class="${r.type === 'INCOME' ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:12px;">${formatINR(r.amount)}</span>
+                        <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.5rem; font-size:10px;" onclick="postRecurring(${r.id})">Add</button>
+                        <button class="btn btn-ghost btn-pill" style="padding:0.2rem 0.45rem; font-size:11px;" onclick="editRecurring(${r.id})" title="Edit">✏️</button>
+                        <button class="btn btn-ghost btn-pill" style="padding:0.2rem 0.45rem; font-size:11px; color:var(--terracotta);" onclick="removeRecurring(${r.id})" title="Delete">🗑️</button>
                     </div>
                 </div>`).join('');
         }
 
-        function openRecurringModal() {
+        function openRecurringModal(editItem = null) {
+            editingRecurringId = editItem ? editItem.id : null;
+            
             ['recDesc', 'recAmount'].forEach(i => document.getElementById(i).value = '');
             document.getElementById('recType').value = 'EXPENSE';
             document.getElementById('recFreq').value = 'MONTHLY';
             document.getElementById('recNext').value = todayStr();
-            document.getElementById('recAccount').innerHTML = accounts.filter(a => !['GOAL_RESERVE', 'INVESTMENT', 'CREDIT_CARD'].includes(String(a.type || '').toUpperCase()))
-                .map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('');
-            toggleRecTypeFields();
+            
+            const eligibleAccounts = accounts.filter(a =>
+                !['GOAL_RESERVE', 'INVESTMENT', 'CREDIT_CARD'].includes(String(a.type || '').toUpperCase())
+            );
+            document.getElementById('recAccount').innerHTML = eligibleAccounts.length
+                ? eligibleAccounts.map(a => `<option value="${a.id}">${sanitize(a.name)}</option>`).join('')
+                : '<option value="" disabled>No eligible accounts</option>';
+            
+            const titleEl = document.getElementById('recTitle');
+            if (titleEl) titleEl.textContent = editItem ? 'Edit Recurring Transaction' : 'Add Recurring Transaction';
+            
+            const submitBtn = document.querySelector('#modalRecurring .btn-primary');
+            if (submitBtn) submitBtn.textContent = editItem ? 'Update Recurring' : 'Save Recurring';
+            
+            if (editItem) {
+                document.getElementById('recDesc').value = editItem.description || '';
+                document.getElementById('recAmount').value = editItem.amount || '';
+                document.getElementById('recType').value = (editItem.type || 'EXPENSE').toUpperCase();
+                document.getElementById('recFreq').value = (editItem.frequency || 'MONTHLY').toUpperCase();
+                document.getElementById('recNext').value = editItem.next_date || todayStr();
+                
+                toggleRecTypeFields();
+                
+                if (editItem.account_id) {
+                    const accSel = document.getElementById('recAccount');
+                    if (Array.from(accSel.options).some(o => o.value == editItem.account_id)) {
+                        accSel.value = editItem.account_id;
+                    }
+                }
+                if (editItem.category_id && editItem.type !== 'TRANSFER') {
+                    const catSel = document.getElementById('recCategory');
+                    if (Array.from(catSel.options).some(o => o.value == editItem.category_id)) {
+                        catSel.value = editItem.category_id;
+                    }
+                }
+            } else {
+                toggleRecTypeFields();
+            }
+            
             openModal('modalRecurring');
+        }
+
+        function editRecurring(id) {
+            const item = recurringList.find(r => String(r.id) === String(id));
+            if (!item) { showToast('Recurring item not found', 'error'); return; }
+            // Close any other modals that might be stacking
+            document.querySelectorAll('.modal-overlay.active').forEach(m => {
+                if (m.id !== 'modalRecurring') m.classList.remove('active');
+            });
+            openRecurringModal(item);
         }
 
         function toggleRecTypeFields() {
@@ -2303,35 +2415,44 @@
 
         function fillRecCategories() {
             const t = document.getElementById('recType').value;
-            document.getElementById('recCategory').innerHTML = categories.filter(c => (c.type || '').toUpperCase() === t)
-                .map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('');
+            const sel = document.getElementById('recCategory');
+            const filtered = categories.filter(c => (c.type || '').toUpperCase() === t);
+            sel.innerHTML = filtered.length
+                ? filtered.map(c => `<option value="${c.id}">${sanitize(c.icon || '')} ${sanitize(c.name)}</option>`).join('')
+                : '<option value="" disabled>No categories</option>';
         }
 
         let recBusy = false;
         async function submitRecurring() {
-            if (recBusy) return; 
-            const type = document.getElementById('recType').value; 
+            if (recBusy) return;
+            const type = document.getElementById('recType').value;
             const payload = {
-                description: document.getElementById('recDesc').value.trim(), 
+                description: document.getElementById('recDesc').value.trim(),
                 amount: round2(document.getElementById('recAmount').value),
-                type, 
-                account_id: parseInt(document.getElementById('recAccount').value), 
+                type,
+                account_id: parseInt(document.getElementById('recAccount').value),
                 category_id: type === 'TRANSFER' ? null : parseInt(document.getElementById('recCategory').value),
-                frequency: document.getElementById('recFreq').value.toUpperCase(), 
-                next_date: document.getElementById('recNext').value 
+                frequency: document.getElementById('recFreq').value.toUpperCase(),
+                next_date: document.getElementById('recNext').value
             };
-            if (!payload.description || !(payload.amount > 0) || !payload.account_id || !payload.next_date || !payload.frequency || (type !== 'TRANSFER' && !payload.category_id)) { 
-                showToast('Fill in description, amount, account, category and date', 'error'); 
-                return; 
+            if (!payload.description || !(payload.amount > 0) || !payload.account_id || !payload.next_date || !payload.frequency || (type !== 'TRANSFER' && !payload.category_id)) {
+                showToast('Fill in description, amount, account, category and date', 'error');
+                return;
             }
-            recBusy = true; 
+            recBusy = true;
+            const isEdit = !!editingRecurringId;
             try {
-                const res = await API.createRecurring(payload); 
-                if (!(await okOrToast(res, 'Failed to save recurring item'))) return; 
-            } finally { recBusy = false; } 
-            closeModal('modalRecurring'); 
-            await refreshData(); 
-            showToast('✓ Recurring item saved'); 
+                const res = isEdit
+                    ? await API.updateRecurring(editingRecurringId, payload)
+                    : await API.createRecurring(payload);
+                if (!(await okOrToast(res, isEdit ? 'Failed to update recurring item' : 'Failed to save recurring item'))) return;
+                showToast(isEdit ? '✓ Recurring item updated' : '✓ Recurring item saved');
+            } finally {
+                recBusy = false;
+            }
+            editingRecurringId = null;
+            closeModal('modalRecurring');
+            await refreshData();
         }
 
         const recPosting = new Set(); 
@@ -2536,10 +2657,16 @@
         function openCategoryModal() { closeModal('modalSettings'); renderCategoryManagerList(); openModal('modalCategory'); }
         function openSettingsModal() { runHooks('beforeOpenSettings'); openModal('modalSettings'); }
 
+        let modalZIndex = 2000;
         function openModal(id) {
             lastFocusedElement = document.activeElement;
             const modal = document.getElementById(id);
             modal.classList.add('active');
+            // Bring to front
+            if (id !== 'modalConfirm') {
+                modalZIndex += 10;
+                modal.style.zIndex = modalZIndex;
+            }
             document.body.style.overflow = 'hidden';
             const focusable = modal.querySelector('input, select, button');
             if (focusable) focusable.focus();
@@ -2552,7 +2679,14 @@
                 const editId = document.getElementById('txEditingId');
                 if (editId) editId.value = '';
             }
-            document.getElementById(id).classList.remove('active');
+            if (id === 'modalRecurring') {
+                editingRecurringId = null;
+            }
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.classList.remove('active');
+                modal.style.zIndex = '';
+            }
             if (!document.querySelector('.modal-overlay.active')) document.body.style.overflow = '';
             if (lastFocusedElement && document.body.contains(lastFocusedElement)) lastFocusedElement.focus();
         }
