@@ -19,3 +19,4 @@ class User(Base):
     categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
     budgets = relationship("Budget", back_populates="user", cascade="all, delete-orphan")
     goals = relationship("FinancialGoal", back_populates="user", cascade="all, delete-orphan")
+    recurring_transactions = relationship("RecurringTransaction",back_populates="user",cascade="all, delete-orphan",)
