@@ -933,7 +933,9 @@
                 <div class="form-group"><label for="recCategory">Category</label><select id="recCategory" class="form-control"></select></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label for="recFreq">Repeats</label><select id="recFreq" class="form-control"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="yearly">Yearly</option></select></div>
+                <div class="form-group"><label for="recFreq">Repeats</label><select id="recFreq" class="form-control"><option value="MONTHLY">Monthly</option>
+    <option value="WEEKLY">Weekly</option>
+    <option value="YEARLY">Yearly</option></select></div>
                 <div class="form-group"><label for="recNext">Next date</label><input type="date" id="recNext" class="form-control"></div>
             </div>
             <p class="caption-text" style="margin-bottom:0.75rem;">Recurring schedules are synchronized securely with your DhanSutra account. Use "Add now" on the dashboard when an item is due.</p>
@@ -2231,7 +2233,7 @@
                 type: document.getElementById('recType').value,
                 account_id: parseInt(document.getElementById('recAccount').value),
                 category_id: parseInt(document.getElementById('recCategory').value),
-                frequency: document.getElementById('recFreq').value,
+                frequency: document.getElementById('recFreq').value.toUpperCase(),
                 next_date: document.getElementById('recNext').value
             };
             const res = await API.createRecurring(payload);

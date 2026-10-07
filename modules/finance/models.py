@@ -142,9 +142,23 @@ class GoalContribution(Base):
 
 # Add Frequency Enum
 class RecurringFrequency(str, enum.Enum):
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    YEARLY = "yearly"
+    WEEKLY = "WEEKLY"
+    MONTHLY = "MONTHLY"
+    YEARLY = "YEARLY"
+    
+    # Also support lowercase lookups so legacy DB rows and raw forms don't crash
+    weekly = "WEEKLY"
+    monthly = "MONTHLY"
+    yearly = "YEARLY"
+
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            val_upper = value.upper()
+            for member in cls:
+                if member.value == val_upper or member.name == val_upper:
+                    return member
+        return super()._missing_(value)
 
 
 # Add RecurringTransaction Model
@@ -159,7 +173,10 @@ class RecurringTransaction(Base):
     account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     to_account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
-    frequency = Column(SAEnum(RecurringFrequency, name="recurringfrequency", native_enum=False), nullable=False)
+    frequency = Column(
+        SAEnum(RecurringFrequency, values_callable=lambda x: [e.value for e in x], name="recurringfrequency", native_enum=False),
+        nullable=False
+    )
     next_date = Column(Date, nullable=False, index=True)
 
     user = relationship("User", back_populates="recurring_transactions")
