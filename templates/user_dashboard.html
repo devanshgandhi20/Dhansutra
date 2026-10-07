@@ -796,15 +796,45 @@
 
     <!-- Modal: Accounts & Opening Balances -->
     <div class="modal-overlay" id="modalAccounts" role="dialog" aria-modal="true" aria-labelledby="accModalTitle">
-        <div class="modal-box">
-            <div class="card-header">
-                <h3 class="section-title" id="accModalTitle">Accounts</h3>
-                <button class="btn btn-ghost" onclick="closeModal('modalAccounts')" aria-label="Close dialog">✕</button>
+    <div class="modal-box" style="max-width: 520px;">
+        <div class="card-header">
+            <h3 class="section-title" id="accModalTitle">Manage Accounts</h3>
+            <button class="btn btn-ghost" onclick="closeModal('modalAccounts')" aria-label="Close dialog">✕</button>
+        </div>
+        
+        <!-- Create Account Section -->
+        <form id="formNewAccount" onsubmit="handleAccountCreate(event)" style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--border); padding-bottom: 1.25rem;">
+            <div class="caption-text" style="font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">Create New Account</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="newAccName">Account Name</label>
+                    <input type="text" id="newAccName" class="form-control" placeholder="e.g. Groww Trading" required>
+                </div>
+                <div class="form-group">
+                    <label for="newAccType">Type</label>
+                    <select id="newAccType" class="form-control" required>
+                        <option value="BANK">Bank Account</option>
+                        <option value="INVESTMENT" selected>Investment / Demat</option>
+                        <option value="CASH">Cash</option>
+                        <option value="CREDIT_CARD">Credit Card (Liability)</option>
+                    </select>
+                </div>
             </div>
-            <div id="accountsConfigContainer" style="display: grid; gap: 0.5rem; margin-bottom: 1rem;"></div>
-            <button class="btn btn-primary" style="width: 100%;" onclick="saveAccountConfigurations()">Save Opening Balances</button>
+            <div class="form-group">
+                <label for="newAccBalance">Opening Balance (₹)</label>
+                <input type="number" id="newAccBalance" class="form-control" step="any" placeholder="0.00" value="0">
+            </div>
+            <button type="submit" class="btn btn-primary" id="btnCreateAccount" style="width:100%;">+ Create Account</button>
+        </form>
+
+        <!-- Existing Accounts Balances -->
+        <div>
+            <div class="caption-text" style="font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">Opening Balances</div>
+            <div id="accountsConfigContainer" style="display: grid; gap: 0.5rem; margin-bottom: 1rem; max-height: 220px; overflow-y: auto;"></div>
+            <button class="btn btn-secondary" style="width: 100%;" onclick="saveAccountConfigurations()">Save Opening Balances</button>
         </div>
     </div>
+</div>
 
     <!-- Modal: Market Valuations -->
     <div class="modal-overlay" id="modalValuations" role="dialog" aria-modal="true" aria-labelledby="valModalTitle">
@@ -1153,6 +1183,34 @@
             showToast(await readError(res, fallback), 'error');
             return false;
         }
+
+        async function handleAccountCreate(e) {
+    e.preventDefault();
+    const name = document.getElementById('newAccName').value.trim();
+    const type = document.getElementById('newAccType').value;
+    const starting_balance = parseFloat(document.getElementById('newAccBalance').value) || 0;
+    
+    if (!name) return;
+
+    const btn = document.getElementById('btnCreateAccount');
+    btn.disabled = true;
+    try {
+        const payload = { name, type, starting_balance };
+        if (type === 'INVESTMENT') payload.current_market_value = starting_balance;
+        
+        const res = await API.createAccount(payload);
+        if (!(await okOrToast(res, 'Failed to create account'))) return;
+
+        document.getElementById('formNewAccount').reset();
+        accounts = await safeLoad(() => API.getAccounts(), accounts);
+        populateSelects();
+        openAccountsModal();
+        await refreshData();
+        showToast(`✓ Account "${name}" created`);
+    } finally {
+        btn.disabled = false;
+    }
+}
 
         function getAccountBalance(a) {
             const live = (dashboardData && Array.isArray(dashboardData.accounts))
