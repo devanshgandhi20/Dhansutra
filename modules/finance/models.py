@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from core.database import Base
-
+from sqlalchemy import Column, DateTime, func
 
 class AccountType(str, enum.Enum):
     BANK = "BANK"
@@ -178,6 +178,12 @@ class RecurringTransaction(Base):
         nullable=False
     )
     next_date = Column(Date, nullable=False, index=True)
+    created_at = Column(
+        DateTime, 
+        nullable=False, 
+        default=datetime.utcnow,           # Used by SQLAlchemy if omitted
+        server_default=func.now()          # Generates DEFAULT CURRENT_TIMESTAMP in DB
+    )
 
     user = relationship("User", back_populates="recurring_transactions")
     account = relationship("Account", foreign_keys=[account_id], back_populates="recurring_transactions")

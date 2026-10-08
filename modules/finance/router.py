@@ -534,7 +534,7 @@ def create_recurring(
         if not cat:
             raise HTTPException(status_code=404, detail="Selected category not found")
 
-    rec = RecurringTransaction(**data.model_dump(), user_id=current_user.id)
+    rec = RecurringTransaction(**data.model_dump(), created_at=datetime.utcnow(), user_id=current_user.id)
     db.add(rec)
     db.commit()
     db.refresh(rec)
