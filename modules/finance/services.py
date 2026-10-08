@@ -112,7 +112,7 @@ class FinanceService:
             # For investment accounts, use current_market_value if set, otherwise fallback to current_balance
             market_val = (
                 Decimal(str(acc.current_market_value))
-                if acc.current_market_value is not None
+                if acc.current_market_value is not None and acc.current_market_value > 0
                 else current_balance
             )
 
@@ -145,9 +145,13 @@ class FinanceService:
                 else:
                     total_assets += abs(acc.current_balance)
             elif acc.type == AccountType.INVESTMENT:
-                # Investment asset value prefers market valuation over cost basis
-                val = acc.current_market_value if acc.current_market_value is not None else acc.current_balance
-                total_assets += val
+                if (
+                    acc.current_market_value is not None
+                    and acc.current_market_value > 0
+                ):
+                    total_assets += acc.current_market_value
+                else:
+                    total_assets += acc.current_balance
             else:
                 total_assets += acc.current_balance
 
