@@ -2871,14 +2871,22 @@
         // Fix #7: Show overdue/due-soon context
         function renderUpcoming() {
             const now = new Date();
+            // Normalize today's date to midnight for clean day differences
+            const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const days = n => toDateStr(new Date(now.getTime() + n * 864e5));
             const todayStr_ = todayStr();
             const cutoff = days(30);
-            const list = recurringList
-                .filter(r => r.next_date <= cutoff)
-                .sort((a, b) => a.next_date.localeCompare(b.next_date));
 
-            const overdueCount = list.filter(r => r.next_date < todayStr_).length;
+            const list = recurringList
+                .map(r => ({
+                    ...r,
+                    // Strip timestamp if present (e.g., '2026-10-10T00:00:00' -> '2026-10-10')
+                    cleanDate: String(r.next_date || '').split('T')[0]
+                }))
+                .filter(r => r.cleanDate && r.cleanDate <= cutoff)
+                .sort((a, b) => a.cleanDate.localeCompare(b.cleanDate));
+
+            const overdueCount = list.filter(r => r.cleanDate < todayStr_).length;
             const summary = document.getElementById('upcomingSummary');
             if (summary) {
                 summary.textContent = overdueCount > 0
@@ -2891,35 +2899,41 @@
                 box.innerHTML = `<div class="empty-state"><span class="caption-text">Nothing scheduled.</span></div>`;
                 return;
             }
+
             box.innerHTML = list.map(r => {
                 let badge = '';
                 let badgeCls = '';
-                if (r.next_date < todayStr_) {
-                    const daysOverdue = Math.round((now - new Date(r.next_date + 'T00:00:00')) / 864e5);
-                    badge = `⚠️ ${daysOverdue}d overdue`;
+
+                // Parse YYYY-MM-DD safely into a local Date object
+                const [y, m, d] = r.cleanDate.split('-').map(Number);
+                const targetDate = new Date(y, m - 1, d);
+                const diffDays = Math.round((targetDate - todayMidnight) / 864e5);
+
+                if (diffDays < 0) {
+                    badge = `⚠️ ${Math.abs(diffDays)}d overdue`;
                     badgeCls = 'pill danger';
-                } else if (r.next_date === todayStr_) {
+                } else if (diffDays === 0) {
                     badge = 'Due today';
                     badgeCls = 'pill warning';
                 } else {
-                    const daysUntil = Math.round((new Date(r.next_date + 'T00:00:00') - now) / 864e5);
-                    badge = `in ${daysUntil}d`;
+                    badge = `in ${diffDays}d`;
                     badgeCls = 'pill';
                 }
+
                 return `
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
-                    <div style="min-width:0; flex:1;">
-                        <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitize(r.description)}</div>
-                        <div class="caption-text">${sanitize(r.next_date)} — ${sanitize(r.frequency)}</div>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:0.3rem; flex-shrink:0;">
-                        <span class="${badgeCls}" style="font-size:10px;">${badge}</span>
-                        <span class="${r.type === 'INCOME' ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:12px;">${formatINR(r.amount)}</span>
-                        <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.5rem; font-size:10px;" onclick="postRecurring(${r.id})">Add</button>
-                        <button class="btn btn-ghost btn-pill" style="padding:0.2rem 0.45rem; font-size:11px;" onclick="editRecurring(${r.id})" title="Edit">✏️</button>
-                        <button class="btn btn-ghost btn-pill" style="padding:0.2rem 0.45rem; font-size:11px; color:var(--terracotta);" onclick="removeRecurring(${r.id})" title="Delete">🗑️</button>
-                    </div>
-                </div>`;
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
+            <div style="min-width:0; flex:1;">
+                <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitize(r.description)}</div>
+                <div class="caption-text">${sanitize(r.cleanDate)} — ${sanitize(r.frequency)}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.3rem; flex-shrink:0;">
+                <span class="${badgeCls}" style="font-size:10px;">${badge}</span>
+                <span class="${r.type === 'INCOME' ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:12px;">${formatINR(r.amount)}</span>
+                <button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.5rem; font-size:10px;" onclick="postRecurring(${r.id})">Add</button>
+                <button class="btn btn-ghost btn-pill" style="padding:0.2rem 0.45rem; font-size:11px;" onclick="editRecurring(${r.id})" title="Edit">✏️</button>
+                <button class="btn btn-ghost btn-pill" style="padding:0.2rem 0.45rem; font-size:11px; color:var(--terracotta);" onclick="removeRecurring(${r.id})" title="Delete">🗑️</button>
+            </div>
+        </div>`;
             }).join('');
         }
 
