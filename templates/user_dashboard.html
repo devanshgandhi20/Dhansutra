@@ -1991,25 +1991,33 @@
             container.innerHTML = accountSummaries.map(a => {
                 const accType = String(a.type || '').toUpperCase();
                 const isLiability = accType === 'CREDIT_CARD';
-                let val = Number(a.current_balance ?? a.starting_balance ?? 0);
+
+                const balance = Number(a.current_balance ?? a.starting_balance ?? 0);
+                let val = balance;
+
+                // For investment accounts: show current_market_value ONLY if positive,
+                // otherwise show the actual transferred cash/invested balance.
                 if (accType === 'INVESTMENT') {
-                    // Fix: use null/undefined check, not > 0
-                    if (a.current_market_value !== null && a.current_market_value !== undefined) {
-                        val = Number(a.current_market_value);
+                    const mv = Number(a.current_market_value);
+                    if (!isNaN(mv) && mv > 0) {
+                        val = mv;
+                    } else {
+                        val = balance;
                     }
                 }
+
                 return `
-                    <div class="account-card ${accType}">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
-                            <span class="pill">${accType.replace(/_/g, ' ')}</span>
-                        </div>
-                        <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
-                            ${formatINR(val)}
-                        </div>
-                        <span class="caption-text">${accType === 'INVESTMENT' ? 'Market Value / Invested' : 'Reconciled Balance'}</span>
-                    </div>
-                `;
+            <div class="account-card ${accType}">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
+                    <span class="pill">${accType.replace(/_/g, ' ')}</span>
+                </div>
+                <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
+                    ${formatINR(val)}
+                </div>
+                <span class="caption-text">${accType === 'INVESTMENT' ? (Number(a.current_market_value) > 0 ? 'Market Value' : 'Invested Capital') : 'Reconciled Balance'}</span>
+            </div>
+        `;
             }).join('');
         }
 
@@ -2763,11 +2771,20 @@
             }
 
             const W = 760, H = 220, L = 85, R = 35, T = 25, B = 35;
-            const fmt = v => new Intl.NumberFormat('en-IN', {
-                style: 'currency', currency: 'INR',
-                maximumFractionDigits: 0,
-                notation: Math.abs(v) >= 100000 ? 'compact' : 'standard'
-            }).format(v);
+            const fmt = v => {
+                const abs = Math.abs(v);
+                if (abs >= 10000000) {
+                    return `₹${(v / 10000000).toFixed(2)}Cr`;
+                }
+                if (abs >= 100000) {
+                    return `₹${(v / 100000).toFixed(2)}L`;
+                }
+                return new Intl.NumberFormat('en-IN', {
+                    style: 'currency',
+                    currency: 'INR',
+                    maximumFractionDigits: 0
+                }).format(v);
+            };
 
             const vals = pts.map(p => p.value);
             let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -2831,23 +2848,24 @@
             const box = document.getElementById('assetsLiabContainer');
             const accs = (dashboardData && dashboardData.accounts) || [];
             const val = a => {
-                const t = String(a.type || '').toUpperCase(), mv = a.current_market_value;
-                // Fix #1: use null/undefined check, not > 0 (so ₹0 market value is respected)
-                if (t === 'INVESTMENT' && mv !== null && mv !== undefined) return Number(mv);
-                return Number(a.current_balance ?? a.starting_balance) || 0;
+                const t = String(a.type || '').toUpperCase();
+                const mv = Number(a.current_market_value);
+                const bal = Number(a.current_balance ?? a.starting_balance) || 0;
+                if (t === 'INVESTMENT' && !isNaN(mv) && mv > 0) return mv;
+                return bal;
             };
             const isL = a => String(a.type || '').toUpperCase() === 'CREDIT_CARD';
             const assets = accs.filter(a => !isL(a)), liabs = accs.filter(isL);
             const row = (a, v) => `<tr><td>${sanitize(a.name)}</td><td style="text-align:right;">${formatINR(v)}</td></tr>`;
             const tA = assets.reduce((t, a) => t + val(a), 0), tL = liabs.reduce((t, a) => t + Math.abs(val(a)), 0);
             box.innerHTML = `<table style="width:100%; border-collapse:collapse;" class="caption-text">
-                <tr><th colspan="2" style="text-align:left;">Assets</th></tr>
-                ${assets.map(a => row(a, val(a))).join('')}
-                <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Assets</td><td style="text-align:right;">${formatINR(tA)}</td></tr>
-                <tr><th colspan="2" style="text-align:left; padding-top:10px;">Liabilities</th></tr>
-                ${liabs.map(a => row(a, Math.abs(val(a)))).join('') || '<tr><td colspan="2">None</td></tr>'}
-                <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Liabilities</td><td style="text-align:right;">${formatINR(tL)}</td></tr>
-            </table>`;
+        <tr><th colspan="2" style="text-align:left;">Assets</th></tr>
+        ${assets.map(a => row(a, val(a))).join('')}
+        <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Assets</td><td style="text-align:right;">${formatINR(tA)}</td></tr>
+        <tr><th colspan="2" style="text-align:left; padding-top:10px;">Liabilities</th></tr>
+        ${liabs.map(a => row(a, Math.abs(val(a)))).join('') || '<tr><td colspan="2">None</td></tr>'}
+        <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Liabilities</td><td style="text-align:right;">${formatINR(tL)}</td></tr>
+    </table>`;
         }
 
         // Fix #7: Show overdue/due-soon context
