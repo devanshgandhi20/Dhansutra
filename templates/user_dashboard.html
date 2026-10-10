@@ -1845,21 +1845,53 @@
             return failed.length === 0;
         }
 
+        // Keep track of IDs processed in this session so it never runs twice
+        const autoProcessedRecurringIds = new Set();
+
         async function processDueRecurringAutomatically() {
             if (!Array.isArray(recurringList) || !recurringList.length) return;
             const today = todayStr();
-            // Filter items that are scheduled for today or past due
+
+            // 1. Find items whose next_date is today or in the past
             const dueItems = recurringList.filter(r => {
                 const clean = String(r.next_date || '').split('T')[0];
-                return clean && clean <= today;
+                return clean && clean <= today && !autoProcessedRecurringIds.has(r.id);
             });
 
             if (!dueItems.length) return;
 
             let processedCount = 0;
+
             for (const item of dueItems) {
+                const targetDate = String(item.next_date || '').split('T')[0];
+                const itemAmount = Number(item.amount);
+                const itemDesc = (item.description || '').trim().toLowerCase();
+
+                // 2. DUPLICATE CHECK: Did we already record a transaction for this exact date?
+                const alreadyExists = transactions.some(t => {
+                    const tDate = String(t.date || '').split('T')[0];
+                    const tAmount = Number(t.amount);
+                    const tDesc = (t.description || '').trim().toLowerCase();
+                    return tDate === targetDate && tAmount === itemAmount && tDesc === itemDesc;
+                });
+
+                if (alreadyExists) {
+                    // Already logged! Do NOT log another transaction.
+                    // Just advance the schedule on the backend if it was stuck.
+                    autoProcessedRecurringIds.add(item.id);
+                    try {
+                        await API.executeRecurring(item.id);
+                    } catch (err) {
+                        console.warn('Could not advance next_date for already posted item:', err);
+                    }
+                    continue;
+                }
+
+                // 3. Mark as processed in session memory before calling API
+                autoProcessedRecurringIds.add(item.id);
+
                 try {
-                    await postRecurring(item.id);
+                    await postRecurringWithDate(item, targetDate);
                     processedCount++;
                 } catch (e) {
                     console.error('Failed auto-posting recurring item:', item, e);
@@ -1867,7 +1899,50 @@
             }
 
             if (processedCount > 0) {
-                showToast(`⚡ Automatically posted ${processedCount} recurring item(s)`);
+                await refreshData();
+                showToast(`⚡ Automatically logged ${processedCount} due recurring item(s)`);
+            }
+        }
+
+        async function postRecurringWithDate(item, targetDate) {
+            let res;
+            const itemType = (item.type || '').toUpperCase();
+
+            if (itemType === 'TRANSFER') {
+                const fromId = item.from_account_id || item.account_id;
+                const toId = item.to_account_id;
+
+                if (!fromId || !toId) {
+                    console.warn('Transfer requires both accounts');
+                    return;
+                }
+
+                res = await API.createTransfer({
+                    amount: Number(item.amount),
+                    date: targetDate, // Uses scheduled date (e.g., 2026-10-10), NOT todayStr()!
+                    description: item.description || 'SIP Transfer',
+                    from_account_id: parseInt(fromId),
+                    to_account_id: parseInt(toId),
+                    type: 'TRANSFER'
+                });
+
+                if (res && res.ok) {
+                    await API.executeRecurring(item.id);
+                }
+            } else {
+                // Standard expense or income
+                const payload = {
+                    type: itemType,
+                    amount: Number(item.amount),
+                    date: targetDate, // Uses scheduled date!
+                    description: item.description,
+                    account_id: parseInt(item.account_id),
+                    category_id: parseInt(item.category_id)
+                };
+                res = await API.createTransaction(payload);
+                if (res && res.ok) {
+                    await API.executeRecurring(item.id);
+                }
             }
         }
 
