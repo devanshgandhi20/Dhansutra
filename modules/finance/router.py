@@ -303,6 +303,7 @@ def create_transfer(
     if not from_acc or not to_acc:
         raise HTTPException(status_code=404, detail="Source or destination account not found")
 
+    # 1. Record the Ledger Transfer (automatically increments calculated current_balance)
     transfer_tx = Transaction(
         user_id=current_user.id,
         type=TransactionType.TRANSFER,
@@ -314,6 +315,16 @@ def create_transfer(
         source="MANUAL",
     )
     db.add(transfer_tx)
+
+    # 2. Update current_market_value if an INVESTMENT account is involved
+    if getattr(to_acc, "type", None) == AccountType.INVESTMENT:
+        current_mv = getattr(to_acc, "current_market_value", None) or 0
+        to_acc.current_market_value = current_mv + data.amount
+
+    if getattr(from_acc, "type", None) == AccountType.INVESTMENT:
+        current_mv = getattr(from_acc, "current_market_value", None) or 0
+        from_acc.current_market_value = max(0, current_mv - data.amount)
+
     db.commit()
     db.refresh(transfer_tx)
     return transfer_tx
