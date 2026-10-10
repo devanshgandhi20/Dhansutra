@@ -1768,6 +1768,7 @@
                 goals = await API.getGoals();
             }
             await refreshData();
+            await processDueRecurringAutomatically();
         }
 
         async function refreshData(keepTrend = false) {
@@ -1842,6 +1843,32 @@
                 return false;
             }
             return failed.length === 0;
+        }
+
+        async function processDueRecurringAutomatically() {
+            if (!Array.isArray(recurringList) || !recurringList.length) return;
+            const today = todayStr();
+            // Filter items that are scheduled for today or past due
+            const dueItems = recurringList.filter(r => {
+                const clean = String(r.next_date || '').split('T')[0];
+                return clean && clean <= today;
+            });
+
+            if (!dueItems.length) return;
+
+            let processedCount = 0;
+            for (const item of dueItems) {
+                try {
+                    await postRecurring(item.id);
+                    processedCount++;
+                } catch (e) {
+                    console.error('Failed auto-posting recurring item:', item, e);
+                }
+            }
+
+            if (processedCount > 0) {
+                showToast(`⚡ Automatically posted ${processedCount} recurring item(s)`);
+            }
         }
 
         let last3MoTransactions = [];
