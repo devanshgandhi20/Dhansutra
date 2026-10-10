@@ -1087,11 +1087,13 @@
                         </div>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="position: relative;">
                     <label for="txDescription">Description</label>
-                    <input type="text" id="txDescription" class="form-control" list="noteSuggestions"
-                        placeholder="e.g. Swiggy, House Rent" required autocomplete="off">
-                    <datalist id="noteSuggestions"></datalist>
+                    <input type="text" id="txDescription" class="form-control" placeholder="e.g. Swiggy, House Rent"
+                        required autocomplete="off">
+                    <div id="descSuggestionsList"
+                        style="display:none; position:absolute; left:0; right:0; top:100%; z-index:2500; background:var(--surface); border:1px solid var(--border); border-radius:8px; max-height:160px; overflow-y:auto; box-shadow:var(--shadow-modal); margin-top:4px;">
+                    </div>
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-ghost" onclick="closeModal('modalTransaction')">Cancel</button>
@@ -1606,6 +1608,29 @@
             return toDateStr(d);
         }
 
+        function advanceDate(dateStr, frequency) {
+            if (!dateStr) return '';
+            // Strip time component if present
+            const clean = String(dateStr).split('T')[0];
+            const [y, m, d] = clean.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const freq = String(frequency || 'MONTHLY').toUpperCase();
+
+            if (freq === 'WEEKLY') {
+                date.setDate(date.getDate() + 7);
+            } else if (freq === 'YEARLY') {
+                date.setFullYear(date.getFullYear() + 1);
+            } else {
+                // Default MONTHLY: handle month length differences safely
+                const dayOfMonth = date.getDate();
+                date.setDate(1);
+                date.setMonth(date.getMonth() + 1);
+                const maxDays = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+                date.setDate(Math.min(dayOfMonth, maxDays));
+            }
+            return toDateStr(date);
+        }
+
         async function readError(res, fallback) {
             if (!res) return API.lastError || fallback;
             let detail = '';
@@ -1810,7 +1835,6 @@
 
             try {
                 populateSelects();
-                updateNoteSuggestions();
                 renderUI(lastBudgetList);
             } catch (err) {
                 console.error(err);
@@ -1866,6 +1890,42 @@
                 }
             }
         }
+
+        const descInput = document.getElementById('txDescription');
+        const suggList = document.getElementById('descSuggestionsList');
+
+        function showSuggestions(filterText = '') {
+            if (!suggList) return;
+            const q = filterText.toLowerCase().trim();
+            const uniqueNotes = Array.from(new Set(transactions.map(t => t.description))).filter(Boolean);
+            const matches = q ? uniqueNotes.filter(n => n.toLowerCase().includes(q)) : uniqueNotes.slice(0, 8);
+
+            if (!matches.length) {
+                suggList.style.display = 'none';
+                return;
+            }
+
+            suggList.innerHTML = matches.map(n => `
+        <div class="sugg-item" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border-subtle); font-size: 13px;" data-val="${sanitize(n)}">
+            ${sanitize(n)}
+        </div>
+    `).join('');
+            suggList.style.display = 'block';
+
+            suggList.querySelectorAll('.sugg-item').forEach(item => {
+                item.onmousedown = (e) => {
+                    e.preventDefault(); // Prevents input blur on mobile touch
+                    descInput.value = item.dataset.val;
+                    suggList.style.display = 'none';
+                };
+            });
+        }
+
+        descInput.addEventListener('input', e => showSuggestions(e.target.value));
+        descInput.addEventListener('focus', () => showSuggestions(descInput.value));
+        descInput.addEventListener('blur', () => {
+            setTimeout(() => { if (suggList) suggList.style.display = 'none'; }, 200);
+        });
 
         function _populateSelectsBase() {
             const accSelect = document.getElementById('txAccount');
@@ -1943,13 +2003,6 @@
             const targetType = currentFormType.toUpperCase();
             const list = categories.filter(c => (c.type || '').toUpperCase() === targetType);
             select.innerHTML = list.map(c => `<option value="${c.id}">${sanitize(c.icon || '🏷️')} ${sanitize(c.name)}</option>`).join('');
-        }
-
-        function updateNoteSuggestions() {
-            const datalist = document.getElementById('noteSuggestions');
-            if (!datalist) return;
-            const uniqueNotes = Array.from(new Set(transactions.map(t => t.description))).filter(Boolean);
-            datalist.innerHTML = uniqueNotes.map(note => `<option value="${sanitize(note)}"></option>`).join('');
         }
 
         function monthStats() {

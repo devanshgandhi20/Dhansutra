@@ -38,6 +38,8 @@ app.include_router(finance_router)
 app.include_router(imports_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+is_production = settings.ENVIRONMENT == "production"
+
 @app.post("/create_user")
 def create_user(
     request: Request,
@@ -134,8 +136,8 @@ def login(
     redis_client.set(f"refresh:{user.id}", refresh_token, ex=86400 * settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     res = RedirectResponse(url="/dashboard", status_code=302)
-    res.set_cookie(key="access_token", value=access_token, httponly=True)
-    res.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
+    res.set_cookie(key="access_token", value=access_token, httponly=True, samesite="lax", secure=is_production)
+    res.set_cookie(key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=is_production)
     return res
 
 @app.get("/refresh")
@@ -159,7 +161,7 @@ def refresh_token(request: Request, refresh_token: str = Cookie(None)):
 
     new_access_token = create_access_token(int(user_id))
     res = RedirectResponse(url="/dashboard")
-    res.set_cookie(key="access_token", value=new_access_token, httponly=True)
+    res.set_cookie(key="access_token", value=new_access_token, httponly=True, samesite="lax", secure=is_production)
     return res
 
 @app.get("/login/google")
@@ -169,25 +171,30 @@ async def google_login(request: Request):
 
 @app.get("/auth/google/callback", name="google_callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
-    token = await oauth.google.authorize_access_token(request)
-    userdata = token["userinfo"]
-    email = userdata["email"]
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception as exc:
+        return RedirectResponse(url="/login?error=oauth_failed", status_code=302)
+        
+    userdata = token.get("userinfo")
+    if not userdata or "email" not in userdata:
+        return RedirectResponse(url="/login?error=invalid_userinfo", status_code=302)
 
+    email = userdata["email"]
     user = db.query(User).filter(User.username == email).first()
     if not user:
         user = User(username=email, password=None)
         db.add(user)
         db.commit()
         db.refresh(user)
-
+        
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-
     redis_client.set(f"refresh:{user.id}", refresh_token, ex=86400 * settings.REFRESH_TOKEN_EXPIRE_DAYS)
-
+    
     res = RedirectResponse(url="/dashboard", status_code=302)
-    res.set_cookie(key="access_token", value=access_token, httponly=True)
-    res.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
+    res.set_cookie(key="access_token", value=access_token, httponly=True, samesite="lax", secure=is_production)
+    res.set_cookie(key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=is_production)
     return res
 
 @app.get("/dashboard", response_class=HTMLResponse)
