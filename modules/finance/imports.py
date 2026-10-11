@@ -66,6 +66,18 @@ def validate_external_script_url(url_str: str) -> str:
 # -------------------------------------------------------------
 # APPS SCRIPT / GMAIL BACKEND PROXY (SECURE SSRF-HARDENED)
 # -------------------------------------------------------------
+def extract_source_id(item: dict) -> str:
+    """Helper to reliably extract Gmail messageId across all script versions."""
+    raw_id = item.get("source_id") or item.get("sourceId") or item.get("id")
+    if raw_id:
+        return str(raw_id).strip()
+    # Deterministic fallback if messageId is somehow completely absent
+    d = str(item.get("date", "")).strip()
+    a = str(item.get("amount", "")).strip()
+    desc = str(item.get("description", "")).strip().lower()
+    return f"gen_{d}_{a}_{desc}"
+
+
 @router.post("/fetch-external")
 async def fetch_external_receipts(
     payload: SyncRequest,
@@ -74,7 +86,7 @@ async def fetch_external_receipts(
 ):
     safe_url = validate_external_script_url(payload.script_url)
 
-    async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
+    async with httpx.AsyncClient(timeout=25.0, follow_redirects=False) as client:
         try:
             resp = await client.get(safe_url)
             if resp.is_redirect:
@@ -101,33 +113,44 @@ async def fetch_external_receipts(
         raise HTTPException(status_code=400, detail=f"Apps Script Error: {data['error']}")
 
     raw_items = data if isinstance(data, list) else data.get("transactions", [])
+    if not raw_items:
+        return []
 
-    incoming_source_ids = [
-        str(item.get("sourceId") or item.get("id"))
-        for item in raw_items
-        if item.get("sourceId") or item.get("id")
-    ]
+    # 1. Collect all candidate IDs (checking source_id, sourceId, and id)
+    candidate_ids = [extract_source_id(item) for item in raw_items]
 
+    # 2. Query DB for matches belonging to this user
     existing_ids = set()
-    if incoming_source_ids:
-        query = db.query(Transaction.source_id).filter(
-            Transaction.user_id == current_user.id,
-            Transaction.source_id.in_(incoming_source_ids),
-        ).all()
-        existing_ids = {r[0] for r in query}
+    if candidate_ids:
+        query = (
+            db.query(Transaction.source_id)
+            .filter(
+                Transaction.user_id == current_user.id,
+                Transaction.source_id.in_(candidate_ids),
+            )
+            .all()
+        )
+        existing_ids = {str(r[0]).strip() for r in query if r[0]}
 
+    # 3. Stage ONLY unimported items
     staged = []
     for item in raw_items:
-        sid = str(item.get("sourceId") or item.get("id") or f"gen_{item.get('date')}_{item.get('amount')}_{item.get('description')}")
+        sid = extract_source_id(item)
         if sid in existing_ids:
-            continue
+            continue  # Already saved in DB, skip!
 
         raw_type = str(item.get("type", "EXPENSE")).upper()
-        tx_type = "INCOME" if "INC" in raw_type or raw_type == "CREDIT" else "EXPENSE"
+        tx_type = "INCOME" if any(k in raw_type for k in ["INC", "CREDIT"]) else "EXPENSE"
+
+        raw_date = str(item.get("date", "")).strip()
+        try:
+            parsed_date = datetime.strptime(raw_date, "%Y-%m-%d").date().isoformat()
+        except (ValueError, TypeError):
+            parsed_date = date.today().isoformat()
 
         staged.append({
             "source_id": sid,
-            "date": item.get("date") or date.today().isoformat(),
+            "date": parsed_date,
             "amount": abs(float(item.get("amount", 0))),
             "description": (item.get("description") or "Bank Outflow").strip()[:255],
             "type": tx_type,
@@ -144,28 +167,42 @@ def commit_receipts(
 ):
     created = []
     for item in payload.transactions:
-        exists = db.query(Transaction.id).filter(
-            Transaction.user_id == current_user.id,
-            Transaction.source_id == item.source_id,
-        ).first()
-        if exists:
-            continue
+        sid = str(item.source_id).strip() if item.source_id else None
 
-        tx_type = TransactionType.INCOME if item.type.upper() == "INCOME" else TransactionType.EXPENSE
+        # Double check existence to prevent duplicates
+        if sid:
+            exists = db.query(Transaction.id).filter(
+                Transaction.user_id == current_user.id,
+                Transaction.source_id == sid,
+            ).first()
+            if exists:
+                continue
+
+        tx_type = TransactionType.INCOME if str(item.type).upper() == "INCOME" else TransactionType.EXPENSE
+        tx_amount = Decimal(str(item.amount))
 
         tx = Transaction(
             user_id=current_user.id,
             account_id=item.account_id,
             category_id=item.category_id,
-            amount=Decimal(str(item.amount)),
+            amount=tx_amount,
             date=datetime.strptime(item.date, "%Y-%m-%d").date(),
             description=item.description,
             type=tx_type,
             source="GMAIL",
-            source_id=item.source_id,
+            source_id=sid,
         )
         db.add(tx)
-        created.append(item.source_id)
+
+        # Update static current_balance on Account if your schema maintains it directly
+        acc = db.query(Account).filter(Account.id == item.account_id, Account.user_id == current_user.id).first()
+        if acc and hasattr(acc, "current_balance") and acc.current_balance is not None:
+            if tx_type == TransactionType.EXPENSE:
+                acc.current_balance -= tx_amount
+            else:
+                acc.current_balance += tx_amount
+
+        created.append(sid)
 
     db.commit()
     return {"committed_count": len(created), "source_ids": created}
