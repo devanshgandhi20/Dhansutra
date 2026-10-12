@@ -1,4 +1,23 @@
 /* DhanSutra - Financial Calendar & Bulk Ledger Module */
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCalendarEvents);
+} else {
+  initCalendarEvents();
+}
+
+registerHook('renderLedger', decorateLedger);
+registerHook('renderUI', renderCalendar);
+registerHook('switchTab', tabId => {
+  const tab = $('tab-calendar');
+  if (tab) tab.style.display = tabId === 'calendar' ? 'block' : 'none';
+  const bar = $('bulkBar');
+  if (bar) bar.style.visibility = tabId === 'ledger' ? 'visible' : 'hidden';
+  if (tabId === 'calendar') {
+    renderCalendar();
+  }
+});
+
 (function () {
   const $ = id => document.getElementById(id);
   const recs = () => (typeof recurringList !== 'undefined' ? recurringList : []);
@@ -87,18 +106,21 @@
     sync();
   }
 
-  if ($('bulkSelectAll')) {$('bulkSelectAll').onchange = e => {
+  if ($('bulkSelectAll')) {
+    $('bulkSelectAll').onchange = e => {
       visibleIds().forEach(id => e.target.checked ? sel.add(id) : sel.delete(id));
       document.querySelectorAll('#ledgerRowsContainer .bulk-cb').forEach(cb => cb.checked = e.target.checked);
       sync();
     };
   }
-  if ($('bulkClear')) {$('bulkClear').onclick = () => { sel.clear(); document.querySelectorAll('.bulk-cb').forEach(cb => cb.checked = false); sync(); };
+  if ($('bulkClear')) {
+    $('bulkClear').onclick = () => { sel.clear(); document.querySelectorAll('.bulk-cb').forEach(cb => cb.checked = false); sync(); };
   }
 
   const picked = () => Array.from(sel).map(id => transactions.find(t => t.id === id)).filter(Boolean);
 
-  if ($('bulkApply')) {$('bulkApply').onclick = async () => {
+  if ($('bulkApply')) {
+    $('bulkApply').onclick = async () => {
       const cat = categories.find(c => c.id === parseInt($('bulkCat').value));
       if (!cat) { showToast('Choose a category first', 'error'); return; }
       const list = picked();
@@ -123,7 +145,8 @@
     };
   }
 
-  if ($('bulkDelete')) {$('bulkDelete').onclick = () => {
+  if ($('bulkDelete')) {
+    $('bulkDelete').onclick = () => {
       const n = sel.size;
       confirmAction(`Delete ${n} transaction${n > 1 ? 's' : ''}`, 'This permanently deletes every selected transaction and cannot be undone.', async () => {
         let done = 0;
@@ -139,7 +162,8 @@
     };
   }
 
-  if ($('bulkExport')) {$('bulkExport').onclick = () => {
+  if ($('bulkExport')) {
+    $('bulkExport').onclick = () => {
       const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const lines = ['Date,Type,Description,Category,Account,Amount'].concat(picked().map(t => {
         const cat = categories.find(c => c.id === t.category_id);
@@ -219,14 +243,15 @@
 
   function renderCalendar() {
     const y = selectedMonth.getFullYear(), m = selectedMonth.getMonth(), key = monthKey();
-    if ($('calTitle'))$('calTitle').textContent = selectedMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+    if ($('calTitle')) $('calTitle').textContent = selectedMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
     const data = dayData(), sched = scheduledByDay(), today = todayStr();
     const lead = (new Date(y, m, 1).getDay() + 6) % 7;
     const days = new Date(y, m + 1, 0).getDate();
     let inc = 0, exp = 0;
     Object.values(data).forEach(d => { inc += d.inc; exp += d.exp; });
     const upcoming = Object.entries(sched).filter(([d]) => d >= today).reduce((s, [, rs]) => s + rs.reduce((a, r) => a + ((r.type || '').toUpperCase() === 'EXPENSE' ? -1 : 1) * (Number(r.amount) || 0), 0), 0);
-    if ($('calSummary')) {$('calSummary').textContent = `In ${formatINR(inc)} | Out ${formatINR(exp)}` + (Object.keys(sched).length ? ` | Scheduled still to come this month: ${upcoming >= 0 ? '+' : '−'}${formatINR(Math.abs(upcoming))}` : '');
+    if ($('calSummary')) {
+      $('calSummary').textContent = `In ${formatINR(inc)} | Out ${formatINR(exp)}` + (Object.keys(sched).length ? ` | Scheduled still to come this month: ${upcoming >= 0 ? '+' : '−'}${formatINR(Math.abs(upcoming))}` : '');
     }
     if (!calSel || !calSel.startsWith(key)) calSel = today.startsWith(key) ? today : null;
     let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="cal-dow">${d}</div>`).join('');
@@ -240,7 +265,7 @@
         ${sc ? `<span class="s">⏱${sc.length > 1 ? sc.length : ''}</span>` : ''}
       </button>`;
     }
-    if ($('calGrid'))$('calGrid').innerHTML = html;
+    if ($('calGrid')) $('calGrid').innerHTML = html;
     renderDay(data, sched);
   }
 
@@ -273,17 +298,66 @@
   }
 
   async function gotoMonth(target) {
-    const v = formatMonthStr(target), sel2 = $('monthSelector');
-    if (!Array.from(sel2.options).some(o => o.value === v)) { showToast('That month is outside the available range', 'error'); return; }
+    const v = formatMonthStr(target);
+    const sel2 = $('monthSelector');
+    if (sel2) {
+      // Expand options dynamically if outside the initial 1-year selector range
+      if (!Array.from(sel2.options).some(o => o.value === v)) {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = target.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+        sel2.appendChild(opt);
+      }
+      sel2.value = v;
+    }
     selectedMonth = target;
-    sel2.value = v;
+    calSel = null; // Reset picked day to default
     await refreshData();
+    renderCalendar();
   }
 
-  if ($('calPrev'))$('calPrev').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
-  if ($('calNext'))$('calNext').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
-  if ($('calToday'))$('calToday').onclick = async () => { await gotoMonth(startOfMonth(new Date())); calSel = todayStr(); renderCalendar(); };
-  if ($('calGrid')) {$('calGrid').onclick = e => {
+  function initCalendarEvents() {
+    const prev = $('calPrev');
+    if (prev) {
+      prev.onclick = (e) => {
+        e.preventDefault();
+        gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
+      };
+    }
+
+    const next = $('calNext');
+    if (next) {
+      next.onclick = (e) => {
+        e.preventDefault();
+        gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
+      };
+    }
+
+    const todayBtn = $('calToday');
+    if (todayBtn) {
+      todayBtn.onclick = async (e) => {
+        e.preventDefault();
+        calSel = todayStr();
+        await gotoMonth(startOfMonth(new Date()));
+      };
+    }
+
+    const grid = $('calGrid');
+    if (grid) {
+      grid.onclick = (e) => {
+        const b = e.target.closest('.cal-cell[data-d]');
+        if (!b || b.classList.contains('blank')) return;
+        calSel = b.dataset.d;
+        renderCalendar();
+      };
+    }
+  }
+
+  if ($('calPrev')) $('calPrev').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
+  if ($('calNext')) $('calNext').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
+  if ($('calToday')) $('calToday').onclick = async () => { await gotoMonth(startOfMonth(new Date())); calSel = todayStr(); renderCalendar(); };
+  if ($('calGrid')) {
+    $('calGrid').onclick = e => {
       const b = e.target.closest('.cal-cell[data-d]');
       if (!b) return;
       calSel = b.dataset.d;
