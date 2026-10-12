@@ -5,8 +5,8 @@ from fastapi import APIRouter, Header, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 # Adjust imports according to your models / database session
-from database import get_db
-from models import Transaction, Account, Category
+from core.database import SessionLocal
+from modules.finance.models import Transaction, Account, Category
 
 router = APIRouter()
 
