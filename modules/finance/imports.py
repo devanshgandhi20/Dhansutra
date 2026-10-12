@@ -246,6 +246,7 @@ def webhook_ingest_transactions(
         category_id = resolve_category(item.description, item.type, db)
 
         new_tx = Transaction(
+            user_id=axis_account.user_id,
             type=item.type.upper(),
             amount=item.amount,
             date=item.date,
@@ -253,16 +254,11 @@ def webhook_ingest_transactions(
             account_id=axis_account.id,
             category_id=category_id,
             source_id=item.source_id,
+            source="GMAIL",
             # If your schema supports a review flag, you can set it here:
             # needs_review=(category_id is None or is_uncategorized)
         )
         db.add(new_tx)
-
-        # Update running account balance
-        if item.type.upper() == "EXPENSE":
-            axis_account.current_balance = (axis_account.current_balance or 0) - item.amount
-        elif item.type.upper() == "INCOME":
-            axis_account.current_balance = (axis_account.current_balance or 0) + item.amount
 
         added_count += 1
 
