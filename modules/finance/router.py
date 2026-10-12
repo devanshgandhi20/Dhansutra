@@ -223,6 +223,7 @@ def get_transactions(
 
     return query.order_by(Transaction.date.desc(), Transaction.id.desc()).all()
 
+
 @router.post("/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_transaction(
     data: TransactionCreate,
@@ -425,6 +426,39 @@ def create_goal(
     return goal
 
 
+@router.delete("/goals/{goal_id}", status_code=status.HTTP_200_OK)
+def delete_goal(
+    goal_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    goal = (
+        db.query(FinancialGoal)
+        .filter(
+            FinancialGoal.id == goal_id,
+            FinancialGoal.user_id == current_user.id
+        )
+        .first()
+    )
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    # Protection: Never allow deleting the primary Emergency Fund
+    if "emergency" in (goal.name or "").lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The Emergency Fund target is required and cannot be deleted."
+        )
+
+    # 1. Clean up associated GoalContribution records
+    db.query(GoalContribution).filter(GoalContribution.goal_id == goal.id).delete()
+
+    # 2. Delete the goal itself
+    db.delete(goal)
+    db.commit()
+    return {"status": "success", "deleted_goal_id": goal_id}
+
+
 @router.post("/goals/{goal_id}/contribute", response_model=GoalContributionResponse, status_code=status.HTTP_201_CREATED)
 def contribute_to_goal(
     goal_id: int,
@@ -568,7 +602,6 @@ def update_recurring(
 
     update_dict = data.model_dump(exclude_unset=True)
     
-    # Check accounts if changing
     new_acc_id = update_dict.get("account_id", rec.account_id)
     new_to_acc_id = update_dict.get("to_account_id", rec.to_account_id)
     new_type = update_dict.get("type", rec.type)
@@ -629,6 +662,7 @@ def execute_recurring(
     db.refresh(new_tx)
     return new_tx
 
+
 @router.delete("/recurring/{recurring_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_recurring(
     recurring_id: int,
@@ -645,33 +679,3 @@ def delete_recurring(
     db.delete(rec)
     db.commit()
     return None
-
-
-@router.post("/recurring/{recurring_id}/execute", response_model=TransactionResponse)
-def execute_recurring(
-    recurring_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    rec = db.query(RecurringTransaction).filter(
-        RecurringTransaction.id == recurring_id,
-        RecurringTransaction.user_id == current_user.id
-    ).first()
-    if not rec:
-        raise HTTPException(status_code=404, detail="Recurring transaction not found")
-
-    new_tx = Transaction(
-        user_id=current_user.id,
-        account_id=rec.account_id,
-        category_id=rec.category_id,
-        type=rec.type,
-        amount=rec.amount,
-        date=rec.next_date,
-        description=rec.description,
-        source="RECURRING",
-    )
-    db.add(new_tx)
-    rec.next_date = calculate_next_date(rec.next_date, rec.frequency)
-    db.commit()
-    db.refresh(new_tx)
-    return new_tx
