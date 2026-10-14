@@ -168,11 +168,13 @@ def commit_receipts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    created = []
+    committed_count = 0
+    committed_ids = []
+
     for item in payload.transactions:
         sid = str(item.source_id).strip() if item.source_id else None
 
-        # Double check existence to prevent duplicates
+        # Double check existence to prevent duplicates if source_id is present
         if sid:
             exists = db.query(Transaction.id).filter(
                 Transaction.user_id == current_user.id,
@@ -181,34 +183,55 @@ def commit_receipts(
             if exists:
                 continue
 
-        tx_type = TransactionType.INCOME if str(item.type).upper() == "INCOME" else TransactionType.EXPENSE
+        # Validate account ownership
+        acc = db.query(Account).filter(
+            Account.id == item.account_id,
+            Account.user_id == current_user.id
+        ).first()
+        if not acc:
+            continue
+
+        clean_desc = (item.description or "").strip()
+        if not clean_desc:
+            continue
+
+        raw_type = str(item.type).strip().upper()
+        tx_type = TransactionType.INCOME if raw_type == "INCOME" else TransactionType.EXPENSE
         tx_amount = Decimal(str(item.amount))
+
+        # Parse date safely (supports YYYY-MM-DD or ISO strings)
+        date_str = str(item.date).split("T")[0]
+        parsed_date = datetime.strptime(date_str, "%Y-%m-%d").date()
 
         tx = Transaction(
             user_id=current_user.id,
-            account_id=item.account_id,
+            account_id=acc.id,
             category_id=item.category_id,
             amount=tx_amount,
-            date=datetime.strptime(item.date, "%Y-%m-%d").date(),
-            description=item.description,
+            date=parsed_date,
+            description=clean_desc,
             type=tx_type,
             source="GMAIL",
             source_id=sid,
         )
         db.add(tx)
 
-        # Update static current_balance on Account if your schema maintains it directly
-        acc = db.query(Account).filter(Account.id == item.account_id, Account.user_id == current_user.id).first()
-        if acc and hasattr(acc, "current_balance") and acc.current_balance is not None:
+        # Update static current_balance on Account if maintained directly
+        if hasattr(acc, "current_balance") and acc.current_balance is not None:
             if tx_type == TransactionType.EXPENSE:
                 acc.current_balance -= tx_amount
             else:
                 acc.current_balance += tx_amount
 
-        created.append(sid)
+        committed_count += 1
+        if sid:
+            committed_ids.append(sid)
 
     db.commit()
-    return {"committed_count": len(created), "source_ids": created}
+    return {
+        "committed_count": committed_count,
+        "source_ids": committed_ids
+    }
 
 @router.post("/webhook-ingest")
 def webhook_ingest_transactions(

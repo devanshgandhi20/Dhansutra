@@ -2885,7 +2885,10 @@
             const t = new Date();
             const today = todayStr();
 
-            // Deduplicate all transactions across cached months
+            // 1. Current real net worth from dashboard
+            const currentTotalNW = Number(dashboardData.net_worth) || 0;
+
+            // 2. Collect and deduplicate all cached transactions
             const txMap = new Map();
             Object.values(trendCache).flat().forEach(x => {
                 if (!x) return;
@@ -2894,53 +2897,43 @@
             });
             const all = Array.from(txMap.values());
 
-            // Calculate baseline opening net worth (starting balances & market valuations)
-            const baseNetWorth = accounts.reduce((acc, a) => {
-                const type = String(a.type || '').toUpperCase();
-                let val = Number(a.starting_balance) || 0;
-                if (type === 'INVESTMENT' && a.current_market_value !== null && a.current_market_value !== undefined) {
-                    val = Number(a.current_market_value);
-                }
-                return type === 'CREDIT_CARD' ? acc - Math.abs(val) : acc + val;
-            }, 0);
-
-            // Determine how many months to generate
             let count = (n === 'all') ? 12 : Number(n);
             if (n === 'all' && all.length > 0) {
-                // Find earliest transaction date to size 'ALL' dynamically
                 const dates = all.map(x => String(x.date || '')).filter(Boolean).sort();
                 if (dates.length) {
                     const [ey, em] = dates[0].split('-').map(Number);
                     const monthsDiff = (t.getFullYear() - ey) * 12 + (t.getMonth() - (em - 1)) + 1;
-                    count = Math.max(3, Math.min(monthsDiff, 48)); // between 3 and 48 months
+                    count = Math.max(3, Math.min(monthsDiff, 36));
                 }
             }
 
+            // 3. Work backward from the current net worth to reconstruct true past points
             const pts = [];
             for (let i = count - 1; i >= 0; i--) {
                 const d = new Date(t.getFullYear(), t.getMonth() - i, 1);
                 const monthEnd = toDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0));
-                const cutoff = i === 0 ? today : monthEnd;
+                const cutoff = (i === 0) ? today : monthEnd;
 
-                let cumulativeNet = 0;
+                // Transactions that occurred AFTER this cutoff point are subtracted
+                let netAfterCutoff = 0;
                 all.forEach(x => {
                     const dt = String(x.date || '');
-                    if (dt > cutoff) return;
-                    const ty = (x.type || '').toUpperCase();
-                    const a = Number(x.amount) || 0;
-                    if (ty === 'INCOME') cumulativeNet += a;
-                    else if (ty === 'EXPENSE') cumulativeNet -= a;
+                    if (dt > cutoff) {
+                        const ty = (x.type || '').toUpperCase();
+                        const a = Number(x.amount) || 0;
+                        if (ty === 'INCOME') netAfterCutoff += a;
+                        else if (ty === 'EXPENSE') netAfterCutoff -= a;
+                    }
                 });
 
                 pts.push({
                     label: d.toLocaleString('en-IN', { month: 'short' }),
-                    value: baseNetWorth + cumulativeNet
+                    value: round2(currentTotalNW - netAfterCutoff)
                 });
             }
 
-            // Always ensure at least 2 points so chart can draw even for new accounts
             if (pts.length === 1) {
-                pts.unshift({ label: 'Start', value: baseNetWorth });
+                pts.unshift({ label: 'Prev', value: pts[0].value });
             }
 
             return pts;
@@ -2948,7 +2941,6 @@
 
         let nwSeq = 0;
         async function renderNetWorthTrend() {
-            // ─── Range Selector Buttons with "ALL" ───
             const ranges = [[3, '3M'], [6, '6M'], [12, '1Y'], ['all', 'ALL']];
             document.getElementById('nwRange').innerHTML = ranges.map(([m, l]) =>
                 `<button type="button" class="btn ${nwMonths === m ? 'btn-secondary active' : 'btn-ghost'} btn-pill" style="padding:0.2rem 0.6rem; font-size:11px;" onclick="setNwRange('${m}')">${l}</button>`
@@ -2976,16 +2968,19 @@
             };
 
             const vals = pts.map(p => p.value);
-            let lo = Math.min(...vals), hi = Math.max(...vals);
+            let minVal = Math.min(...vals);
+            let maxVal = Math.max(...vals);
 
-            if (hi === lo) {
-                const offset = Math.abs(lo) * 0.1 || 1000;
-                lo -= offset;
-                hi += offset;
+            let lo, hi;
+            if (minVal === maxVal) {
+                const pad = Math.abs(minVal) * 0.1 || 5000;
+                lo = minVal - pad;
+                hi = maxVal + pad;
             } else {
-                const span = hi - lo;
-                lo = Math.max(0, lo - span * 0.15);
-                hi += span * 0.15;
+                const diff = maxVal - minVal;
+                // Zoom tightly to the variance so small net worth jumps are clearly visible
+                lo = minVal - (diff * 0.15);
+                hi = maxVal + (diff * 0.15);
             }
 
             const x = i => L + i * (W - L - R) / (pts.length - 1);
@@ -3001,7 +2996,9 @@
 
             const areaD = `${pathD} L ${x(pts.length - 1).toFixed(1)} ${H - B} L ${x(0).toFixed(1)} ${H - B} Z`;
 
-            const gridlines = [0, 0.5, 1].map(ratio => {
+            // 4 dynamic Y-axis grid increments
+            const gridRatios = [0, 0.33, 0.66, 1];
+            const gridlines = gridRatios.map(ratio => {
                 const val = hi - (hi - lo) * ratio;
                 const yy = y(val);
                 return `
@@ -3010,7 +3007,6 @@
         `;
             }).join('');
 
-            // Dynamic X-axis decimation so labels never overlap on 1Y or ALL
             const step = pts.length > 18 ? 3 : pts.length > 10 ? 2 : 1;
 
             box.innerHTML = `
@@ -3028,7 +3024,9 @@
                 const showLabel = (i % step === 0) || (i === pts.length - 1);
                 return `
                     <g>
-                        <circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="3.5" fill="#38bdf8" stroke="var(--surface)" stroke-width="2"/>
+                        <circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="3.5" fill="#38bdf8" stroke="var(--surface)" stroke-width="2">
+                            <title>${p.label}:${formatINR(p.value)}</title>
+                        </circle>
                         ${showLabel ? `<text x="${x(i).toFixed(1)}" y="${H - 10}" text-anchor="middle" class="nw-axis-label" style="font-size:11px;">${p.label}</text>` : ''}
                     </g>
                 `;
@@ -3467,25 +3465,33 @@
                 document.getElementById('stagingItemsList').innerHTML = stagedSync.map((t, idx) => {
                     const isInc = t.type === 'INCOME';
                     return `
-                        <div style="padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                    <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
-                                    <div>
-                                        <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'color: var(--emerald);' : 'color: var(--terracotta);'}">
-                                            ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
-                                        </span>
-                                        <div class="caption-text" style="font-size:12px; margin-top:2px;">${sanitize(t.date)} — ${sanitize(t.description)}</div>
-                                    </div>
-                                </label>
-                                <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">${isInc ? '+' : '-'}${formatINR(t.amount)}</span>
-                            </div>
-                            <select class="form-control sel-stage-cat" data-idx="${idx}" style="margin-top:4px; padding:4px 8px; font-size:12px;">
-                                <option value="">Select Category...</option>
-                                ${categories.filter(c => (c.type || '').toUpperCase() === t.type).map(c => `<option value="${c.id}" ${c.id === t.category_id ? 'selected' : ''}>${sanitize(c.name)}</option>`).join('')}
-                            </select>
-                        </div>
-                    `;
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" class="chk-stage" data-idx="${idx}" checked>
+                    <span class="pill" style="font-size: 10px; font-weight: 700; ${isInc ? 'color: var(--emerald);' : 'color: var(--terracotta);'}">
+                        ${isInc ? '[+] INCOME' : '[-] EXPENSE'}
+                    </span>
+                    <span class="caption-text" style="font-size:12px;">${sanitize(t.date)}</span>
+                </label>
+                <span class="${isInc ? 'amount-pos' : 'amount-neg'}" style="font-weight:700; font-size:13px;">
+                    ${isInc ? '+' : '-'}${formatINR(t.amount)}
+                </span>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
+                <input type="text" class="form-control inp-stage-desc" data-idx="${idx}" 
+                       value="${sanitize(t.description)}" placeholder="Description / Note" 
+                       style="padding:4px 8px; font-size:12px;">
+                <select class="form-control sel-stage-cat" data-idx="${idx}" 
+                        style="padding:4px 8px; font-size:12px;">
+                    <option value="">Select Category...</option>
+                    ${categories.filter(c => (c.type || '').toUpperCase() === t.type).map(c =>
+                        `<option value="${c.id}" ${c.id === t.category_id ? 'selected' : ''}>${sanitize(c.name)}</option>`
+                    ).join('')}
+                </select>
+            </div>
+        </div>
+    `;
                 }).join('');
                 document.getElementById('gmailStagingWrap').style.display = 'block';
             } catch (err) {
@@ -3498,17 +3504,30 @@
 
         async function commitStagedTransactions() {
             const toCommit = [];
-            let missing = 0;
+            let missingCat = 0;
+            let missingDesc = 0;
+
             document.querySelectorAll('.chk-stage:checked').forEach(c => {
                 const idx = Number(c.dataset.idx);
                 const item = stagedSync[idx];
                 if (!item) return;
+
                 const category_id = parseInt(document.querySelector(`.sel-stage-cat[data-idx="${idx}"]`)?.value);
-                if (!category_id) { missing++; return; }
-                toCommit.push({ ...item, category_id, amount: round2(item.amount) });
+                const editedDesc = document.querySelector(`.inp-stage-desc[data-idx="${idx}"]`)?.value.trim();
+
+                if (!category_id) { missingCat++; return; }
+                if (!editedDesc) { missingDesc++; return; }
+
+                toCommit.push({
+                    ...item,
+                    description: editedDesc,
+                    category_id: category_id,
+                    amount: round2(item.amount)
+                });
             });
 
-            if (missing) { showToast(`Choose a category for ${missing} item(s)`, 'error'); return; }
+            if (missingCat) { showToast(`Choose a category for ${missingCat} item(s)`, 'error'); return; }
+            if (missingDesc) { showToast(`Description cannot be empty for selected item(s)`, 'error'); return; }
             if (!toCommit.length) { showToast('No items selected', 'error'); return; }
 
             showToast('Saving transactions...');

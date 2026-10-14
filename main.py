@@ -31,7 +31,7 @@ app = FastAPI(title="DhanSutra API")
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SECRET_KEY
-)
+);
 
 app.include_router(auth_router)
 app.include_router(finance_router)

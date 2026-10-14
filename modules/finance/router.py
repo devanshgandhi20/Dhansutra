@@ -304,27 +304,36 @@ def create_transfer(
     if not from_acc or not to_acc:
         raise HTTPException(status_code=404, detail="Source or destination account not found")
 
-    # 1. Record the Ledger Transfer (automatically increments calculated current_balance)
+    tx_amount = Decimal(str(data.amount))
+
+    # 1. Record the Ledger Transfer (Ensure account_id is populated)
     transfer_tx = Transaction(
         user_id=current_user.id,
-        type=TransactionType.TRANSFER,
-        amount=data.amount,
-        date=data.date,
-        description=data.description,
+        account_id=from_acc.id,
         from_account_id=from_acc.id,
         to_account_id=to_acc.id,
+        type=TransactionType.TRANSFER,
+        amount=tx_amount,
+        date=data.date,
+        description=data.description,
         source="MANUAL",
     )
     db.add(transfer_tx)
 
-    # 2. Update current_market_value if an INVESTMENT account is involved
+    # 2. Update current_balance if your table stores it
+    if hasattr(from_acc, "current_balance") and from_acc.current_balance is not None:
+        from_acc.current_balance -= tx_amount
+    if hasattr(to_acc, "current_balance") and to_acc.current_balance is not None:
+        to_acc.current_balance += tx_amount
+
+    # 3. Synchronize current_market_value for INVESTMENT accounts
     if getattr(to_acc, "type", None) == AccountType.INVESTMENT:
-        current_mv = getattr(to_acc, "current_market_value", None) or 0
-        to_acc.current_market_value = current_mv + data.amount
+        current_mv = getattr(to_acc, "current_market_value", None) or Decimal("0")
+        to_acc.current_market_value = current_mv + tx_amount
 
     if getattr(from_acc, "type", None) == AccountType.INVESTMENT:
-        current_mv = getattr(from_acc, "current_market_value", None) or 0
-        from_acc.current_market_value = max(0, current_mv - data.amount)
+        current_mv = getattr(from_acc, "current_market_value", None) or Decimal("0")
+        from_acc.current_market_value = max(Decimal("0"), current_mv - tx_amount)
 
     db.commit()
     db.refresh(transfer_tx)
@@ -344,11 +353,45 @@ def delete_transaction(
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
+    tx_amount = Decimal(str(tx.amount))
+
+    # --- 1. REVERSE TRANSFERS (BOTH LEGS) ---
+    if tx.type == TransactionType.TRANSFER:
+        from_id = tx.from_account_id or tx.account_id
+        to_id = tx.to_account_id
+
+        if from_id:
+            from_acc = db.query(Account).filter(Account.id == from_id, Account.user_id == current_user.id).first()
+            if from_acc:
+                if hasattr(from_acc, "current_balance") and from_acc.current_balance is not None:
+                    from_acc.current_balance += tx_amount
+                if getattr(from_acc, "type", None) == AccountType.INVESTMENT:
+                    current_mv = getattr(from_acc, "current_market_value", None) or Decimal("0")
+                    from_acc.current_market_value = current_mv + tx_amount
+
+        if to_id:
+            to_acc = db.query(Account).filter(Account.id == to_id, Account.user_id == current_user.id).first()
+            if to_acc:
+                if hasattr(to_acc, "current_balance") and to_acc.current_balance is not None:
+                    to_acc.current_balance -= tx_amount
+                if getattr(to_acc, "type", None) == AccountType.INVESTMENT:
+                    current_mv = getattr(to_acc, "current_market_value", None) or Decimal("0")
+                    to_acc.current_market_value = max(Decimal("0"), current_mv - tx_amount)
+
+    # --- 2. REVERSE STANDARD EXPENSES / INCOMES ---
+    else:
+        if tx.account_id:
+            acc = db.query(Account).filter(Account.id == tx.account_id, Account.user_id == current_user.id).first()
+            if acc and hasattr(acc, "current_balance") and acc.current_balance is not None:
+                if tx.type == TransactionType.EXPENSE:
+                    acc.current_balance += tx_amount
+                elif tx.type == TransactionType.INCOME:
+                    acc.current_balance -= tx_amount
+
+    # --- 3. REMOVE RECORD ---
     db.delete(tx)
     db.commit()
     return None
-
-
 # -------------------------------------------------------------
 # BUDGETS
 # -------------------------------------------------------------
