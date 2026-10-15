@@ -1,23 +1,5 @@
 /* DhanSutra - Financial Calendar & Bulk Ledger Module */
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initCalendarEvents);
-} else {
-  initCalendarEvents();
-}
-
-registerHook('renderLedger', decorateLedger);
-registerHook('renderUI', renderCalendar);
-registerHook('switchTab', tabId => {
-  const tab = $('tab-calendar');
-  if (tab) tab.style.display = tabId === 'calendar' ? 'block' : 'none';
-  const bar = $('bulkBar');
-  if (bar) bar.style.visibility = tabId === 'ledger' ? 'visible' : 'hidden';
-  if (tabId === 'calendar') {
-    renderCalendar();
-  }
-});
-
 (function () {
   const $ = id => document.getElementById(id);
   const recs = () => (typeof recurringList !== 'undefined' ? recurringList : []);
@@ -33,7 +15,8 @@ registerHook('switchTab', tabId => {
     .bulk-cb { width:16px; height:16px; margin-right:8px; flex-shrink:0; cursor:pointer; accent-color:var(--palace-teal); }
     .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
     .cal-dow { text-align:center; font-size:11px; font-weight:700; color:var(--text-muted); padding:4px 0; }
-    .cal-cell { min-height:62px; padding:4px; text-align:left; background:var(--surface-subtle); border:1px solid var(--border-subtle); border-radius:8px; cursor:pointer; color:var(--text-main); font-family:inherit; display:flex; flex-direction:column; gap:1px; overflow:hidden; }
+    .cal-cell { min-height:62px; padding:4px; text-align:left; background:var(--surface-subtle); border:1px solid var(--border-subtle); border-radius:8px; cursor:pointer; color:var(--text-main); font-family:inherit; display:flex; flex-direction:column; gap:1px; overflow:hidden; transition:border-color 0.15s ease, background 0.15s ease; }
+    .cal-cell:hover:not(.blank) { border-color:var(--palace-teal); background:var(--surface-hover); }
     .cal-cell.blank { visibility:hidden; cursor:default; }
     .cal-cell.today { border-color:var(--saffron); }
     .cal-cell.sel { border-color:var(--palace-teal); box-shadow:0 0 0 2px var(--palace-teal) inset; }
@@ -183,18 +166,21 @@ registerHook('switchTab', tabId => {
 
   // Calendar Navigation & DOM
   const dNav = document.querySelector('.desktop-nav');
-  if (dNav) dNav.insertAdjacentHTML('beforeend', `<button class="nav-link" onclick="switchTab('calendar')">Calendar</button>`);
+  if (dNav && !$('navCalDesktop')) {
+    dNav.insertAdjacentHTML('beforeend', `<button class="nav-link" id="navCalDesktop" onclick="switchTab('calendar')">Calendar</button>`);
+  }
   const mobNav = document.querySelector('.mobile-bottom-nav');
-  if (mobNav) {
+  if (mobNav && !$('navCalMobile')) {
     const mobItem = document.createElement('button');
     mobItem.className = 'mob-item';
+    mobItem.id = 'navCalMobile';
     mobItem.innerHTML = '<span>📅</span><span>Calendar</span>';
     mobItem.onclick = () => switchTab('calendar', mobItem);
     mobNav.insertBefore(mobItem, mobNav.lastElementChild);
   }
 
   const mainContainer = document.querySelector('main.container');
-  if (mainContainer) {
+  if (mainContainer && !$('tab-calendar')) {
     mainContainer.insertAdjacentHTML('beforeend', `
       <section id="tab-calendar" style="display:none;">
         <div class="card">
@@ -215,12 +201,13 @@ registerHook('switchTab', tabId => {
   }
 
   let calSel = null;
+  let calNavBusy = false;
   const monthKey = () => formatMonthStr(selectedMonth);
 
   function scheduledByDay() {
     const key = monthKey(), out = {};
     recs().forEach(r => {
-      let d = r.next_date, guard = 0;
+      let d = String(r.next_date || '').split('T')[0], guard = 0;
       while (d && d.slice(0, 7) <= key && guard++ < 60) {
         if (d.startsWith(key)) (out[d] = out[d] || []).push(r);
         d = advanceDate(d, r.frequency);
@@ -232,8 +219,9 @@ registerHook('switchTab', tabId => {
   function dayData() {
     const key = monthKey(), out = {};
     transactions.forEach(t => {
-      if (!String(t.date).startsWith(key)) return;
-      const o = out[t.date] = out[t.date] || { inc: 0, exp: 0, list: [] };
+      const cleanDate = String(t.date || '').split('T')[0];
+      if (!cleanDate.startsWith(key)) return;
+      const o = out[cleanDate] = out[cleanDate] || { inc: 0, exp: 0, list: [] };
       const ty = (t.type || '').toUpperCase(), a = Number(t.amount) || 0;
       if (ty === 'INCOME') o.inc += a; else if (ty === 'EXPENSE') o.exp += a;
       o.list.push(t);
@@ -253,7 +241,7 @@ registerHook('switchTab', tabId => {
     if ($('calSummary')) {
       $('calSummary').textContent = `In ${formatINR(inc)} | Out ${formatINR(exp)}` + (Object.keys(sched).length ? ` | Scheduled still to come this month: ${upcoming >= 0 ? '+' : '−'}${formatINR(Math.abs(upcoming))}` : '');
     }
-    if (!calSel || !calSel.startsWith(key)) calSel = today.startsWith(key) ? today : null;
+    if (!calSel || !calSel.startsWith(key)) calSel = today.startsWith(key) ? today : `${key}-01`;
     let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="cal-dow">${d}</div>`).join('');
     for (let i = 0; i < lead; i++) html += '<div class="cal-cell blank" aria-hidden="true"></div>';
     for (let d = 1; d <= days; d++) {
@@ -277,15 +265,16 @@ registerHook('switchTab', tabId => {
       body.innerHTML = '<div class="empty-state"><span class="caption-text">Tap a date to see its transactions and scheduled items.</span></div>';
       return;
     }
-    $('calDayTitle').textContent = new Date(calSel + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+    $('calDayTitle').textContent = new Date(calSel + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const txs = (data[calSel] || { list: [] }).list, sc = sched[calSel] || [];
     let html = '';
     sc.forEach(r => {
       const isExp = (r.type || '').toUpperCase() === 'EXPENSE';
+      const rNext = String(r.next_date || '').split('T')[0];
       html += `<div class="ins-row" style="display:flex; justify-content:space-between; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border-subtle);">
         <span>⏱ ${sanitize(r.description)} <span class="caption-text">— scheduled (${sanitize(r.frequency)})</span></span>
         <span style="display:flex; align-items:center; gap:0.4rem;"><strong class="${isExp ? 'amount-neg' : 'amount-pos'}">${formatINR(r.amount)}</strong>
-        ${calSel === r.next_date ? `<button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring(${r.id})">Add now</button>` : ''}</span></div>`;
+        ${calSel === rNext ? `<button class="btn btn-secondary btn-pill" style="padding:0.2rem 0.55rem; font-size:11px;" onclick="postRecurring(${r.id})">Add now</button>` : ''}</span></div>`;
     });
     txs.forEach(t => {
       const ty = (t.type || '').toUpperCase(), cat = categories.find(c => c.id === t.category_id);
@@ -297,29 +286,38 @@ registerHook('switchTab', tabId => {
     body.innerHTML = html || '<div class="empty-state"><span class="caption-text">Nothing recorded or scheduled on this day.</span></div>';
   }
 
-  async function gotoMonth(target) {
-    const v = formatMonthStr(target);
-    const sel2 = $('monthSelector');
-    if (sel2) {
-      // Expand options dynamically if outside the initial 1-year selector range
-      if (!Array.from(sel2.options).some(o => o.value === v)) {
-        const opt = document.createElement('option');
-        opt.value = v;
-        opt.textContent = target.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-        sel2.appendChild(opt);
+  async function gotoMonth(target, pickToday = false) {
+    if (calNavBusy) return;
+    calNavBusy = true;
+    const navBtns = [$('calPrev'), $('calToday'), $('calNext')].filter(Boolean);
+    navBtns.forEach(b => b.disabled = true);
+
+    try {
+      const v = formatMonthStr(target);
+      const sel2 = $('monthSelector');
+      if (sel2) {
+        if (!Array.from(sel2.options).some(o => o.value === v)) {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = target.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+          sel2.appendChild(opt);
+        }
+        sel2.value = v;
       }
-      sel2.value = v;
+      selectedMonth = target;
+      calSel = pickToday ? todayStr() : `${v}-01`;
+      await refreshData(true);
+      renderCalendar();
+    } finally {
+      calNavBusy = false;
+      navBtns.forEach(b => b.disabled = false);
     }
-    selectedMonth = target;
-    calSel = null; // Reset picked day to default
-    await refreshData();
-    renderCalendar();
   }
 
   function initCalendarEvents() {
     const prev = $('calPrev');
     if (prev) {
-      prev.onclick = (e) => {
+      prev.onclick = e => {
         e.preventDefault();
         gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
       };
@@ -327,7 +325,7 @@ registerHook('switchTab', tabId => {
 
     const next = $('calNext');
     if (next) {
-      next.onclick = (e) => {
+      next.onclick = e => {
         e.preventDefault();
         gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
       };
@@ -335,16 +333,15 @@ registerHook('switchTab', tabId => {
 
     const todayBtn = $('calToday');
     if (todayBtn) {
-      todayBtn.onclick = async (e) => {
+      todayBtn.onclick = e => {
         e.preventDefault();
-        calSel = todayStr();
-        await gotoMonth(startOfMonth(new Date()));
+        gotoMonth(startOfMonth(new Date()), true);
       };
     }
 
     const grid = $('calGrid');
     if (grid) {
-      grid.onclick = (e) => {
+      grid.onclick = e => {
         const b = e.target.closest('.cal-cell[data-d]');
         if (!b || b.classList.contains('blank')) return;
         calSel = b.dataset.d;
@@ -353,24 +350,21 @@ registerHook('switchTab', tabId => {
     }
   }
 
-  if ($('calPrev')) $('calPrev').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
-  if ($('calNext')) $('calNext').onclick = () => gotoMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
-  if ($('calToday')) $('calToday').onclick = async () => { await gotoMonth(startOfMonth(new Date())); calSel = todayStr(); renderCalendar(); };
-  if ($('calGrid')) {
-    $('calGrid').onclick = e => {
-      const b = e.target.closest('.cal-cell[data-d]');
-      if (!b) return;
-      calSel = b.dataset.d;
-      renderCalendar();
-    };
-  }
+  initCalendarEvents();
 
   registerHook('renderLedger', decorateLedger);
   registerHook('renderUI', renderCalendar);
   registerHook('switchTab', tabId => {
     const tab = $('tab-calendar');
     if (tab) tab.style.display = tabId === 'calendar' ? 'block' : 'none';
+    const dBtn = $('navCalDesktop');
+    if (dBtn) dBtn.classList.toggle('active', tabId === 'calendar');
+    const mBtn = $('navCalMobile');
+    if (mBtn) mBtn.classList.toggle('active', tabId === 'calendar');
     const bar = $('bulkBar');
     if (bar) bar.style.visibility = tabId === 'ledger' ? 'visible' : 'hidden';
+    if (tabId === 'calendar') {
+      renderCalendar();
+    }
   });
 })();

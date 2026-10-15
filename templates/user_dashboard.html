@@ -327,6 +327,34 @@
             color: var(--terracotta);
         }
 
+        .delta-stale {
+            background: rgba(217, 93, 8, 0.14);
+            color: var(--saffron);
+            border: 1px solid rgba(217, 93, 8, 0.3);
+        }
+
+        /* Stale data indicator styles */
+        .is-stale-value {
+            opacity: 0.65;
+            border-bottom: 1.5px dashed var(--saffron);
+            display: inline-block;
+        }
+
+        .stale-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: var(--radius-pill);
+            background: rgba(217, 93, 8, 0.12);
+            color: var(--saffron);
+            border: 1px solid rgba(217, 93, 8, 0.25);
+            vertical-align: middle;
+            margin-left: 6px;
+        }
+
         .metrics-triad {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -390,6 +418,104 @@
                 align-items: flex-start;
                 gap: 0.85rem;
             }
+        }
+
+        /* Assets vs Liabilities Enhanced UI */
+        .al-summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .al-summary-box {
+            padding: 0.75rem 0.9rem;
+            border-radius: 10px;
+            background: var(--surface-subtle);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .al-summary-box.assets {
+            border-left: 3.5px solid var(--emerald);
+        }
+
+        .al-summary-box.liabs {
+            border-left: 3.5px solid var(--terracotta);
+        }
+
+        .al-ratio-bar {
+            height: 8px;
+            background: var(--surface-subtle);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+            display: flex;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .al-section-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            margin: 0.75rem 0 0.45rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .al-item-row {
+            padding: 0.6rem 0.75rem;
+            border-radius: 8px;
+            background: var(--surface-subtle);
+            border: 1px solid var(--border-subtle);
+            margin-bottom: 0.45rem;
+            transition: border-color 0.15s ease;
+        }
+
+        .al-item-row:hover {
+            border-color: var(--border);
+        }
+
+        .al-item-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .al-item-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .al-item-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .al-mini-track {
+            height: 4px;
+            background: var(--border-subtle);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+            margin-top: 6px;
+        }
+
+        .al-mini-fill {
+            height: 100%;
+            border-radius: inherit;
         }
 
         .accordion-group {
@@ -800,7 +926,7 @@
             <div class="card hero-networth-card">
                 <div>
                     <span class="caption-text" style="font-weight: 700; text-transform: uppercase;">Total Net
-                        Worth</span>
+                        Worth <span id="staleBadgeNetWorth"></span></span>
                     <div class="hero-title" style="margin: 4px 0;" id="heroNetWorth">₹ 0.00</div>
                     <span class="caption-text" id="heroNetWorthFormula">Liquid Assets + Investments − Outstanding
                         Liabilities · <strong>as of today</strong></span>
@@ -811,22 +937,26 @@
             </div>
             <div class="metrics-triad">
                 <div class="card" style="margin: 0; padding: 1.15rem;">
-                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Income</span>
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Income <span
+                            class="stale-tx-slot"></span></span>
                     <div class="card-value amount-pos" id="valMonthlyIncome">₹ 0.00</div>
-                    <span class="caption-text">Selected month</span>
+                    <span class="caption-text" id="subMonthlyIncome">Selected month</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
-                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Expenses</span>
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Expenses <span
+                            class="stale-tx-slot"></span></span>
                     <div class="card-value amount-neg" id="valMonthlyExpense">₹ 0.00</div>
-                    <span class="caption-text">Selected month</span>
+                    <span class="caption-text" id="subMonthlyExpense">Selected month</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
-                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Saved</span>
+                    <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Saved <span
+                            class="stale-tx-slot"></span></span>
                     <div class="card-value amount-neutral" id="valMonthlySurplus">₹ 0.00</div>
-                    <span class="caption-text">Selected month</span>
+                    <span class="caption-text" id="subMonthlySurplus">Selected month</span>
                 </div>
             </div>
-            <h2 class="section-title" style="margin-bottom: 0.75rem;">Accounts & Investment Positions</h2>
+            <h2 class="section-title" style="margin-bottom: 0.75rem;">Accounts & Investment Positions <span
+                    id="staleBadgeAccounts"></span></h2>
             <div class="accounts-grid" id="accountsSummaryContainer"></div>
             <div class="card">
                 <div class="card-header">
@@ -840,13 +970,14 @@
             <div class="dashboard-grid">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="section-title">Assets vs Liabilities</h2>
+                        <h2 class="section-title">Assets vs Liabilities <span id="staleBadgeAssetsLiab"></span></h2>
+                        <span class="pill" id="assetsLiabRatioPill">Net Positive</span>
                     </div>
                     <div id="assetsLiabContainer"></div>
                 </div>
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="section-title">Upcoming & Due</h2>
+                        <h2 class="section-title">Upcoming & Due <span id="staleBadgeRecurring"></span></h2>
                         <button class="btn btn-secondary btn-pill" style="padding:0.3rem 0.75rem; font-size:11px;"
                             onclick="openRecurringModal()">+ Recurring</button>
                     </div>
@@ -858,13 +989,13 @@
                 <div>
                     <div class="card">
                         <div class="card-header">
-                            <h2 class="section-title">Where Did My Money Go?</h2>
+                            <h2 class="section-title">Where Did My Money Go? <span class="stale-tx-slot"></span></h2>
                         </div>
                         <div id="rankedOutflowContainer"></div>
                     </div>
                     <div class="card">
                         <div class="card-header">
-                            <h2 class="section-title">Month-over-Month Delta</h2>
+                            <h2 class="section-title">Month-over-Month Delta <span id="staleBadgeMoM"></span></h2>
                         </div>
                         <div style="overflow-x: auto;">
                             <table style="width:100%; border-collapse: collapse;" class="caption-text">
@@ -884,7 +1015,7 @@
                 <div>
                     <div class="card" style="border: 1px solid var(--gold);">
                         <div class="card-header">
-                            <h2 class="section-title">Emergency Fund Runway</h2>
+                            <h2 class="section-title">Emergency Fund Runway <span id="staleBadgeEmergency"></span></h2>
                             <span class="pill" id="efRunwayPill">0.0 Mo Runway</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: baseline;">
@@ -903,7 +1034,7 @@
                     </div>
                     <div class="card">
                         <div class="card-header">
-                            <h2 class="section-title">Financial Health Quotient</h2>
+                            <h2 class="section-title">Financial Health Quotient <span id="staleBadgeHealth"></span></h2>
                             <span class="pill" id="healthGradePill">Evaluating</span>
                         </div>
                         <div class="hero-title" style="margin-bottom: 0.75rem;" id="healthScoreDisplay">-- / 100</div>
@@ -941,7 +1072,7 @@
         <section id="tab-ledger" style="display: none;">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="section-title">Transaction Ledger</h2>
+                    <h2 class="section-title">Transaction Ledger <span class="stale-tx-slot"></span></h2>
                     <button class="btn btn-primary" onclick="openTransactionModal()">+ Add Transaction</button>
                 </div>
                 <div class="filter-bar">
@@ -964,7 +1095,7 @@
         <section id="tab-budgets" style="display: none;">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="section-title">Spending Budgets</h2>
+                    <h2 class="section-title">Spending Budgets <span id="staleBadgeBudgets"></span></h2>
                     <span class="caption-text" id="lblDailySafeSpend">Safe: ₹ 0.00/day</span>
                 </div>
                 <div class="metrics-triad" style="margin-bottom: 1.25rem;">
@@ -993,7 +1124,7 @@
         <section id="tab-goals" style="display: none;">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="section-title">Savings Targets & Portfolios</h2>
+                    <h2 class="section-title">Savings Targets & Portfolios <span id="staleBadgeGoals"></span></h2>
                 </div>
                 <div id="goalsContainer"></div>
                 <form id="formNewGoal"
@@ -1291,12 +1422,13 @@
                 <button class="btn btn-ghost" onclick="closeModal('modalGmail')" aria-label="Close dialog">✕</button>
             </div>
             <div class="form-group">
-                <label for="gmailScriptUrl">Apps Script Endpoint URL</label>
-                <input type="text" id="gmailScriptUrl" class="form-control"
+                <label for="gmailScriptUrl">Apps Script Endpoint URL (HTTPS Required)</label>
+                <input type="url" id="gmailScriptUrl" class="form-control"
                     placeholder="https://script.google.com/macros/s/.../exec">
             </div>
             <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                <button class="btn btn-primary" onclick="fetchGmailTransactions()">Fetch Incoming Receipts</button>
+                <button type="button" class="btn btn-primary" id="btnGmailFetch"
+                    onclick="fetchGmailTransactions()">Fetch Incoming Receipts</button>
             </div>
             <div id="gmailStagingWrap" style="display: none;">
                 <span class="caption-text" style="font-weight: 700; margin-bottom: 0.5rem;">Review Detected Receipts
@@ -1304,7 +1436,8 @@
                 <div id="stagingItemsList"
                     style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; margin-bottom: 1rem;">
                 </div>
-                <button class="btn btn-primary" style="width: 100%;" onclick="commitStagedTransactions()">Commit
+                <button type="button" class="btn btn-primary" id="btnGmailCommit" style="width: 100%;"
+                    onclick="commitStagedTransactions()">Commit
                     Selected Entries</button>
             </div>
         </div>
@@ -1574,6 +1707,19 @@
         let lastRefreshToastAt = 0;
         let trendCache = {}, trendGen = 0, prevTransactions = null;
 
+        // Issue #2: Track freshness of each dashboard resource so failed refreshes visibly mark stale figures
+        const dataFreshness = {
+            accounts: true,
+            transactions: true,
+            goals: true,
+            budgets: true,
+            budgetList: true,
+            summary: true,
+            prevTransactions: true,
+            recurring: true,
+            burn: true
+        };
+
         function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
         function round2(v) { return Math.round((Number(v) || 0) * 100) / 100; }
         function pctOf(b) { const l = Number(b.limit_amount) || 0; return b.usage_percentage ?? (l > 0 ? (Number(b.spent_amount) || 0) / l * 100 : 0); }
@@ -1613,7 +1759,6 @@
 
         function advanceDate(dateStr, frequency) {
             if (!dateStr) return '';
-            // Strip time component if present
             const clean = String(dateStr).split('T')[0];
             const [y, m, d] = clean.split('-').map(Number);
             const date = new Date(y, m - 1, d);
@@ -1624,7 +1769,6 @@
             } else if (freq === 'YEARLY') {
                 date.setFullYear(date.getFullYear() + 1);
             } else {
-                // Default MONTHLY: handle month length differences safely
                 const dayOfMonth = date.getDate();
                 date.setDate(1);
                 date.setMonth(date.getMonth() + 1);
@@ -1797,7 +1941,6 @@
             const seq = ++refreshSeq;
             const mStr = formatMonthStr(selectedMonth);
             const prevMoStr = formatMonthStr(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
-            // Also fetch 2 months back for 3-month burn average
             const burnMonths = [0, 1, 2].map(i => formatMonthStr(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1)));
             const burnFetches = burnMonths.map(m => API.getTransactions({ month: m }));
 
@@ -1820,9 +1963,8 @@
                 const authIssue = failed.some(r => r.reason && r.reason.kind === 'auth');
                 if (!authIssue && Date.now() - lastRefreshToastAt > 6000) {
                     lastRefreshToastAt = Date.now();
-                    showToast('Some dashboard elements could not be updated.', 'error');
+                    showToast('Some dashboard elements could not be updated. Stale figures are marked.', 'error');
                 }
-                if (failed.length === results.length) return false;
             }
 
             const val = (i, check) => (results[i].status === 'fulfilled' && check(results[i].value)) ? results[i].value : undefined;
@@ -1831,13 +1973,27 @@
                 bList = val(4, isArr), summary = val(5, v => v && typeof v === 'object'),
                 prevTx = val(6, isArr), recs = val(7, isArr);
 
-            // Collect 3-month burn transactions
+            // Track freshness per section
+            dataFreshness.accounts = accs !== undefined;
+            dataFreshness.transactions = txs !== undefined;
+            dataFreshness.goals = g !== undefined;
+            dataFreshness.budgets = bStatus !== undefined;
+            dataFreshness.budgetList = bList !== undefined;
+            dataFreshness.summary = summary !== undefined;
+            dataFreshness.prevTransactions = prevTx !== undefined;
+            dataFreshness.recurring = recs !== undefined;
+
             const burnTxs = [];
+            let allBurnOk = true;
             for (let i = 8; i < 11; i++) {
                 const v = val(i, isArr);
                 if (v) burnTxs.push(...v);
+                else allBurnOk = false;
             }
-            last3MoTransactions = burnTxs;
+            dataFreshness.burn = allBurnOk;
+            if (allBurnOk || !last3MoTransactions.length) {
+                last3MoTransactions = burnTxs;
+            }
 
             if (accs !== undefined) accounts = accs;
             if (txs !== undefined) transactions = txs;
@@ -1846,10 +2002,10 @@
             if (bList !== undefined) lastBudgetList = bList;
             if (summary !== undefined) dashboardData = summary;
             if (recs !== undefined) recurringList = recs;
-            prevTransactions = prevTx === undefined ? null : prevTx;
+            if (prevTx !== undefined) prevTransactions = prevTx;
+
             if (txs !== undefined) trendCache[formatMonthStr(selectedMonth)] = txs;
             if (prevTx !== undefined) trendCache[prevMoStr] = prevTx;
-            // Also cache burn months for trend
             for (let i = 0; i < 3; i++) {
                 const v = val(8 + i, isArr);
                 if (v) trendCache[burnMonths[i]] = v;
@@ -1866,17 +2022,68 @@
             return failed.length === 0;
         }
 
-        // Keep track of IDs processed in this session so it never runs twice
+        function renderFreshnessIndicators() {
+            const badgeHtml = '<span class="stale-badge" title="Refresh failed — showing last known data">⚠️ Stale</span>';
+            const setBadge = (id, isFresh) => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = isFresh ? '' : badgeHtml;
+            };
+
+            setBadge('staleBadgeNetWorth', dataFreshness.summary);
+            setBadge('staleBadgeAccounts', dataFreshness.summary);
+            setBadge('staleBadgeAssetsLiab', dataFreshness.summary);
+            setBadge('staleBadgeRecurring', dataFreshness.recurring);
+            setBadge('staleBadgeMoM', dataFreshness.transactions && dataFreshness.prevTransactions);
+            setBadge('staleBadgeEmergency', dataFreshness.goals && dataFreshness.burn);
+            setBadge('staleBadgeHealth', dataFreshness.transactions && dataFreshness.budgets && dataFreshness.goals);
+            setBadge('staleBadgeBudgets', dataFreshness.budgets && dataFreshness.budgetList);
+            setBadge('staleBadgeGoals', dataFreshness.goals);
+
+            document.querySelectorAll('.stale-tx-slot').forEach(el => {
+                el.innerHTML = dataFreshness.transactions ? '' : badgeHtml;
+            });
+
+            const toggleStaleVal = (id, isFresh) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('is-stale-value', !isFresh);
+            };
+
+            toggleStaleVal('heroNetWorth', dataFreshness.summary);
+            toggleStaleVal('valMonthlyIncome', dataFreshness.transactions);
+            toggleStaleVal('valMonthlyExpense', dataFreshness.transactions);
+            toggleStaleVal('valMonthlySurplus', dataFreshness.transactions);
+            toggleStaleVal('efCurrentTotal', dataFreshness.goals);
+            toggleStaleVal('healthScoreDisplay', dataFreshness.transactions && dataFreshness.budgets && dataFreshness.goals);
+            toggleStaleVal('budgetTotalLimit', dataFreshness.budgets);
+            toggleStaleVal('budgetTotalSpent', dataFreshness.budgets);
+            toggleStaleVal('budgetTotalRemaining', dataFreshness.budgets);
+
+            // Don't label uncertain Net Worth data as "as of today" or "Server-Reconciled"
+            const nwFormula = document.getElementById('heroNetWorthFormula');
+            if (nwFormula) {
+                nwFormula.innerHTML = dataFreshness.summary
+                    ? 'Liquid Assets + Investments − Outstanding Liabilities · <strong>as of today</strong>'
+                    : 'Liquid Assets + Investments − Outstanding Liabilities · <strong style="color:var(--saffron);">last known value — refresh failed</strong>';
+            }
+
+            const subLabel = dataFreshness.transactions ? 'Selected month' : 'Selected month (stale)';
+            ['subMonthlyIncome', 'subMonthlyExpense', 'subMonthlySurplus'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = subLabel;
+            });
+        }
+
+        // Issue #1: Confirmed recurring processing & retry safety
         const autoProcessedRecurringIds = new Set();
+        const inFlightRecurringIds = new Set();
 
         async function processDueRecurringAutomatically() {
             if (!Array.isArray(recurringList) || !recurringList.length) return;
             const today = todayStr();
 
-            // 1. Find items whose next_date is today or in the past
             const dueItems = recurringList.filter(r => {
                 const clean = String(r.next_date || '').split('T')[0];
-                return clean && clean <= today && !autoProcessedRecurringIds.has(r.id);
+                return clean && clean <= today && !autoProcessedRecurringIds.has(r.id) && !inFlightRecurringIds.has(r.id);
             });
 
             if (!dueItems.length) return;
@@ -1888,7 +2095,7 @@
                 const itemAmount = Number(item.amount);
                 const itemDesc = (item.description || '').trim().toLowerCase();
 
-                // 2. DUPLICATE CHECK: Did we already record a transaction for this exact date?
+                // Duplicate guard: check if transaction is already recorded for this scheduled date
                 const alreadyExists = transactions.some(t => {
                     const tDate = String(t.date || '').split('T')[0];
                     const tAmount = Number(t.amount);
@@ -1897,25 +2104,31 @@
                 });
 
                 if (alreadyExists) {
-                    // Already logged! Do NOT log another transaction.
-                    // Just advance the schedule on the backend if it was stuck.
-                    autoProcessedRecurringIds.add(item.id);
+                    inFlightRecurringIds.add(item.id);
                     try {
-                        await API.executeRecurring(item.id);
+                        const advRes = await API.executeRecurring(item.id);
+                        if (advRes && advRes.ok) {
+                            autoProcessedRecurringIds.add(item.id);
+                        }
                     } catch (err) {
                         console.warn('Could not advance next_date for already posted item:', err);
+                    } finally {
+                        inFlightRecurringIds.delete(item.id);
                     }
                     continue;
                 }
 
-                // 3. Mark as processed in session memory before calling API
-                autoProcessedRecurringIds.add(item.id);
-
+                inFlightRecurringIds.add(item.id);
                 try {
-                    await postRecurringWithDate(item, targetDate);
-                    processedCount++;
+                    const ok = await postRecurringWithDate(item, targetDate);
+                    if (ok) {
+                        autoProcessedRecurringIds.add(item.id);
+                        processedCount++;
+                    }
                 } catch (e) {
                     console.error('Failed auto-posting recurring item:', item, e);
+                } finally {
+                    inFlightRecurringIds.delete(item.id);
                 }
             }
 
@@ -1935,36 +2148,50 @@
 
                 if (!fromId || !toId) {
                     console.warn('Transfer requires both accounts');
-                    return;
+                    return false;
                 }
 
                 res = await API.createTransfer({
                     amount: Number(item.amount),
-                    date: targetDate, // Uses scheduled date (e.g., 2026-10-10), NOT todayStr()!
+                    date: targetDate,
                     description: item.description || 'SIP Transfer',
                     from_account_id: parseInt(fromId),
                     to_account_id: parseInt(toId),
                     type: 'TRANSFER'
                 });
-
-                if (res && res.ok) {
-                    await API.executeRecurring(item.id);
-                }
             } else {
-                // Standard expense or income
+                const account_id = parseInt(item.account_id);
+                const category_id = parseInt(item.category_id);
+                if (!account_id || !category_id) {
+                    console.warn('Recurring transaction requires valid account_id and category_id');
+                    return false;
+                }
                 const payload = {
                     type: itemType,
                     amount: Number(item.amount),
-                    date: targetDate, // Uses scheduled date!
+                    date: targetDate,
                     description: item.description,
-                    account_id: parseInt(item.account_id),
-                    category_id: parseInt(item.category_id)
+                    account_id,
+                    category_id
                 };
                 res = await API.createTransaction(payload);
-                if (res && res.ok) {
-                    await API.executeRecurring(item.id);
-                }
             }
+
+            if (!res || !res.ok) {
+                return false;
+            }
+
+            // Transaction is now persisted; advance the recurring schedule
+            try {
+                const execRes = await API.executeRecurring(item.id);
+                if (!execRes || !execRes.ok) {
+                    console.warn('Transaction saved, but advancing recurring schedule failed for item:', item.id);
+                }
+            } catch (err) {
+                console.warn('Error advancing recurring schedule after transaction save:', err);
+            }
+
+            return true;
         }
 
         let last3MoTransactions = [];
@@ -2037,7 +2264,7 @@
 
             suggList.querySelectorAll('.sugg-item').forEach(item => {
                 item.onmousedown = (e) => {
-                    e.preventDefault(); // Prevents input blur on mobile touch
+                    e.preventDefault();
                     descInput.value = item.dataset.val;
                     suggList.style.display = 'none';
                 };
@@ -2148,6 +2375,7 @@
             document.getElementById('valMonthlyIncome').textContent = formatINR(ms.income);
             document.getElementById('valMonthlyExpense').textContent = formatINR(ms.expense);
             document.getElementById('valMonthlySurplus').textContent = formatINR(ms.savings);
+            renderFreshnessIndicators();
             renderHealthScore(ms.rate, ms.income, ms.expense);
             renderNetWorthTrend();
             renderNetWorthDelta();
@@ -2164,6 +2392,8 @@
 
         function renderAccountCards(accountSummaries = []) {
             const container = document.getElementById('accountsSummaryContainer');
+            const staleCls = dataFreshness.summary ? '' : 'is-stale-value';
+            const statusSuffix = dataFreshness.summary ? '' : ' · Stale';
             container.innerHTML = accountSummaries.map(a => {
                 const accType = String(a.type || '').toUpperCase();
                 const isLiability = accType === 'CREDIT_CARD';
@@ -2171,8 +2401,6 @@
                 const balance = Number(a.current_balance ?? a.starting_balance ?? 0);
                 let val = balance;
 
-                // For investment accounts: show current_market_value ONLY if positive,
-                // otherwise show the actual transferred cash/invested balance.
                 if (accType === 'INVESTMENT') {
                     const mv = Number(a.current_market_value);
                     if (!isNaN(mv) && mv > 0) {
@@ -2188,10 +2416,10 @@
                     <span class="caption-text" style="font-weight:700;">${sanitize(a.name)}</span>
                     <span class="pill">${accType.replace(/_/g, ' ')}</span>
                 </div>
-                <div class="card-value" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
+                <div class="card-value ${staleCls}" style="margin: 4px 0; font-size: 20px; ${isLiability ? 'color:var(--terracotta)' : ''}">
                     ${formatINR(val)}
                 </div>
-                <span class="caption-text">${accType === 'INVESTMENT' ? (Number(a.current_market_value) > 0 ? 'Market Value' : 'Invested Capital') : 'Reconciled Balance'}</span>
+                <span class="caption-text">${accType === 'INVESTMENT' ? (Number(a.current_market_value) > 0 ? 'Market Value' : 'Invested Capital') : (dataFreshness.summary ? 'Reconciled Balance' : 'Last Known Balance')}${statusSuffix}</span>
             </div>
         `;
             }).join('');
@@ -2217,12 +2445,13 @@
                 `;
                 return;
             }
+            const staleCls = dataFreshness.transactions ? '' : 'is-stale-value';
             container.innerHTML = sorted.slice(0, 5).map(([cat, amt], idx) => {
                 const pct = totalSpent > 0 ? Math.round((amt / totalSpent) * 100) : 0;
                 return `
                     <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.6rem 0.8rem; background: var(--surface-subtle); border-radius: 8px; margin-bottom: 0.5rem;">
                         <span><strong>#${idx + 1}</strong> — ${sanitize(cat)}</span>
-                        <span><strong>${formatINR(amt)}</strong> <span class="caption-text">(${pct}%)</span></span>
+                        <span><strong class="${staleCls}">${formatINR(amt)}</strong> <span class="caption-text">(${pct}%)</span></span>
                     </div>
                 `;
             }).join('');
@@ -2240,6 +2469,8 @@
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1.5rem;" class="caption-text">No comparative transactions found.</td></tr>';
                 return;
             }
+            const prevStaleCls = dataFreshness.prevTransactions ? '' : 'is-stale-value';
+            const currStaleCls = dataFreshness.transactions ? '' : 'is-stale-value';
             tbody.innerHTML = ids.map(id => {
                 const c = categories.find(x => String(x.id) === id), cu = curr[id] || 0, pr = prev[id] || 0, d = cu - pr;
                 let change = '--', cls = '';
@@ -2247,14 +2478,12 @@
                     change = pr > 0 ? `${d > 0 ? '+' : ''}${Math.round(d / pr * 100)}%` : (cu > 0 ? 'New' : '--');
                     cls = d > 0 ? 'amount-neg' : d < 0 ? 'amount-pos' : '';
                 }
-                return `<tr style="border-bottom: 1px solid var(--border-subtle);"><td style="padding: 6px 0;">${sanitize(c ? c.name : 'Uncategorized')}</td><td>${known ? formatINR(pr) : '--'}</td><td>${formatINR(cu)}</td><td class="${cls}">${change}</td></tr>`;
+                return `<tr style="border-bottom: 1px solid var(--border-subtle);"><td style="padding: 6px 0;">${sanitize(c ? c.name : 'Uncategorized')}</td><td><span class="${prevStaleCls}">${known ? formatINR(pr) : '--'}</span></td><td><span class="${currStaleCls}">${formatINR(cu)}</span></td><td class="${cls}">${change}</td></tr>`;
             }).join('');
         }
 
-        // Fix #4: true average monthly burn over last 3 months
         function avgMonthlyBurn() {
             if (!Array.isArray(last3MoTransactions) || !last3MoTransactions.length) {
-                // Fallback: use currently loaded transactions
                 const exp = transactions
                     .filter(t => (t.type || '').toUpperCase() === 'EXPENSE')
                     .reduce((s, t) => s + Number(t.amount), 0);
@@ -2283,7 +2512,7 @@
             document.getElementById('efTargetTotal').textContent = `of ${formatINR(e.target)} Target`;
             document.getElementById('efProgressBar').style.width = `${pct}%`;
             document.getElementById('efRunwayPill').textContent = `${e.months.toFixed(1)} Mo Runway`;
-            document.getElementById('efBurnText').textContent = `3-mo avg burn: ${formatINR(e.burn)}`;
+            document.getElementById('efBurnText').textContent = `3-mo avg burn: ${formatINR(e.burn)}${dataFreshness.burn ? '' : ' (stale)'}`;
         }
 
         function renderHealthScore(savingsRate, income, expenses) {
@@ -2576,7 +2805,6 @@
                 failMsg = 'Failed to save transaction';
             }
 
-            // Safety: if editing, verify type hasn't been changed
             if (editId && editingTransactionType && editingTransactionType !== currentFormType) {
                 showToast('Transaction type cannot be changed while editing.', 'error');
                 return;
@@ -2629,7 +2857,6 @@
 
             const rowsContainer = document.getElementById('budgetCategoryRows');
 
-            // Deduplicate budgets by category_id so no category renders twice
             const seenCategoryIds = new Set();
             const activeBudgets = budgets.filter(b => {
                 if (Number(b.limit_amount) <= 0) return false;
@@ -2683,7 +2910,6 @@
             for (const inp of inputs) {
                 const category_id = parseInt(inp.dataset.cid);
                 const limit_amount = round2(inp.value);
-                // Only send if > 0 (skip zero-value categories entirely)
                 if (limit_amount > 0) {
                     if (!(await okOrToast(await API.setBudget({ category_id, month: mStr, limit_amount }), 'Failed to save budgets'))) return;
                 }
@@ -2698,6 +2924,7 @@
                 container.innerHTML = `<div class="empty-state"><p class="body-text">No savings targets created yet.</p></div>`;
                 return;
             }
+            const staleCls = dataFreshness.goals ? '' : 'is-stale-value';
             container.innerHTML = goals.map(g => {
                 const isEmergency = (g.name || '').toLowerCase().includes('emergency');
                 const pct = Math.min(Math.round((Number(g.saved_amount || 0) / (Number(g.target_amount) || 1)) * 100), 100);
@@ -2707,7 +2934,7 @@
                     <span style="font-weight:700;">${sanitize(g.name)}</span>
                     <span class="pill">${pct}%</span>
                 </div>
-                <div class="caption-text" style="margin: 4px 0;">
+                <div class="caption-text ${staleCls}" style="margin: 4px 0;">
                     ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)}
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
@@ -2819,7 +3046,6 @@
         async function deleteCategory(id) {
             const cat = categories.find(c => c.id === id);
             if (!cat) return;
-            // Fix #5: Don't rely on the current month's transactions only. Warn user that backend will handle historical data.
             const others = categories.filter(c => c.id !== id && (c.type || '').toUpperCase() === (cat.type || '').toUpperCase());
             const canMove = others.length > 0;
             document.getElementById('catDelMsg').textContent = canMove
@@ -2846,7 +3072,7 @@
             openModal('modalCatDelete');
         }
 
-        let nwMonths = 6; // 3, 6, 12, or 'all'
+        let nwMonths = 6;
 
         async function setNwRange(m) {
             nwMonths = m;
@@ -2857,8 +3083,6 @@
             const gen = trendGen;
             const t = new Date();
             const months = [];
-
-            // If 'all', compute how far back we need to look (up to 36 months / 3 years by default)
             const count = (n === 'all') ? 36 : Number(n);
 
             for (let i = 0; i < count; i++) {
@@ -2884,11 +3108,8 @@
 
             const t = new Date();
             const today = todayStr();
-
-            // 1. Current real net worth from dashboard
             const currentTotalNW = Number(dashboardData.net_worth) || 0;
 
-            // 2. Collect and deduplicate all cached transactions
             const txMap = new Map();
             Object.values(trendCache).flat().forEach(x => {
                 if (!x) return;
@@ -2907,14 +3128,12 @@
                 }
             }
 
-            // 3. Work backward from the current net worth to reconstruct true past points
             const pts = [];
             for (let i = count - 1; i >= 0; i--) {
                 const d = new Date(t.getFullYear(), t.getMonth() - i, 1);
                 const monthEnd = toDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0));
                 const cutoff = (i === 0) ? today : monthEnd;
 
-                // Transactions that occurred AFTER this cutoff point are subtracted
                 let netAfterCutoff = 0;
                 all.forEach(x => {
                     const dt = String(x.date || '');
@@ -2978,7 +3197,6 @@
                 hi = maxVal + pad;
             } else {
                 const diff = maxVal - minVal;
-                // Zoom tightly to the variance so small net worth jumps are clearly visible
                 lo = minVal - (diff * 0.15);
                 hi = maxVal + (diff * 0.15);
             }
@@ -2996,7 +3214,6 @@
 
             const areaD = `${pathD} L ${x(pts.length - 1).toFixed(1)} ${H - B} L ${x(0).toFixed(1)} ${H - B} Z`;
 
-            // 4 dynamic Y-axis grid increments
             const gridRatios = [0, 0.33, 0.66, 1];
             const gridlines = gridRatios.map(ratio => {
                 const val = hi - (hi - lo) * ratio;
@@ -3038,6 +3255,11 @@
         function renderNetWorthDelta() {
             const badge = document.getElementById('netWorthDeltaBadge');
             if (!badge) return;
+            if (!dataFreshness.summary) {
+                badge.className = 'delta-indicator delta-stale';
+                badge.innerHTML = '<span>⚠️ Stale Data — Refresh Failed</span>';
+                return;
+            }
             const pts = netWorthSeries(2);
             if (pts.length === 2 && dashboardData) {
                 const delta = pts[1].value - pts[0].value;
@@ -3051,9 +3273,12 @@
             }
         }
 
+        // Enhanced Assets vs Liabilities UI
         function renderAssetsLiabilities() {
             const box = document.getElementById('assetsLiabContainer');
+            const ratioPill = document.getElementById('assetsLiabRatioPill');
             const accs = (dashboardData && dashboardData.accounts) || [];
+
             const val = a => {
                 const t = String(a.type || '').toUpperCase();
                 const mv = Number(a.current_market_value);
@@ -3061,24 +3286,155 @@
                 if (t === 'INVESTMENT' && !isNaN(mv) && mv > 0) return mv;
                 return bal;
             };
+
             const isL = a => String(a.type || '').toUpperCase() === 'CREDIT_CARD';
-            const assets = accs.filter(a => !isL(a)), liabs = accs.filter(isL);
-            const row = (a, v) => `<tr><td>${sanitize(a.name)}</td><td style="text-align:right;">${formatINR(v)}</td></tr>`;
-            const tA = assets.reduce((t, a) => t + val(a), 0), tL = liabs.reduce((t, a) => t + Math.abs(val(a)), 0);
-            box.innerHTML = `<table style="width:100%; border-collapse:collapse;" class="caption-text">
-        <tr><th colspan="2" style="text-align:left;">Assets</th></tr>
-        ${assets.map(a => row(a, val(a))).join('')}
-        <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Assets</td><td style="text-align:right;">${formatINR(tA)}</td></tr>
-        <tr><th colspan="2" style="text-align:left; padding-top:10px;">Liabilities</th></tr>
-        ${liabs.map(a => row(a, Math.abs(val(a)))).join('') || '<tr><td colspan="2">None</td></tr>'}
-        <tr style="border-top:1px solid var(--border); font-weight:700;"><td>Total Liabilities</td><td style="text-align:right;">${formatINR(tL)}</td></tr>
-    </table>`;
+            const assets = accs.filter(a => !isL(a)).sort((a, b) => val(b) - val(a));
+            const liabs = accs.filter(isL).sort((a, b) => Math.abs(val(b)) - Math.abs(val(a)));
+
+            const tA = assets.reduce((t, a) => t + Math.max(0, val(a)), 0);
+            const tL = liabs.reduce((t, a) => t + Math.abs(val(a)), 0);
+            const totalPool = Math.max(tA + tL, 1);
+
+            const liquidTotal = assets
+                .filter(a => ['BANK', 'CASH', 'GOAL_RESERVE'].includes(String(a.type || '').toUpperCase()))
+                .reduce((t, a) => t + Math.max(0, val(a)), 0);
+            const invTotal = assets
+                .filter(a => String(a.type || '').toUpperCase() === 'INVESTMENT')
+                .reduce((t, a) => t + Math.max(0, val(a)), 0);
+
+            const liqPct = (liquidTotal / totalPool) * 100;
+            const invPct = (invTotal / totalPool) * 100;
+            const liabPct = (tL / totalPool) * 100;
+
+            if (ratioPill) {
+                if (tL === 0 && tA > 0) {
+                    ratioPill.textContent = 'Debt-Free';
+                    ratioPill.className = 'pill';
+                } else if (tA > 0) {
+                    const dti = (tL / tA) * 100;
+                    ratioPill.textContent = `${dti.toFixed(1)}% Debt Ratio`;
+                    ratioPill.className = dti > 40 ? 'pill danger' : dti > 20 ? 'pill warning' : 'pill';
+                } else {
+                    ratioPill.textContent = 'No Assets';
+                    ratioPill.className = 'pill';
+                }
+            }
+
+            const iconFor = type => {
+                const t = String(type || '').toUpperCase();
+                if (t === 'BANK') return '🏦';
+                if (t === 'CASH') return '💵';
+                if (t === 'INVESTMENT') return '📈';
+                if (t === 'GOAL_RESERVE') return '🎯';
+                if (t === 'CREDIT_CARD') return '💳';
+                return '🏛️';
+            };
+
+            const typeLabelFor = type => {
+                const t = String(type || '').toUpperCase();
+                if (t === 'BANK') return 'Bank';
+                if (t === 'CASH') return 'Cash';
+                if (t === 'INVESTMENT') return 'Investment';
+                if (t === 'GOAL_RESERVE') return 'Reserve';
+                if (t === 'CREDIT_CARD') return 'Credit Card';
+                return t;
+            };
+
+            const staleCls = dataFreshness.summary ? '' : 'is-stale-value';
+
+            const renderAssetRow = a => {
+                const v = val(a);
+                const share = tA > 0 ? Math.max(0, Math.min(100, (v / tA) * 100)) : 0;
+                const isInv = String(a.type || '').toUpperCase() === 'INVESTMENT';
+                const fillClr = isInv ? 'var(--gold)' : 'var(--palace-teal)';
+                return `
+                    <div class="al-item-row">
+                        <div class="al-item-top">
+                            <div class="al-item-left">
+                                <div class="al-item-icon">${iconFor(a.type)}</div>
+                                <div style="min-width:0;">
+                                    <div style="font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitize(a.name)}</div>
+                                    <div class="caption-text" style="font-size:11px;">${typeLabelFor(a.type)} · ${share.toFixed(1)}% of assets</div>
+                                </div>
+                            </div>
+                            <div style="text-align:right; flex-shrink:0;">
+                                <div class="amount-pos ${staleCls}" style="font-size:13.5px;">${formatINR(v)}</div>
+                            </div>
+                        </div>
+                        <div class="al-mini-track">
+                            <div class="al-mini-fill" style="width:${share.toFixed(1)}%; background:${fillClr};"></div>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderLiabRow = a => {
+                const v = Math.abs(val(a));
+                const share = tL > 0 ? Math.max(0, Math.min(100, (v / tL) * 100)) : 0;
+                return `
+                    <div class="al-item-row">
+                        <div class="al-item-top">
+                            <div class="al-item-left">
+                                <div class="al-item-icon">${iconFor(a.type)}</div>
+                                <div style="min-width:0;">
+                                    <div style="font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitize(a.name)}</div>
+                                    <div class="caption-text" style="font-size:11px;">${typeLabelFor(a.type)} · ${v === 0 ? 'No dues' : `${share.toFixed(1)}% of liabilities`}</div>
+                                </div>
+                            </div>
+                            <div style="text-align:right; flex-shrink:0;">
+                                <div class="${v > 0 ? 'amount-neg' : 'caption-text'} ${staleCls}" style="font-size:13.5px; font-weight:700;">${formatINR(v)}</div>
+                            </div>
+                        </div>
+                        ${v > 0 ? `<div class="al-mini-track"><div class="al-mini-fill" style="width:${share.toFixed(1)}%; background:var(--terracotta);"></div></div>` : ''}
+                    </div>
+                `;
+            };
+
+            box.innerHTML = `
+                <div class="al-summary-grid">
+                    <div class="al-summary-box assets">
+                        <span class="caption-text" style="font-size:11px; text-transform:uppercase; font-weight:700;">Total Assets</span>
+                        <div class="amount-pos ${staleCls}" style="font-size:18px; margin-top:2px;">${formatINR(tA)}</div>
+                        <span class="caption-text" style="font-size:11px;">Liquid: ${formatINR(liquidTotal)} · Inv: ${formatINR(invTotal)}</span>
+                    </div>
+                    <div class="al-summary-box liabs">
+                        <span class="caption-text" style="font-size:11px; text-transform:uppercase; font-weight:700;">Total Liabilities</span>
+                        <div class="${tL > 0 ? 'amount-neg' : 'amount-neutral'} ${staleCls}" style="font-size:18px; margin-top:2px;">${formatINR(tL)}</div>
+                        <span class="caption-text" style="font-size:11px;">${tL === 0 ? '✓ Zero outstanding debt' : `${liabs.length} credit account(s)`}</span>
+                    </div>
+                </div>
+
+                <div class="al-ratio-bar" title="Composition: Liquid Assets vs Investments vs Liabilities">
+                    <div style="width:${liqPct.toFixed(1)}%; background:var(--palace-teal);" title="Liquid Assets: ${formatINR(liquidTotal)}"></div>
+                    <div style="width:${invPct.toFixed(1)}%; background:var(--gold);" title="Investments: ${formatINR(invTotal)}"></div>
+                    <div style="width:${liabPct.toFixed(1)}%; background:var(--terracotta);" title="Liabilities: ${formatINR(tL)}"></div>
+                </div>
+                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:0.75rem;" class="caption-text">
+                    <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--palace-teal); display:inline-block;"></span>Liquid (${Math.round(liqPct)}%)</span>
+                    <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--gold); display:inline-block;"></span>Investments (${Math.round(invPct)}%)</span>
+                    <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--terracotta); display:inline-block;"></span>Liabilities (${Math.round(liabPct)}%)</span>
+                </div>
+
+                <div class="al-section-label">
+                    <span>Assets (${assets.length})</span>
+                    <span>Share & Balance</span>
+                </div>
+                <div>
+                    ${assets.length ? assets.map(renderAssetRow).join('') : '<div class="caption-text" style="padding:0.5rem 0;">No asset accounts configured.</div>'}
+                </div>
+
+                <div class="al-section-label" style="margin-top:0.9rem;">
+                    <span>Liabilities (${liabs.length})</span>
+                    <span>Outstanding</span>
+                </div>
+                <div>
+                    ${liabs.length ? liabs.map(renderLiabRow).join('') : '<div class="caption-text" style="padding:0.5rem 0;">No liabilities recorded.</div>'}
+                </div>
+            `;
         }
 
-        // Fix #7: Show overdue/due-soon context
         function renderUpcoming() {
             const now = new Date();
-            // Normalize today's date to midnight for clean day differences
             const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const days = n => toDateStr(new Date(now.getTime() + n * 864e5));
             const todayStr_ = todayStr();
@@ -3087,7 +3443,6 @@
             const list = recurringList
                 .map(r => ({
                     ...r,
-                    // Strip timestamp if present (e.g., '2026-10-10T00:00:00' -> '2026-10-10')
                     cleanDate: String(r.next_date || '').split('T')[0]
                 }))
                 .filter(r => r.cleanDate && r.cleanDate <= cutoff)
@@ -3111,7 +3466,6 @@
                 let badge = '';
                 let badgeCls = '';
 
-                // Parse YYYY-MM-DD safely into a local Date object
                 const [y, m, d] = r.cleanDate.split('-').map(Number);
                 const targetDate = new Date(y, m - 1, d);
                 const diffDays = Math.round((targetDate - todayMidnight) / 864e5);
@@ -3152,7 +3506,6 @@
             document.getElementById('recFreq').value = 'MONTHLY';
             document.getElementById('recNext').value = todayStr();
 
-            // Allow selecting from ANY account (including Axis and Mutual Fund)
             const allAccountsHtml = accounts.map(a => `<option value="${a.id}">${sanitize(a.name)} (${sanitize(a.type)})</option>`).join('');
 
             const accSel = document.getElementById('recAccount');
@@ -3321,7 +3674,6 @@
                         return;
                     }
 
-                    // Post as a clean double-leg balance transfer
                     res = await API.createTransfer({
                         amount: Number(item.amount),
                         date: todayStr(),
@@ -3331,16 +3683,15 @@
                         type: 'TRANSFER'
                     });
 
-                    // Advance the recurring next_date on the backend
                     if (res && res.ok) {
                         await API.executeRecurring(id);
                     }
                 } else {
-                    // Standard expense or income execution
                     res = await API.executeRecurring(id);
                 }
 
                 if (!(await okOrToast(res, 'Failed to post transaction'))) return;
+                autoProcessedRecurringIds.add(id);
                 showToast('✓ Posted transaction to ledger');
             } catch (err) {
                 console.error(err);
@@ -3419,16 +3770,36 @@
             return null;
         }
 
+        // Issue #3: Strictly require https: protocol AND script.google.com hostname
+        function isValidGmailScriptUrl(rawUrl) {
+            try {
+                const parsed = new URL(rawUrl.trim());
+                return (
+                    parsed.protocol === 'https:' &&
+                    parsed.hostname === 'script.google.com' &&
+                    /^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname)
+                );
+            } catch {
+                return false;
+            }
+        }
+
         let gmailFetchInFlight = false;
         async function fetchGmailTransactions() {
+            if (gmailFetchInFlight) return;
             const url = document.getElementById('gmailScriptUrl').value.trim();
             if (!url) { showToast('Please enter Apps Script URL', 'error'); return; }
-            let okHost = false;
-            try { okHost = new URL(url).hostname === 'script.google.com'; } catch { }
-            if (!okHost) { showToast('Enter a valid https://script.google.com/... URL', 'error'); return; }
-            if (gmailFetchInFlight) return;
+            if (!isValidGmailScriptUrl(url)) {
+                showToast('Enter a valid https://script.google.com/... URL (HTTPS is required)', 'error');
+                return;
+            }
 
+            const fetchBtn = document.getElementById('btnGmailFetch');
             gmailFetchInFlight = true;
+            if (fetchBtn) {
+                fetchBtn.disabled = true;
+                fetchBtn.textContent = '⏳ Fetching Receipts...';
+            }
             try { localStorage.setItem('dhanSutraGmailScript', url); } catch { }
             showToast('Fetching bank receipts via backend...');
 
@@ -3499,10 +3870,17 @@
                 showToast('Failed to connect to backend', 'error');
             } finally {
                 gmailFetchInFlight = false;
+                if (fetchBtn) {
+                    fetchBtn.disabled = false;
+                    fetchBtn.textContent = 'Fetch Incoming Receipts';
+                }
             }
         }
 
+        let gmailCommitInFlight = false;
         async function commitStagedTransactions() {
+            if (gmailCommitInFlight) return;
+
             const toCommit = [];
             let missingCat = 0;
             let missingDesc = 0;
@@ -3529,6 +3907,15 @@
             if (missingCat) { showToast(`Choose a category for ${missingCat} item(s)`, 'error'); return; }
             if (missingDesc) { showToast(`Description cannot be empty for selected item(s)`, 'error'); return; }
             if (!toCommit.length) { showToast('No items selected', 'error'); return; }
+
+            const commitBtn = document.getElementById('btnGmailCommit');
+            const fetchBtn = document.getElementById('btnGmailFetch');
+            gmailCommitInFlight = true;
+            if (commitBtn) {
+                commitBtn.disabled = true;
+                commitBtn.textContent = `⏳ Committing ${toCommit.length} Entr${toCommit.length === 1 ? 'y' : 'ies'}...`;
+            }
+            if (fetchBtn) fetchBtn.disabled = true;
 
             showToast('Saving transactions...');
             try {
@@ -3557,6 +3944,13 @@
             } catch (err) {
                 console.error(err);
                 showToast('Commit operation failed', 'error');
+            } finally {
+                gmailCommitInFlight = false;
+                if (commitBtn) {
+                    commitBtn.disabled = false;
+                    commitBtn.textContent = 'Commit Selected Entries';
+                }
+                if (fetchBtn && !gmailFetchInFlight) fetchBtn.disabled = false;
             }
         }
 

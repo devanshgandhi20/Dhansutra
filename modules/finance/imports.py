@@ -40,32 +40,6 @@ class ReceiptItem(BaseModel):
 class CommitReceiptsRequest(BaseModel):
     transactions: List[ReceiptItem]
 
-
-def validate_external_script_url(url_str: str) -> str:
-    parsed = urlparse(url_str.strip())
-
-    if parsed.scheme != "https":
-        raise HTTPException(status_code=400, detail="Only HTTPS endpoints are allowed")
-
-    if parsed.netloc.lower() != ALLOWED_HOST:
-        raise HTTPException(status_code=400, detail="Endpoint must be hosted strictly on script.google.com")
-
-    if not parsed.path.startswith(ALLOWED_PATH_PREFIX) or not parsed.path.endswith("/exec"):
-        raise HTTPException(status_code=400, detail="Invalid Google Apps Script web app URL format")
-
-    # Anti-SSRF: Prevent DNS rebinding to internal or private subnets
-    try:
-        ip_list = socket.gethostbyname_ex(parsed.hostname)[2]
-        for ip in ip_list:
-            ip_obj = ipaddress.ip_address(ip)
-            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved:
-                raise HTTPException(status_code=400, detail="Target resolves to a restricted network address")
-    except socket.gaierror:
-        raise HTTPException(status_code=400, detail="Could not resolve Apps Script host")
-
-    return parsed.geturl()
-
-
 # -------------------------------------------------------------
 # APPS SCRIPT / GMAIL BACKEND PROXY (SECURE SSRF-HARDENED)
 # -------------------------------------------------------------
@@ -81,6 +55,89 @@ def extract_source_id(item: dict) -> str:
     return f"gen_{d}_{a}_{desc}"
 
 
+import ipaddress
+import math
+import re
+import socket
+from datetime import date, datetime
+from urllib.parse import urlparse
+
+import httpx
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
+
+ALLOWED_HOST = "script.google.com"
+SCRIPT_PATH_RE = re.compile(r"^/macros/s/[A-Za-z0-9_-]+/exec$")
+
+
+def assert_public_Resolution(hostname: str) -> None:
+    """Resolve both IPv4 and IPv6 records and block any non-public IP ranges."""
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Invalid hostname")
+    try:
+        addr_info = socket.getaddrinfo(hostname, 443, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail=f"Could not resolve host: {hostname}")
+
+    for entry in addr_info:
+        ip_str = entry[4][0]
+        ip_obj = ipaddress.ip_address(ip_str)
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_reserved
+            or ip_obj.is_multicast
+            or ip_obj.is_unspecified
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Target resolves to a restricted network address",
+            )
+
+
+def validate_external_script_url(url_str: str) -> str:
+    parsed = urlparse((url_str or "").strip())
+
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Only HTTPS endpoints are allowed")
+
+    if (parsed.hostname or "").lower() != ALLOWED_HOST or parsed.port not in (None, 443):
+        raise HTTPException(
+            status_code=400,
+            detail="Endpoint must be hosted strictly on script.google.com",
+        )
+
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="Credentials in URL are not allowed")
+
+    if not SCRIPT_PATH_RE.match(parsed.path or ""):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Google Apps Script web app URL format (expected /macros/s/<id>/exec)",
+        )
+
+    assert_public_Resolution(parsed.hostname)
+    return parsed.geturl()
+
+
+def validate_redirect_url(redirect_url: str) -> str:
+    parsed = urlparse((redirect_url or "").strip())
+    host = (parsed.hostname or "").lower()
+
+    if parsed.scheme != "https" or parsed.port not in (None, 443):
+        raise HTTPException(status_code=502, detail="Redirect must use HTTPS on standard port")
+
+    if not (host == "script.googleusercontent.com" or host.endswith(".googleusercontent.com")):
+        raise HTTPException(
+            status_code=502,
+            detail="Untrusted redirect target from Google Apps Script",
+        )
+
+    assert_public_Resolution(host)
+    return parsed.geturl()
+
+
 @router.post("/fetch-external")
 async def fetch_external_receipts(
     payload: SyncRequest,
@@ -93,10 +150,7 @@ async def fetch_external_receipts(
         try:
             resp = await client.get(safe_url)
             if resp.is_redirect:
-                redirect_target = resp.headers.get("location", "")
-                parsed_loc = urlparse(redirect_target)
-                if not (parsed_loc.scheme == "https" and parsed_loc.netloc.endswith("googleusercontent.com")):
-                    raise HTTPException(status_code=502, detail="Untrusted redirect target from Google Apps Script")
+                redirect_target = validate_redirect_url(resp.headers.get("location", ""))
                 resp = await client.get(redirect_target)
 
             resp.raise_for_status()
@@ -115,12 +169,16 @@ async def fetch_external_receipts(
     if isinstance(data, dict) and "error" in data:
         raise HTTPException(status_code=400, detail=f"Apps Script Error: {data['error']}")
 
-    raw_items = data if isinstance(data, list) else data.get("transactions", [])
-    if not raw_items:
+    raw_items = data if isinstance(data, list) else (data.get("transactions", []) if isinstance(data, dict) else [])
+    if not isinstance(raw_items, list) or not raw_items:
         return []
 
-    # 1. Collect all candidate IDs (checking source_id, sourceId, and id)
-    candidate_ids = [extract_source_id(item) for item in raw_items]
+    # 1. Collect all non-empty candidate IDs
+    candidate_ids = list({
+        str(sid).strip()
+        for item in raw_items
+        if isinstance(item, dict) and (sid := extract_source_id(item))
+    })
 
     # 2. Query DB for matches belonging to this user
     existing_ids = set()
@@ -135,27 +193,41 @@ async def fetch_external_receipts(
         )
         existing_ids = {str(r[0]).strip() for r in query if r[0]}
 
-    # 3. Stage ONLY unimported items
+    # 3. Stage ONLY valid, unimported items
     staged = []
     for item in raw_items:
-        sid = extract_source_id(item)
-        if sid in existing_ids:
-            continue  # Already saved in DB, skip!
+        if not isinstance(item, dict):
+            continue
+
+        sid_raw = extract_source_id(item)
+        sid = str(sid_raw).strip() if sid_raw else None
+        if sid and sid in existing_ids:
+            continue  # Already in DB or earlier in this same batch
+
+        try:
+            amount = abs(float(item.get("amount", 0)))
+        except (ValueError, TypeError):
+            continue
+        if not math.isfinite(amount) or amount <= 0:
+            continue
 
         raw_type = str(item.get("type", "EXPENSE")).upper()
         tx_type = "INCOME" if any(k in raw_type for k in ["INC", "CREDIT"]) else "EXPENSE"
 
         raw_date = str(item.get("date", "")).strip()
         try:
-            parsed_date = datetime.strptime(raw_date, "%Y-%m-%d").date().isoformat()
+            parsed_date = datetime.strptime(raw_date[:10], "%Y-%m-%d").date().isoformat()
         except (ValueError, TypeError):
             parsed_date = date.today().isoformat()
+
+        if sid:
+            existing_ids.add(sid)
 
         staged.append({
             "source_id": sid,
             "date": parsed_date,
-            "amount": abs(float(item.get("amount", 0))),
-            "description": (item.get("description") or "Bank Outflow").strip()[:255],
+            "amount": round(amount, 2),
+            "description": (str(item.get("description") or "Bank Outflow")).strip()[:255],
             "type": tx_type,
         })
 
