@@ -1,10 +1,22 @@
 /* DhanSutra Insights add-on.
-   Add ONE line just before </body> in user_dashboard.html, after the main <script>:
-       <script src="insights.js"></script>
-   It reuses the dashboard's own data and helpers; nothing else in your file changes. */
+   Loaded from user_dashboard.html AFTER the main <script> (it uses that script's globals:
+   selectedMonth, transactions, trendCache, recurringList, formatINR, normDesc, advanceDate, ...):
+       <script src="/static/js/insights.js"></script>
+   It plugs in through registerHook() like calendar.js and settings.js. */
 (function () {
     const $ = id => document.getElementById(id);
-    const T = () => (typeof transactions !== 'undefined' ? transactions : []);
+    // Every transaction the dashboard has already downloaded: the selected month plus the other months it
+    // cached for the trend / burn-rate cards, de-duplicated. The comparisons below (last month, 3-month
+    // average, subscriptions over 6 months) need that history; the selected month alone made them always empty.
+    let historyMemo = null; // built once per renderInsights() call instead of on every lookup
+    const T = () => {
+        if (historyMemo) return historyMemo;
+        const byKey = new Map();
+        const add = t => { if (t) byKey.set(t.id != null ? 'id:' + t.id : `${t.date}|${t.description}|${t.amount}`, t); };
+        (typeof transactions !== 'undefined' ? transactions : []).forEach(add);
+        if (typeof trendCache !== 'undefined') Object.values(trendCache).forEach(list => (Array.isArray(list) ? list : []).forEach(add));
+        return Array.from(byKey.values());
+    };
     const recs = () => (typeof recurringList !== 'undefined' ? recurringList : []);
     const expenses = () => T().filter(t => (t.type || '').toUpperCase() === 'EXPENSE');
     const mo = off => new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + off, 1);
@@ -23,9 +35,10 @@
         @media (max-width:920px) { .fab { display:block; } }
     </style>`);
 
-    document.querySelector('.desktop-nav').insertAdjacentHTML('beforeend', `<button class="nav-link" onclick="switchTab('insights')">Insights</button>`);
+    document.querySelector('.desktop-nav').insertAdjacentHTML('beforeend', `<button class="nav-link" id="navInsDesktop" onclick="switchTab('insights')">Insights</button>`);
     const mobItem = document.createElement('button');
     mobItem.className = 'mob-item';
+    mobItem.id = 'navInsMobile';
     mobItem.innerHTML = '<span>💡</span><span>Insights</span>';
     mobItem.onclick = () => switchTab('insights', mobItem);
     document.querySelector('.mobile-bottom-nav').insertBefore(mobItem, document.querySelector('.mobile-bottom-nav').lastElementChild);
@@ -44,7 +57,7 @@
 
     // ---------- Cash-flow forecast ----------
     function occurrences(r, end) {
-        let n = 0, d = r.next_date;
+        let n = 0, d = String(r.next_date || '').split('T')[0];
         while (d && d <= end && n < 40) { n++; d = advanceDate(d, r.frequency); }
         return n;
     }
@@ -164,16 +177,22 @@
             lines.map(l => note('• ' + l)).join('');
     }
 
-    function renderInsights() { renderForecast(); renderSubs(); renderMerchants(); renderReview(); }
+    function renderInsights() {
+        historyMemo = null;
+        historyMemo = T();
+        try { renderForecast(); renderSubs(); renderMerchants(); renderReview(); }
+        finally { historyMemo = null; }
+    }
 
     // ---------- hook into the dashboard ----------
-    const _renderUI = renderUI;
-    renderUI = function (...a) { _renderUI.apply(this, a); try { renderInsights(); } catch (e) { console.error(e); } };
-    const _switchTab = switchTab;
-    switchTab = function (tabId, btn) {
-        _switchTab(tabId, btn);
-        $('tab-insights').style.display = tabId === 'insights' ? 'block' : 'none';
-    };
+    // (This used to overwrite the global renderUI/switchTab functions, which breaks if another script
+    // does the same or the main script ever declares them differently. Hooks are the supported way.)
+    registerHook('renderUI', () => { try { renderInsights(); } catch (e) { console.error(e); } });
+    registerHook('switchTab', tabId => {
+        const tab = $('tab-insights');
+        if (tab) tab.style.display = tabId === 'insights' ? 'block' : 'none';
+        ['navInsDesktop', 'navInsMobile'].forEach(id => { const b = $(id); if (b) b.classList.toggle('active', tabId === 'insights'); });
+    });
 
     // ---------- mobile quick-add ----------
     const menu = document.createElement('div');

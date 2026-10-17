@@ -1,17 +1,18 @@
-from decimal import Decimal
-from calendar import monthrange
 import datetime as _dt
+from calendar import monthrange
+from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, selectinload
 
-from core.database import SessionLocal
-from modules.users.models import User
-from modules.auth.userverification import get_current_user
+from modules.auth.userverification import get_current_user, get_db
 from modules.finance.models import (
-    Account, AccountType, Category, Transaction,
+    Account, AccountType, Category, IgnoredSourceId, Transaction,
     TransactionType, Budget, FinancialGoal,
     GoalContribution, RecurringTransaction, RecurringFrequency
 )
@@ -24,18 +25,48 @@ from modules.finance.schemas import (
     DashboardSummaryResponse,
     RecurringCreate, RecurringUpdate, RecurringResponse
 )
-from datetime import date, datetime
 from modules.finance.services import FinanceService
+from modules.users.models import User
 
 router = APIRouter(prefix="/api/finance", tags=["Finance"])
 
+MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
+# -------------------------------------------------------------
+# SHARED HELPERS
+# -------------------------------------------------------------
+def get_owned_account(db: Session, user_id: int, account_id: int, label: str = "Account") -> Account:
+    """Account by id, but only if it belongs to this user (404 otherwise)."""
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail=f"{label} not found")
+    return account
+
+
+def get_usable_category(db: Session, user_id: int, category_id: int) -> Category:
+    """Category the user may use: their own or a system one (404 otherwise)."""
+    category = db.query(Category).filter(
+        Category.id == category_id,
+        or_(Category.user_id == user_id, Category.is_system == True),  # noqa: E712
+    ).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Selected category not found")
+    return category
+
+
+def _shift_investment_value(from_acc: Optional[Account], to_acc: Optional[Account], amount: Decimal, reverse: bool = False) -> None:
+    """Keep a manually entered market value in step with money moved into / out of an investment account.
+
+    Only touches accounts whose valuation was set by hand. When current_market_value is
+    empty, the account value is derived from its ledger balance (which already includes
+    the transfer), so adding to a missing value would make it too small. That was the old bug.
+    """
+    sign = Decimal("-1") if reverse else Decimal("1")
+    if to_acc is not None and to_acc.type == AccountType.INVESTMENT and to_acc.current_market_value is not None:
+        to_acc.current_market_value = max(Decimal("0"), to_acc.current_market_value + sign * amount)
+    if from_acc is not None and from_acc.type == AccountType.INVESTMENT and from_acc.current_market_value is not None:
+        from_acc.current_market_value = max(Decimal("0"), from_acc.current_market_value - sign * amount)
 
 
 # -------------------------------------------------------------
@@ -69,15 +100,11 @@ def update_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    account = (
-        db.query(Account)
-        .filter(Account.id == account_id, Account.user_id == current_user.id)
-        .first()
-    )
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
+    account = get_owned_account(db, current_user.id, account_id)
 
     for key, value in data.model_dump(exclude_unset=True).items():
+        if value is None and key in ("name", "type", "starting_balance"):
+            continue  # these columns are NOT NULL; ignore an explicit null instead of crashing
         setattr(account, key, value)
 
     db.commit()
@@ -91,13 +118,35 @@ def delete_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    account = (
-        db.query(Account)
-        .filter(Account.id == account_id, Account.user_id == current_user.id)
-        .first()
-    )
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
+    account = get_owned_account(db, current_user.id, account_id)
+
+    # Deleting an account used to silently delete every transaction on it, and left
+    # transfers pointing at nothing. Refuse instead, so history is never lost by accident.
+    has_transactions = db.query(Transaction.id).filter(
+        Transaction.user_id == current_user.id,
+        or_(
+            Transaction.account_id == account_id,
+            Transaction.from_account_id == account_id,
+            Transaction.to_account_id == account_id,
+        ),
+    ).first()
+    if has_transactions:
+        raise HTTPException(
+            status_code=409,
+            detail="This account has transactions. Move or delete them first so no history is lost.",
+        )
+    has_recurring = db.query(RecurringTransaction.id).filter(
+        RecurringTransaction.user_id == current_user.id,
+        or_(
+            RecurringTransaction.account_id == account_id,
+            RecurringTransaction.to_account_id == account_id,
+        ),
+    ).first()
+    if has_recurring:
+        raise HTTPException(
+            status_code=409,
+            detail="This account is used by a recurring item. Delete or change that item first.",
+        )
 
     db.delete(account)
     db.commit()
@@ -114,7 +163,7 @@ def get_categories(
 ):
     return (
         db.query(Category)
-        .filter(or_(Category.user_id == current_user.id, Category.is_system == True))
+        .filter(or_(Category.user_id == current_user.id, Category.is_system == True))  # noqa: E712
         .all()
     )
 
@@ -150,7 +199,7 @@ def delete_category(
     cat = db.query(Category).filter(
         Category.id == category_id,
         Category.user_id == current_user.id,
-        Category.is_system == False
+        Category.is_system == False  # noqa: E712
     ).first()
     if not cat:
         raise HTTPException(
@@ -159,21 +208,36 @@ def delete_category(
         )
 
     if payload and payload.move_to_category_id:
+        if payload.move_to_category_id == category_id:
+            raise HTTPException(status_code=400, detail="Choose a different category to move transactions to")
         target_cat = db.query(Category).filter(
             Category.id == payload.move_to_category_id,
-            or_(Category.user_id == current_user.id, Category.is_system == True)
+            or_(Category.user_id == current_user.id, Category.is_system == True)  # noqa: E712
         ).first()
         if not target_cat:
             raise HTTPException(status_code=400, detail="Target reassignment category does not exist")
+        if target_cat.type != cat.type:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Move them to another {cat.type.value.lower()} category so income and expenses are not mixed up."
+            )
 
         db.query(Transaction).filter(
             Transaction.user_id == current_user.id,
             Transaction.category_id == category_id
         ).update({"category_id": payload.move_to_category_id})
+        # recurring items that use this category move with it (otherwise they end up with no category)
+        db.query(RecurringTransaction).filter(
+            RecurringTransaction.user_id == current_user.id,
+            RecurringTransaction.category_id == category_id
+        ).update({"category_id": payload.move_to_category_id})
     else:
         in_use = db.query(Transaction.id).filter(
             Transaction.user_id == current_user.id,
             Transaction.category_id == category_id
+        ).first() or db.query(RecurringTransaction.id).filter(
+            RecurringTransaction.user_id == current_user.id,
+            RecurringTransaction.category_id == category_id
         ).first()
         if in_use:
             raise HTTPException(
@@ -191,7 +255,7 @@ def delete_category(
 # -------------------------------------------------------------
 @router.get("/transactions", response_model=List[TransactionResponse])
 def get_transactions(
-    month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    month: Optional[str] = Query(None, pattern=MONTH_PATTERN),
     account_id: Optional[int] = None,
     type: Optional[str] = None,
     search: Optional[str] = None,
@@ -217,7 +281,9 @@ def get_transactions(
             )
         )
     if type and type.upper() != "ALL":
-        query = query.filter(Transaction.type == type.upper())
+        if type.upper() not in TransactionType.__members__:
+            raise HTTPException(status_code=400, detail="Unknown transaction type")
+        query = query.filter(Transaction.type == TransactionType[type.upper()])
     if search:
         query = query.filter(Transaction.description.ilike(f"%{search.strip()}%"))
 
@@ -234,17 +300,10 @@ def create_transaction(
         raise HTTPException(status_code=400, detail="Transfers must be created via /api/finance/transfers")
 
     if data.account_id:
-        account = db.query(Account).filter(Account.id == data.account_id, Account.user_id == current_user.id).first()
-        if not account:
-            raise HTTPException(status_code=404, detail="Selected account not found")
+        get_owned_account(db, current_user.id, data.account_id, "Selected account")
 
     if data.category_id:
-        category = db.query(Category).filter(
-            Category.id == data.category_id,
-            or_(Category.user_id == current_user.id, Category.is_system == True),
-        ).first()
-        if not category:
-            raise HTTPException(status_code=404, detail="Selected category not found")
+        get_usable_category(db, current_user.id, data.category_id)
 
     if data.source_id:
         duplicate = db.query(Transaction).filter(
@@ -256,7 +315,12 @@ def create_transaction(
 
     tx = Transaction(**data.model_dump(), user_id=current_user.id)
     db.add(tx)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # lost a race against another request carrying the same source_id
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Transaction with this source_id already exists")
     db.refresh(tx)
     return tx
 
@@ -276,15 +340,40 @@ def update_transaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
     update_data = data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        if field == "type" and value is not None:
-            raw_type = value.value if hasattr(value, "value") else str(value).upper()
-            if raw_type in TransactionType.__members__:
-                tx.type = TransactionType[raw_type]
-        else:
-            setattr(tx, field, value)
 
-    db.commit()
+    for required in ("amount", "date", "type"):
+        if required in update_data and update_data[required] is None:
+            raise HTTPException(status_code=422, detail=f"{required} cannot be empty")
+
+    new_type = update_data.get("type")
+    if new_type is not None:
+        if new_type == TransactionType.TRANSFER and tx.type != TransactionType.TRANSFER:
+            raise HTTPException(status_code=400, detail="Transfers must be created via /api/finance/transfers")
+        if tx.type == TransactionType.TRANSFER and new_type != TransactionType.TRANSFER:
+            raise HTTPException(status_code=400, detail="A transfer cannot be changed into income or expense")
+
+    # Every account / category id the client sends must belong to this user.
+    # (This used to be unchecked, so another user's ids could be attached.)
+    for field in ("account_id", "from_account_id", "to_account_id"):
+        if update_data.get(field) is not None:
+            get_owned_account(db, current_user.id, update_data[field], "Selected account")
+    if update_data.get("category_id") is not None:
+        get_usable_category(db, current_user.id, update_data["category_id"])
+
+    if tx.type == TransactionType.TRANSFER:
+        from_id = update_data.get("from_account_id", tx.from_account_id)
+        to_id = update_data.get("to_account_id", tx.to_account_id)
+        if from_id and to_id and from_id == to_id:
+            raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
+
+    for field, value in update_data.items():
+        setattr(tx, field, value)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Transaction with this source_id already exists")
     db.refresh(tx)
     return tx
 
@@ -306,7 +395,7 @@ def create_transfer(
 
     tx_amount = Decimal(str(data.amount))
 
-    # 1. Record the Ledger Transfer (Ensure account_id is populated)
+    # Balances are derived from the ledger (see FinanceService), so recording the row is enough.
     transfer_tx = Transaction(
         user_id=current_user.id,
         account_id=from_acc.id,
@@ -320,20 +409,8 @@ def create_transfer(
     )
     db.add(transfer_tx)
 
-    # 2. Update current_balance if your table stores it
-    if hasattr(from_acc, "current_balance") and from_acc.current_balance is not None:
-        from_acc.current_balance -= tx_amount
-    if hasattr(to_acc, "current_balance") and to_acc.current_balance is not None:
-        to_acc.current_balance += tx_amount
-
-    # 3. Synchronize current_market_value for INVESTMENT accounts
-    if getattr(to_acc, "type", None) == AccountType.INVESTMENT:
-        current_mv = getattr(to_acc, "current_market_value", None) or Decimal("0")
-        to_acc.current_market_value = current_mv + tx_amount
-
-    if getattr(from_acc, "type", None) == AccountType.INVESTMENT:
-        current_mv = getattr(from_acc, "current_market_value", None) or Decimal("0")
-        from_acc.current_market_value = max(Decimal("0"), current_mv - tx_amount)
+    # Keep hand-entered market values of INVESTMENT accounts in step with the money moved
+    _shift_investment_value(from_acc, to_acc, tx_amount)
 
     db.commit()
     db.refresh(transfer_tx)
@@ -353,51 +430,34 @@ def delete_transaction(
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    tx_amount = Decimal(str(tx.amount))
-
-    # --- 1. REVERSE TRANSFERS (BOTH LEGS) ---
+    # Balances are derived from the ledger, so deleting the row corrects them automatically.
+    # Only a hand-entered investment market value needs undoing for transfers.
     if tx.type == TransactionType.TRANSFER:
         from_id = tx.from_account_id or tx.account_id
-        to_id = tx.to_account_id
+        from_acc = db.query(Account).filter(Account.id == from_id, Account.user_id == current_user.id).first() if from_id else None
+        to_acc = db.query(Account).filter(Account.id == tx.to_account_id, Account.user_id == current_user.id).first() if tx.to_account_id else None
+        _shift_investment_value(from_acc, to_acc, Decimal(str(tx.amount)), reverse=True)
 
-        if from_id:
-            from_acc = db.query(Account).filter(Account.id == from_id, Account.user_id == current_user.id).first()
-            if from_acc:
-                if hasattr(from_acc, "current_balance") and from_acc.current_balance is not None:
-                    from_acc.current_balance += tx_amount
-                if getattr(from_acc, "type", None) == AccountType.INVESTMENT:
-                    current_mv = getattr(from_acc, "current_market_value", None) or Decimal("0")
-                    from_acc.current_market_value = current_mv + tx_amount
+    # A transaction imported from Gmail is remembered as deleted, so the next sync does not bring it back.
+    if tx.source_id:
+        already = db.query(IgnoredSourceId.id).filter(
+            IgnoredSourceId.user_id == current_user.id,
+            IgnoredSourceId.source_id == tx.source_id,
+        ).first()
+        if not already:
+            db.add(IgnoredSourceId(user_id=current_user.id, source_id=tx.source_id))
 
-        if to_id:
-            to_acc = db.query(Account).filter(Account.id == to_id, Account.user_id == current_user.id).first()
-            if to_acc:
-                if hasattr(to_acc, "current_balance") and to_acc.current_balance is not None:
-                    to_acc.current_balance -= tx_amount
-                if getattr(to_acc, "type", None) == AccountType.INVESTMENT:
-                    current_mv = getattr(to_acc, "current_market_value", None) or Decimal("0")
-                    to_acc.current_market_value = max(Decimal("0"), current_mv - tx_amount)
-
-    # --- 2. REVERSE STANDARD EXPENSES / INCOMES ---
-    else:
-        if tx.account_id:
-            acc = db.query(Account).filter(Account.id == tx.account_id, Account.user_id == current_user.id).first()
-            if acc and hasattr(acc, "current_balance") and acc.current_balance is not None:
-                if tx.type == TransactionType.EXPENSE:
-                    acc.current_balance += tx_amount
-                elif tx.type == TransactionType.INCOME:
-                    acc.current_balance -= tx_amount
-
-    # --- 3. REMOVE RECORD ---
     db.delete(tx)
     db.commit()
     return None
+
+
 # -------------------------------------------------------------
 # BUDGETS
 # -------------------------------------------------------------
 @router.get("/budgets", response_model=List[BudgetResponse])
 def get_budgets(
-    month: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    month: str = Query(..., pattern=MONTH_PATTERN),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -410,19 +470,16 @@ def set_budget(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    category = db.query(Category).filter(
-        Category.id == data.category_id,
-        or_(Category.user_id == current_user.id, Category.is_system == True),
-    ).first()
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+    get_usable_category(db, current_user.id, data.category_id)
 
-    existing_budget = db.query(Budget).filter(
-        Budget.user_id == current_user.id,
-        Budget.category_id == data.category_id,
-        Budget.month == data.month,
-    ).first()
+    def find_existing():
+        return db.query(Budget).filter(
+            Budget.user_id == current_user.id,
+            Budget.category_id == data.category_id,
+            Budget.month == data.month,
+        ).first()
 
+    existing_budget = find_existing()
     if existing_budget:
         existing_budget.limit_amount = data.limit_amount
         db.commit()
@@ -431,14 +488,23 @@ def set_budget(
 
     budget = Budget(**data.model_dump(), user_id=current_user.id)
     db.add(budget)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # two saves for the same category+month raced; the unique constraint caught it, so update instead
+        db.rollback()
+        budget = find_existing()
+        if not budget:
+            raise
+        budget.limit_amount = data.limit_amount
+        db.commit()
     db.refresh(budget)
     return budget
 
 
 @router.get("/budgets/status", response_model=List[BudgetStatusResponse])
 def get_budget_status(
-    month: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    month: str = Query(..., pattern=MONTH_PATTERN),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -453,7 +519,12 @@ def get_goals(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return db.query(FinancialGoal).filter(FinancialGoal.user_id == current_user.id).all()
+    return (
+        db.query(FinancialGoal)
+        .options(selectinload(FinancialGoal.contributions))
+        .filter(FinancialGoal.user_id == current_user.id)
+        .all()
+    )
 
 
 @router.post("/goals", response_model=GoalResponse, status_code=status.HTTP_201_CREATED)
@@ -512,13 +583,11 @@ def contribute_to_goal(
     goal = db.query(FinancialGoal).filter(
         FinancialGoal.id == goal_id,
         FinancialGoal.user_id == current_user.id,
-    ).first()
+    ).with_for_update().first()  # lock the goal so two simultaneous contributions both count
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    account = db.query(Account).filter(Account.id == data.account_id, Account.user_id == current_user.id).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Source account not found")
+    account = get_owned_account(db, current_user.id, data.account_id, "Source account")
 
     if account.type == AccountType.CREDIT_CARD:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot contribute to goals using a Credit Card")
@@ -531,15 +600,37 @@ def contribute_to_goal(
         note=data.note,
     )
     db.add(contribution)
-    goal.saved_amount += data.amount
+    goal.saved_amount = (goal.saved_amount or Decimal("0.00")) + data.amount
+
+    # Money moves from the source account into the user's Goal & Reserves account (a transfer, not an expense),
+    # so net worth is unchanged and the reserve account's balance shows what is set aside.
+    reserve = (
+        db.query(Account)
+        .filter(Account.user_id == current_user.id, Account.type == AccountType.GOAL_RESERVE)
+        .order_by(Account.id.asc())
+        .first()
+    )
+    if reserve is None:
+        reserve = Account(
+            user_id=current_user.id,
+            name="Goal & Reserves",
+            type=AccountType.GOAL_RESERVE,
+            starting_balance=Decimal("0.00"),
+        )
+        db.add(reserve)
+        db.flush()
+    if reserve.id == account.id:
+        raise HTTPException(status_code=400, detail="Choose a source account other than the Goal & Reserves account")
 
     tx = Transaction(
         user_id=current_user.id,
-        type=TransactionType.EXPENSE,
+        account_id=account.id,
+        from_account_id=account.id,
+        to_account_id=reserve.id,
+        type=TransactionType.TRANSFER,
         amount=data.amount,
         date=data.date,
         description=f"Goal Reserve: {goal.name} - {data.note or ''}".strip(),
-        account_id=account.id,
         source="MANUAL",
     )
     db.add(tx)
@@ -558,7 +649,10 @@ def get_dashboard_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    target = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else date.today()
+    try:
+        target = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else date.today()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date")
     return FinanceService.get_dashboard_summary(db, current_user.id, target)
 
 
@@ -581,6 +675,29 @@ def calculate_next_date(current_date: _dt.date, freq: RecurringFrequency) -> _dt
         return _dt.date(year, month, day)
 
 
+def validate_recurring_refs(
+    db: Session,
+    user_id: int,
+    tx_type: TransactionType,
+    account_id: int,
+    to_account_id: Optional[int],
+    category_id: Optional[int],
+) -> None:
+    """Shared by create and update: every referenced account/category must belong to the user."""
+    get_owned_account(db, user_id, account_id, "Selected account")
+
+    if tx_type == TransactionType.TRANSFER:
+        if not to_account_id:
+            raise HTTPException(status_code=400, detail="Destination account required for recurring transfers")
+        if account_id == to_account_id:
+            raise HTTPException(status_code=400, detail="Source and destination cannot be identical")
+        get_owned_account(db, user_id, to_account_id, "Destination account")
+    else:
+        if not category_id:
+            raise HTTPException(status_code=400, detail="Category required for income or expense recurring items")
+        get_usable_category(db, user_id, category_id)
+
+
 @router.get("/recurring", response_model=List[RecurringResponse])
 def get_recurring(
     current_user: User = Depends(get_current_user),
@@ -600,27 +717,7 @@ def create_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    acc = db.query(Account).filter(Account.id == data.account_id, Account.user_id == current_user.id).first()
-    if not acc:
-        raise HTTPException(status_code=404, detail="Selected account not found")
-
-    if data.type == TransactionType.TRANSFER:
-        if not data.to_account_id:
-            raise HTTPException(status_code=400, detail="Destination account required for recurring transfers")
-        if data.account_id == data.to_account_id:
-            raise HTTPException(status_code=400, detail="Source and destination cannot be identical")
-        to_acc = db.query(Account).filter(Account.id == data.to_account_id, Account.user_id == current_user.id).first()
-        if not to_acc:
-            raise HTTPException(status_code=404, detail="Destination account not found")
-    else:
-        if not data.category_id:
-            raise HTTPException(status_code=400, detail="Category required for income or expense recurring items")
-        cat = db.query(Category).filter(
-            Category.id == data.category_id,
-            or_(Category.user_id == current_user.id, Category.is_system == True)
-        ).first()
-        if not cat:
-            raise HTTPException(status_code=404, detail="Selected category not found")
+    validate_recurring_refs(db, current_user.id, data.type, data.account_id, data.to_account_id, data.category_id)
 
     rec = RecurringTransaction(**data.model_dump(), created_at=datetime.utcnow(), user_id=current_user.id)
     db.add(rec)
@@ -644,16 +741,19 @@ def update_recurring(
         raise HTTPException(status_code=404, detail="Recurring transaction not found")
 
     update_dict = data.model_dump(exclude_unset=True)
-    
-    new_acc_id = update_dict.get("account_id", rec.account_id)
-    new_to_acc_id = update_dict.get("to_account_id", rec.to_account_id)
-    new_type = update_dict.get("type", rec.type)
 
-    if new_type == TransactionType.TRANSFER:
-        if not new_to_acc_id:
-            raise HTTPException(status_code=400, detail="Destination account required for transfers")
-        if new_acc_id == new_to_acc_id:
-            raise HTTPException(status_code=400, detail="Source and destination cannot be identical")
+    for required in ("description", "amount", "type", "account_id", "frequency", "next_date"):
+        if required in update_dict and update_dict[required] is None:
+            raise HTTPException(status_code=422, detail=f"{required} cannot be empty")
+
+    validate_recurring_refs(
+        db,
+        current_user.id,
+        update_dict.get("type", rec.type),
+        update_dict.get("account_id", rec.account_id),
+        update_dict.get("to_account_id", rec.to_account_id),
+        update_dict.get("category_id", rec.category_id),
+    )
 
     for field, value in update_dict.items():
         setattr(rec, field, value)
@@ -666,19 +766,31 @@ def update_recurring(
 @router.post("/recurring/{recurring_id}/execute", response_model=TransactionResponse)
 def execute_recurring(
     recurring_id: int,
+    expected_date: Optional[_dt.date] = Query(
+        None,
+        description="Due date the caller believes is being posted. If the item has already moved past it "
+                    "(another tab or device posted it first) the call is refused with 409 instead of posting again.",
+    ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Row lock: two simultaneous requests for the same item are handled one after the other.
     rec = db.query(RecurringTransaction).filter(
         RecurringTransaction.id == recurring_id,
         RecurringTransaction.user_id == current_user.id
-    ).first()
+    ).with_for_update().first()
     if not rec:
         raise HTTPException(status_code=404, detail="Recurring transaction not found")
 
+    if expected_date is not None and expected_date != rec.next_date:
+        raise HTTPException(status_code=409, detail="This recurring item was already posted for that date")
+
     if rec.type == TransactionType.TRANSFER:
+        from_acc = get_owned_account(db, current_user.id, rec.account_id, "Source account")
+        to_acc = get_owned_account(db, current_user.id, rec.to_account_id, "Destination account") if rec.to_account_id else None
         new_tx = Transaction(
             user_id=current_user.id,
+            account_id=rec.account_id,
             type=TransactionType.TRANSFER,
             amount=rec.amount,
             date=rec.next_date,
@@ -687,6 +799,8 @@ def execute_recurring(
             to_account_id=rec.to_account_id,
             source="RECURRING",
         )
+        # same market-value handling as a manual transfer
+        _shift_investment_value(from_acc, to_acc, Decimal(str(rec.amount)))
     else:
         new_tx = Transaction(
             user_id=current_user.id,

@@ -147,7 +147,13 @@
 
   if ($('bulkExport')) {
     $('bulkExport').onclick = () => {
-      const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      // A cell starting with = + - @ would run as a formula when the file is opened in Excel/Sheets
+      // (descriptions come from bank e-mails), so those are prefixed with an apostrophe.
+      const q = v => {
+        let text = String(v ?? '');
+        if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
+        return `"${text.replace(/"/g, '""')}"`;
+      };
       const lines = ['Date,Type,Description,Category,Account,Amount'].concat(picked().map(t => {
         const cat = categories.find(c => c.id === t.category_id);
         const acc = t.account_id ? accounts.find(a => a.id === t.account_id) : null;

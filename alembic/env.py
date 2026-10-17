@@ -15,7 +15,11 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Retrieve the database URL directly from environment or settings
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table" and name == "alembic_version":
+        return False
+    return True
+
 def get_db_url() -> str:
     return os.getenv("DB_URL") or getattr(settings, "DB_URL", "") or config.get_main_option("sqlalchemy.url")
 
@@ -42,14 +46,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            version_table_schema="public",
-            include_schemas=True,
-        )
-        with context.begin_transaction():
-            context.run_migrations()
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
+            include_object=include_object,
             version_table_schema="public",
             include_schemas=True,
         )

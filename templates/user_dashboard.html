@@ -1532,6 +1532,19 @@
         const API = {
             lastError: null,
             redirecting: false,
+            refreshPromise: null,
+            // Swap the refresh-token cookie for a new access cookie. Parallel calls that all got a 401
+            // share one refresh request. Resolves true when the session was renewed.
+            refreshSession() {
+                if (!this.refreshPromise) {
+                    this.refreshPromise = fetch('/auth/refresh', {
+                        method: 'POST',
+                        headers: { 'x-requested-with': 'XMLHttpRequest' },
+                        credentials: 'same-origin'
+                    }).then(r => r.ok).catch(() => false).finally(() => { this.refreshPromise = null; });
+                }
+                return this.refreshPromise;
+            },
             async req(url, options = {}) {
                 const { timeout, retries, ...fetchOpts } = options;
                 const method = String(fetchOpts.method || 'GET').toUpperCase();
@@ -1540,6 +1553,7 @@
                 const maxRetries = retries ?? (isRead ? 2 : 0);
                 fetchOpts.headers = { ...(fetchOpts.headers || {}), 'x-requested-with': 'XMLHttpRequest' };
 
+                let refreshed = false;
                 for (let attempt = 0; ; attempt++) {
                     const ctrl = new AbortController();
                     const timer = setTimeout(() => ctrl.abort(), limit);
@@ -1557,6 +1571,14 @@
                     }
                     clearTimeout(timer);
                     if (res.status === 401) {
+                        // The 30-minute access token ran out. Renew it from the refresh cookie and retry this
+                        // call once (a 401 means the request was rejected before doing anything, so even a
+                        // write is safe to resend). Only if that fails is the user sent to the login page.
+                        if (!refreshed && await this.refreshSession()) {
+                            refreshed = true;
+                            attempt--;
+                            continue;
+                        }
                         this.redirecting = true;
                         this.lastError = 'Your session has expired.';
                         window.location.href = '/login?error=session_expired';
@@ -1676,7 +1698,11 @@
                 });
             },
             async deleteRecurring(id) { return await this.req(`/api/finance/recurring/${id}`, { method: 'DELETE' }); },
-            async executeRecurring(id) { return await this.req(`/api/finance/recurring/${id}/execute`, { method: 'POST' }); },
+            // expectedDate = the due date being posted; the server answers 409 if another tab/device already posted it
+            async executeRecurring(id, expectedDate) {
+                const q = expectedDate ? `?expected_date=${encodeURIComponent(String(expectedDate).split('T')[0])}` : '';
+                return await this.req(`/api/finance/recurring/${id}/execute${q}`, { method: 'POST' });
+            },
             async updateRecurring(id, payload) {
                 return await this.req(`/api/finance/recurring/${id}`, {
                     method: 'PUT',
@@ -2089,6 +2115,7 @@
             if (!dueItems.length) return;
 
             let processedCount = 0;
+            let scheduleAdvanced = false;
 
             for (const item of dueItems) {
                 const targetDate = String(item.next_date || '').split('T')[0];
@@ -2106,9 +2133,12 @@
                 if (alreadyExists) {
                     inFlightRecurringIds.add(item.id);
                     try {
-                        const advRes = await API.executeRecurring(item.id);
+                        // Already in the ledger (for example entered by hand): only move the schedule forward.
+                        // Calling execute here would post a second copy, because execute creates a transaction.
+                        const advRes = await API.updateRecurring(item.id, { next_date: advanceDate(targetDate, item.frequency) });
                         if (advRes && advRes.ok) {
                             autoProcessedRecurringIds.add(item.id);
+                            scheduleAdvanced = true;
                         }
                     } catch (err) {
                         console.warn('Could not advance next_date for already posted item:', err);
@@ -2132,66 +2162,26 @@
                 }
             }
 
-            if (processedCount > 0) {
+            if (processedCount > 0 || scheduleAdvanced) {
                 await refreshData();
+            }
+            if (processedCount > 0) {
                 showToast(`⚡ Automatically logged ${processedCount} due recurring item(s)`);
             }
         }
 
         async function postRecurringWithDate(item, targetDate) {
-            let res;
-            const itemType = (item.type || '').toUpperCase();
-
-            if (itemType === 'TRANSFER') {
-                const fromId = item.from_account_id || item.account_id;
-                const toId = item.to_account_id;
-
-                if (!fromId || !toId) {
-                    console.warn('Transfer requires both accounts');
-                    return false;
-                }
-
-                res = await API.createTransfer({
-                    amount: Number(item.amount),
-                    date: targetDate,
-                    description: item.description || 'SIP Transfer',
-                    from_account_id: parseInt(fromId),
-                    to_account_id: parseInt(toId),
-                    type: 'TRANSFER'
-                });
-            } else {
-                const account_id = parseInt(item.account_id);
-                const category_id = parseInt(item.category_id);
-                if (!account_id || !category_id) {
-                    console.warn('Recurring transaction requires valid account_id and category_id');
-                    return false;
-                }
-                const payload = {
-                    type: itemType,
-                    amount: Number(item.amount),
-                    date: targetDate,
-                    description: item.description,
-                    account_id,
-                    category_id
-                };
-                res = await API.createTransaction(payload);
-            }
-
-            if (!res || !res.ok) {
+            // POST /recurring/{id}/execute creates the transaction (or transfer) AND moves next_date
+            // forward in ONE server-side step. The old code created the transaction itself and then
+            // called execute as well, so every automatically posted item was recorded twice, and
+            // a failure between the two calls could leave the schedule un-advanced.
+            const res = await API.executeRecurring(item.id, targetDate);
+            if (res && res.status === 409) {
+                // another tab or device posted this occurrence first: nothing more to do
+                autoProcessedRecurringIds.add(item.id);
                 return false;
             }
-
-            // Transaction is now persisted; advance the recurring schedule
-            try {
-                const execRes = await API.executeRecurring(item.id);
-                if (!execRes || !execRes.ok) {
-                    console.warn('Transaction saved, but advancing recurring schedule failed for item:', item.id);
-                }
-            } catch (err) {
-                console.warn('Error advancing recurring schedule after transaction save:', err);
-            }
-
-            return true;
+            return !!(res && res.ok);
         }
 
         let last3MoTransactions = [];
@@ -3662,37 +3652,16 @@
             }
 
             try {
-                let res;
-                const itemType = (item.type || '').toUpperCase();
-
-                if (itemType === 'TRANSFER') {
-                    const fromId = item.from_account_id || item.account_id;
-                    const toId = item.to_account_id;
-
-                    if (!fromId || !toId) {
-                        showToast('Transfer requires both source and target accounts. Please edit this item.', 'error');
-                        return;
-                    }
-
-                    res = await API.createTransfer({
-                        amount: Number(item.amount),
-                        date: todayStr(),
-                        description: item.description || 'SIP Transfer',
-                        from_account_id: parseInt(fromId),
-                        to_account_id: parseInt(toId),
-                        type: 'TRANSFER'
-                    });
-
-                    if (res && res.ok) {
-                        await API.executeRecurring(id);
-                    }
+                // One server call posts the transaction or transfer and advances the schedule.
+                // (Transfers used to be created here and then executed as well, which booked them twice.)
+                const res = await API.executeRecurring(id, String(item.next_date || '').split('T')[0]);
+                if (res && res.status === 409) {
+                    showToast('That item was already posted from another tab or device.', 'error');
                 } else {
-                    res = await API.executeRecurring(id);
+                    if (!(await okOrToast(res, 'Failed to post transaction'))) return;
+                    autoProcessedRecurringIds.add(id);
+                    showToast('✓ Posted transaction to ledger');
                 }
-
-                if (!(await okOrToast(res, 'Failed to post transaction'))) return;
-                autoProcessedRecurringIds.add(id);
-                showToast('✓ Posted transaction to ledger');
             } catch (err) {
                 console.error(err);
                 showToast('Error executing recurring schedule', 'error');

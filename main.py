@@ -1,28 +1,32 @@
-from fastapi import FastAPI, Form, Request, Response, Depends, Cookie
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
+import logging
 from urllib.parse import quote
+
+from fastapi import Cookie, Depends, FastAPI, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from redis.exceptions import RedisError
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from core.database import engine, Base
-from core.google_auth import oauth
+import modules.finance.models  # noqa: F401  Registers finance models
+import modules.users.models  # noqa: F401  Registers User
 from core.config import settings
-from modules.users.models import User
+from core.google_auth import oauth
+from modules.auth.auth import MAX_PASSWORD_BYTES, hash_password, verify_password
+from modules.auth.jwtutils import create_access_token
 from modules.auth.router import router as auth_router
-from modules.auth.auth import hash_password, verify_password
-from modules.auth.jwtutils import create_access_token, create_refresh_token, verify_refresh_token
-from modules.auth.userverification import get_db, get_current_user
-from modules.redis.redis_client import redis_client
-from modules.redis.rate_limiter import check_rate_limit
-from modules.finance.router import router as finance_router
+from modules.auth.sessions import IS_PRODUCTION, refresh_user_id, set_access_cookie, start_session
+from modules.auth.userverification import get_current_user, get_db
 from modules.finance.imports import router as imports_router
+from modules.finance.router import router as finance_router
+from modules.redis.rate_limiter import check_rate_limit
+from modules.users.models import User
 
-from core.database import engine, Base
-import modules.users.models  # Registers User
-import modules.finance.models  # Registers finance models
+logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates(directory="templates")
 
@@ -30,24 +34,64 @@ app = FastAPI(title="DhanSutra API")
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=settings.SECRET_KEY
-);
+    secret_key=settings.SECRET_KEY,
+    https_only=IS_PRODUCTION,
+    same_site="lax",
+)
 
 app.include_router(auth_router)
 app.include_router(finance_router)
 app.include_router(imports_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-is_production = settings.ENVIRONMENT == "production"
+MIN_PASSWORD_LENGTH = 8
+
+LOGIN_ERRORS = {
+    "1": "Invalid credentials",
+    "session_expired": "Session timed out. Please login again.",
+    "too_many_requests": "Too many requests. Please try again later.",
+    "session_missing": "Please login first.",
+    "user_not_found": "This account was not found or has been disabled.",
+    "oauth_failed": "Google sign-in failed. Please try again.",
+    "invalid_userinfo": "Google did not return an email address.",
+    "email_unverified": "Your Google email address is not verified.",
+    "oauth_account_exists": "An account with this email already exists. Please log in with your password.",
+    "service_unavailable": "The service is temporarily unavailable. Please try again shortly.",
+}
+
+LOGIN_SUCCESS = {
+    "user_created": "Account created successfully.",
+    "password_reset": "Password updated successfully.",
+}
+
+
+def client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
 
 @app.post("/create_user")
 def create_user(
     request: Request,
     username: str = Form(...),
-    password: str = Form(...), 
+    password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    existing_user = db.query(User).filter(User.username == username).first()
+    rate_limit_response = check_rate_limit(key=f"signup:{client_ip(request)}", limit=10, window=3600)
+    if rate_limit_response:
+        return rate_limit_response
+
+    username = username.strip()
+    if len(username) < 3 or len(username) > 255:
+        return RedirectResponse(url=f"/signup?error={quote('Username must be 3 to 255 characters')}", status_code=303)
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return RedirectResponse(
+            url=f"/signup?error={quote(f'Password must be at least {MIN_PASSWORD_LENGTH} characters')}",
+            status_code=303,
+        )
+    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        return RedirectResponse(url=f"/signup?error={quote('Password is too long')}", status_code=303)
+
+    existing_user = db.query(User).filter(func.lower(User.username) == username.lower()).first()
     if existing_user:
         return RedirectResponse(
             url=f"/signup?error={quote('User already exists')}",
@@ -58,61 +102,55 @@ def create_user(
         password=hash_password(password)
     )
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.commit()
+    except IntegrityError:
+        # two signups with the same name raced each other
+        db.rollback()
+        return RedirectResponse(url=f"/signup?error={quote('User already exists')}", status_code=303)
     return RedirectResponse(url="/login?success=user_created", status_code=303)
+
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, error: str = None, success: str = None):
-    error_message = None
-    success_message = None
-    
-    if error == "1":
-        error_message = "Invalid credentials"
-    elif error == "session_expired":
-        error_message = "Session timed out. Please login again."
-    elif error == "too_many_requests":
-        error_message = "Too many requests. Please try again later."
-    elif error == "session_missing":
-        error_message = "Please login first."
-        
-    if success == "user_created":
-        success_message = "Account created successfully."
-    elif success == "password_reset":
-        success_message = "Password updated successfully."
-        
     return templates.TemplateResponse(
         "login.html",
-        {"request": request, "error": error_message, "success": success_message}
+        {
+            "request": request,
+            "error": LOGIN_ERRORS.get(error) if error else None,
+            "success": LOGIN_SUCCESS.get(success) if success else None,
+        }
     )
+
 
 @app.get("/signup", response_class=HTMLResponse)
 def signup_page(request: Request, error: str = None):
     return templates.TemplateResponse("signup.html", {"request": request, "error": error})
 
+
 @app.get("/forgot_password", response_class=HTMLResponse)
 def forgot_password_page(request: Request, error: str = None):
     return templates.TemplateResponse("forgot_password.html", {"request": request, "error": error})
+
 
 @app.post("/forgot_password")
 def forgot_password(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    db: Session = Depends(get_db)
 ):
-    ip = request.client.host
-    rate_limit_response = check_rate_limit(key=f"forgot:{username}:{ip}", limit=3, window=300)
+    # SECURITY: this used to set a new password for ANY username with no proof of
+    # ownership (no email link, no old password), i.e. anyone could take over any
+    # password account. It stays switched off until a verified reset flow
+    # (emailed one-time link) exists.
+    rate_limit_response = check_rate_limit(key=f"forgot:{client_ip(request)}", limit=3, window=300)
     if rate_limit_response:
         return rate_limit_response
-        
-    user = db.query(User).filter(User.username == username).first()
-    if not user:
-        return RedirectResponse(url="/forgot_password?error=No user found with this username", status_code=302)
-        
-    user.password = hash_password(password)
-    db.commit()
-    return RedirectResponse(url="/login?success=password_reset", status_code=302)
+    return RedirectResponse(
+        url=f"/forgot_password?error={quote('Password reset is not available yet. Please contact support.')}",
+        status_code=302,
+    )
+
 
 @app.post("/login")
 def login(
@@ -121,81 +159,100 @@ def login(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    ip = request.client.host
-    rate_limit_response = check_rate_limit(key=f"login:{username}:{ip}", limit=5, window=60)
+    username = username.strip()
+    rate_limit_response = check_rate_limit(key=f"login:{username}:{client_ip(request)}", limit=5, window=60)
     if rate_limit_response:
         return rate_limit_response
-        
+
     user = db.query(User).filter(User.username == username).first()
-    if not user or not user.password or not verify_password(password, user.password):
+    if not user or not user.is_active or not user.password or not verify_password(password, user.password):
         return RedirectResponse(url="/login?error=1", status_code=302)
 
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-
-    redis_client.set(f"refresh:{user.id}", refresh_token, ex=86400 * settings.REFRESH_TOKEN_EXPIRE_DAYS)
-
     res = RedirectResponse(url="/dashboard", status_code=302)
-    res.set_cookie(key="access_token", value=access_token, httponly=True, samesite="lax", secure=is_production)
-    res.set_cookie(key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=is_production)
+    try:
+        start_session(res, user.id)
+    except RedisError:
+        logger.exception("Redis unavailable during login")
+        return RedirectResponse(url="/login?error=service_unavailable", status_code=302)
     return res
 
+
 @app.get("/refresh")
-def refresh_token(request: Request, refresh_token: str = Cookie(None)):
-    ip = request.client.host
-    rate_limit_response = check_rate_limit(key=f"refresh:{ip}", limit=20, window=60)
+def refresh_page(request: Request, refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+    """Browser-navigation refresh: new access cookie, then back to the dashboard.
+    (Fetch/XHR callers use POST /auth/refresh instead.)"""
+    rate_limit_response = check_rate_limit(key=f"refresh:{client_ip(request)}", limit=20, window=60)
     if rate_limit_response:
         return rate_limit_response
 
     if not refresh_token:
-        return RedirectResponse(url="/login?error=session_missing")
+        return RedirectResponse(url="/login?error=session_missing", status_code=302)
 
-    payload = verify_refresh_token(refresh_token)
-    if not payload or "sub" not in payload:
-        return RedirectResponse(url="/login?error=session_expired")
+    try:
+        user_id = refresh_user_id(refresh_token)
+    except RedisError:
+        logger.exception("Redis unavailable during token refresh")
+        return RedirectResponse(url="/login?error=service_unavailable", status_code=302)
 
-    user_id = payload["sub"]
-    saved_token = redis_client.get(f"refresh:{user_id}")
-    if saved_token != refresh_token:
-        return RedirectResponse(url="/login?error=session_expired")
+    user = db.query(User).filter(User.id == user_id).first() if user_id else None
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login?error=session_expired", status_code=302)
 
-    new_access_token = create_access_token(int(user_id))
-    res = RedirectResponse(url="/dashboard")
-    res.set_cookie(key="access_token", value=new_access_token, httponly=True, samesite="lax", secure=is_production)
+    res = RedirectResponse(url="/dashboard", status_code=302)
+    set_access_cookie(res, create_access_token(user.id))
     return res
+
 
 @app.get("/login/google")
 async def google_login(request: Request):
     redirect_uri = request.url_for("google_callback")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
+
 @app.get("/auth/google/callback", name="google_callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
     try:
         token = await oauth.google.authorize_access_token(request)
-    except Exception as exc:
+    except Exception:
+        logger.exception("Google OAuth token exchange failed")
         return RedirectResponse(url="/login?error=oauth_failed", status_code=302)
-        
+
     userdata = token.get("userinfo")
     if not userdata or "email" not in userdata:
         return RedirectResponse(url="/login?error=invalid_userinfo", status_code=302)
+    if not userdata.get("email_verified", False):
+        return RedirectResponse(url="/login?error=email_unverified", status_code=302)
 
-    email = userdata["email"]
-    user = db.query(User).filter(User.username == email).first()
+    email = userdata["email"].strip().lower()
+    user = db.query(User).filter(func.lower(User.username) == email).first()
+    if user and user.password:
+        # A password account already owns this name. Signup does not verify email
+        # ownership, so someone could have pre-registered a victim's address; never
+        # let a Google login drop into that account.
+        return RedirectResponse(url="/login?error=oauth_account_exists", status_code=302)
+    if user and not user.is_active:
+        return RedirectResponse(url="/login?error=user_not_found", status_code=302)
     if not user:
         user = User(username=email, password=None)
         db.add(user)
-        db.commit()
-        db.refresh(user)
-        
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    redis_client.set(f"refresh:{user.id}", refresh_token, ex=86400 * settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            user = db.query(User).filter(func.lower(User.username) == email).first()
+            if not user or user.password:
+                return RedirectResponse(url="/login?error=oauth_failed", status_code=302)
+        else:
+            db.refresh(user)
+
     res = RedirectResponse(url="/dashboard", status_code=302)
-    res.set_cookie(key="access_token", value=access_token, httponly=True, samesite="lax", secure=is_production)
-    res.set_cookie(key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=is_production)
+    try:
+        start_session(res, user.id)
+    except RedisError:
+        logger.exception("Redis unavailable during Google login")
+        return RedirectResponse(url="/login?error=service_unavailable", status_code=302)
     return res
+
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def user_dashboard(request: Request, current_user: User = Depends(get_current_user)):
@@ -204,18 +261,23 @@ def user_dashboard(request: Request, current_user: User = Depends(get_current_us
         "user": current_user
     })
 
+
 @app.exception_handler(StarletteHTTPException)
 async def auth_exception_handler(request: Request, exc):
     is_api = request.url.path.startswith("/api/")
     is_fetch = request.headers.get("x-requested-with") == "XMLHttpRequest"
-    
-    # Never redirect API calls or AJAX calls to an HTML page
-    if is_api or is_fetch:
+
+    # Never redirect API calls, AJAX calls, or non-auth errors (404, 405, ...) to an HTML page
+    if is_api or is_fetch or exc.status_code != 401:
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": str(exc.detail)}
+            content={"detail": str(exc.detail)},
+            headers=getattr(exc, "headers", None),
         )
 
-    if exc.status_code == 401:
-        return RedirectResponse(url=f"/login?error={exc.detail}")
-    return RedirectResponse(url="/login")
+    # Page navigation with an expired/missing access token but a refresh token:
+    # renew silently instead of bouncing the user to the login form.
+    if request.cookies.get("refresh_token") and str(exc.detail) in ("session_expired", "session_missing"):
+        return RedirectResponse(url="/refresh", status_code=302)
+
+    return RedirectResponse(url=f"/login?error={quote(str(exc.detail))}", status_code=302)

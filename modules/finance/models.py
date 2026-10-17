@@ -9,11 +9,14 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     ForeignKey,
+    Index,
+    UniqueConstraint,
     Enum as SAEnum,
+    func,
+    text,
 )
 from sqlalchemy.orm import relationship
 from core.database import Base
-from sqlalchemy import Column, DateTime, func
 
 class AccountType(str, enum.Enum):
     BANK = "BANK"
@@ -73,6 +76,15 @@ class Category(Base):
 
 class Transaction(Base):
     __tablename__ = "transactions"
+    __table_args__ = (
+        # Both indexes are created by Alembic revision a89f2d1e4c3b. The partial unique index is what
+        # stops the same Gmail message (source_id) being saved twice for a user; manual entries have no source_id.
+        Index(
+            "ix_transactions_user_source_id", "user_id", "source_id",
+            unique=True, postgresql_where=text("source_id IS NOT NULL"),
+        ),
+        Index("ix_transactions_user_date", "user_id", "date"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -101,6 +113,9 @@ class Transaction(Base):
 
 class Budget(Base):
     __tablename__ = "budgets"
+    __table_args__ = (
+        UniqueConstraint("user_id", "category_id", "month", name="uq_budgets_user_category_month"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -189,3 +204,17 @@ class RecurringTransaction(Base):
     account = relationship("Account", foreign_keys=[account_id], back_populates="recurring_transactions")
     to_account = relationship("Account", foreign_keys=[to_account_id])
     category = relationship("Category")
+
+
+class IgnoredSourceId(Base):
+    """Gmail message ids the user deleted from the ledger. Imports skip these forever,
+    so a transaction that is still in the mailbox is not fetched or saved again."""
+    __tablename__ = "ignored_source_ids"
+    __table_args__ = (
+        UniqueConstraint("user_id", "source_id", name="uq_ignored_source_ids_user_source"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

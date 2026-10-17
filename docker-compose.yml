@@ -12,7 +12,7 @@ services:
       redis:
         condition: service_started
     environment:
-      DB_URL: postgresql://postgres:postgres@postgres:5432/dhansutra_db
+      DB_URL: ${DB_URL}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}

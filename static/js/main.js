@@ -1,116 +1,83 @@
-
-(function ($) {
+/* DhanSutra auth pages: login, signup, forgot password.
+   Plain JavaScript (no jQuery needed). Server-side checks remain the real validation;
+   this only gives quick feedback before the form is sent. */
+(function () {
     "use strict";
 
+    var MIN_PASSWORD_LENGTH = 8; // keep in step with MIN_PASSWORD_LENGTH in main.py
+    var EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    /*==================================================================
-    [ Validate ]*/
-    var input = $('.validate-input .input100');
-
-    $('.validate-forssm').on('submit', function () {
-        var check = true;
-
-        for (var i = 0; i < input.length; i++) {
-            if (validate(input[i]) == false) {
-                showValidate(input[i]);
-                check = false;
-            }
+    // Follow the dark/light choice made on the dashboard
+    try {
+        if (localStorage.getItem("dhanSutraDark") === "true") {
+            document.documentElement.classList.add("dark");
         }
+    } catch (e) { /* storage blocked: stay on the light theme */ }
 
-        return check;
+    function setInvalid(input, message) {
+        var field = input.closest(".field");
+        if (!field) return;
+        field.classList.add("invalid");
+        var box = field.querySelector(".field-error");
+        if (box) box.textContent = message;
+    }
+
+    function clearInvalid(input) {
+        var field = input.closest(".field");
+        if (field) field.classList.remove("invalid");
+    }
+
+    // Show / hide password (buttons carry data-target="<input id>")
+    document.querySelectorAll(".toggle-password").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var input = document.getElementById(btn.getAttribute("data-target"));
+            if (!input) return;
+            var show = input.type === "password";
+            input.type = show ? "text" : "password";
+            btn.textContent = show ? "🙈" : "👁️";
+            btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+        });
     });
 
+    var form = document.getElementById("validate-form");
+    if (!form) return; // pages without a form (e.g. forgot password) need nothing more
 
-    $('.validate-form .input100').each(function () {
-        $(this).focus(function () {
-            hideValidate(this);
-        });
+    form.querySelectorAll("input").forEach(function (input) {
+        input.addEventListener("input", function () { clearInvalid(input); });
     });
 
-    function validate(input) {
-        if ($(input).attr('type') == 'email' || $(input).attr('name') == 'username') {
-            if ($(input).val().trim().match(/^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{1,5}|[0-9]{1,3})(\]?)$/) == null) {
-                return false;
-            }
+    form.addEventListener("submit", function (e) {
+        var mode = form.getAttribute("data-mode"); // "login" or "signup"
+        var username = document.getElementById("username");
+        var password = document.getElementById("password");
+        var ok = true;
+
+        var name = username.value.trim();
+        if (!name) {
+            setInvalid(username, mode === "signup" ? "Email is required." : "Email or username is required.");
+            ok = false;
+        } else if (mode === "signup" && !EMAIL_PATTERN.test(name)) {
+            setInvalid(username, "Please enter a valid email address.");
+            ok = false;
         }
-        else {
-            if ($(input).val().trim() == '') {
-                return false;
-            }
+
+        if (!password.value) {
+            setInvalid(password, "Password is required.");
+            ok = false;
+        } else if (mode === "signup" && password.value.length < MIN_PASSWORD_LENGTH) {
+            setInvalid(password, "Password must be at least " + MIN_PASSWORD_LENGTH + " characters.");
+            ok = false;
         }
-    }
 
-    function showValidate(input) {
-        var thisAlert = $(input).parent();
-
-        $(thisAlert).addClass('alert-validate');
-    }
-
-    function hideValidate(input) {
-        var thisAlert = $(input).parent();
-
-        $(thisAlert).removeClass('alert-validate');
-    }
-
-
-
-})(jQuery);
-
-function togglePassword() {
-    const password = document.getElementById("password");
-    const eyeIcon = document.getElementById("eyeIcon");
-
-    if (password.type === "password") {
-        password.type = "text";
-        eyeIcon.classList.remove("fa-eye");
-        eyeIcon.classList.add("fa-eye-slash");
-    } else {
-        password.type = "password";
-        eyeIcon.classList.remove("fa-eye-slash");
-        eyeIcon.classList.add("fa-eye");
-    }
-}
-
-document.getElementById('validate-form').addEventListener('submit', function (e) {
-    e.preventDefault(); // prevent form from submitting immediately
-
-    const emailInput = document.getElementById('username').value.trim();
-    const passwordInput = document.getElementById('password').value.trim();
-
-    const formType = this.getAttribute('action'); // determine page based on action URL
-    const emailLabel = formType.includes('create_user') ? 'Email' : 'Username';
-
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailInput) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Oops!',
-            text: `${emailLabel} is required.`,
-            confirmButtonColor: '#d33'
-        });
-        return;
-    }
-
-    if (!emailPattern.test(emailInput)) {
-        Swal.fire({
-            icon: 'warning',
-            text: `Please enter a valid ${emailLabel.toLowerCase()}.`,
-            confirmButtonColor: '#d33'
-        });
-        return;
-    }
-
-    if (!passwordInput) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Oops!',
-            text: 'Password is required.',
-            confirmButtonColor: '#d33'
-        });
-        return;
-    }
-
-    // If all is valid, submit the form
-    this.submit();
-});
+        if (!ok) {
+            e.preventDefault();
+            return;
+        }
+        username.value = name; // send the trimmed value
+        var button = form.querySelector("button[type=submit]");
+        if (button) {
+            button.disabled = true; // stop double submits (the login rate limit counts every try)
+            button.textContent = mode === "signup" ? "Creating account..." : "Signing in...";
+        }
+    });
+})();

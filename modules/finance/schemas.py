@@ -2,7 +2,7 @@ from __future__ import annotations
 import datetime as _dt
 from decimal import Decimal
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from modules.finance.models import AccountType, TransactionType, RecurringFrequency
 
 # ---------------- BUDGETS ----------------
@@ -186,39 +186,63 @@ class TransactionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class TransactionUpdate(BaseModel):
-    amount: Optional[Decimal] = None
+    amount: Optional[Decimal] = Field(None, gt=0)
     date: Optional[_dt.date] = None
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=255)
     type: Optional[TransactionType] = None
     account_id: Optional[int] = None
     category_id: Optional[int] = None
     from_account_id: Optional[int] = None
     to_account_id: Optional[int] = None
-    source_id: Optional[str] = None
+    source_id: Optional[str] = Field(None, max_length=255)
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
+def _date_only(value):
+    """The dashboard sends/receives ISO strings; accept '2026-10-16T00:00:00' too and keep only the date."""
+    if isinstance(value, str) and "T" in value:
+        return value.split("T", 1)[0]
+    if isinstance(value, _dt.datetime):
+        return value.date()
+    return value
+
+
 class RecurringBase(BaseModel):
-    description: str
-    amount: Decimal
+    description: str = Field(..., min_length=1, max_length=255)
+    amount: Decimal = Field(..., gt=0)
     type: TransactionType
     account_id: int
     to_account_id: Optional[int] = None
     category_id: Optional[int] = None
     frequency: RecurringFrequency
-    next_date: _dt.datetime
+    # The column is a DATE; this used to be a datetime, which made the API return
+    # "...T00:00:00" and forced the frontend to strip it everywhere.
+    next_date: _dt.date
+
+    @field_validator("next_date", mode="before")
+    @classmethod
+    def _next_date_only(cls, v):
+        return _date_only(v)
+
 
 class RecurringCreate(RecurringBase):
     pass
 
+
 class RecurringUpdate(BaseModel):
-    description: Optional[str] = None
-    amount: Optional[Decimal] = None
+    description: Optional[str] = Field(None, min_length=1, max_length=255)
+    amount: Optional[Decimal] = Field(None, gt=0)
     type: Optional[TransactionType] = None
     account_id: Optional[int] = None
     to_account_id: Optional[int] = None
     category_id: Optional[int] = None
     frequency: Optional[RecurringFrequency] = None
-    next_date: Optional[_dt.datetime] = None
+    next_date: Optional[_dt.date] = None
+
+    @field_validator("next_date", mode="before")
+    @classmethod
+    def _next_date_only(cls, v):
+        return _date_only(v)
+
 
 class RecurringResponse(RecurringBase):
     id: int

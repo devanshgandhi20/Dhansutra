@@ -1,8 +1,9 @@
 from datetime import date
 from decimal import Decimal
-from typing import List
-from sqlalchemy.orm import Session
-from sqlalchemy import extract, func
+from typing import Dict, List, Tuple
+
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
 from modules.finance.models import (
     Account,
@@ -17,25 +18,54 @@ from modules.finance.schemas import (
     DashboardSummaryResponse,
 )
 
+ZERO = Decimal("0.00")
+
+
+def _month_bounds(year: int, month: int) -> Tuple[date, date]:
+    """First day of the month and first day of the next month (half-open range, index friendly)."""
+    start = date(year, month, 1)
+    end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    return start, end
+
+
+def _dec(value) -> Decimal:
+    return Decimal(str(value or "0"))
+
 
 class FinanceService:
 
     @staticmethod
     def get_monthly_budget_status(db: Session, user_id: int, month_str: str) -> List[BudgetStatusResponse]:
         year, month = map(int, month_str.split("-"))
-        budgets = db.query(Budget).filter(Budget.user_id == user_id, Budget.month == month_str).all()
+        start, end = _month_bounds(year, month)
+
+        budgets = (
+            db.query(Budget)
+            .options(joinedload(Budget.category))
+            .filter(Budget.user_id == user_id, Budget.month == month_str)
+            .all()
+        )
+        if not budgets:
+            return []
+
+        # One grouped query for every category instead of one query per budget.
+        spent_by_category: Dict[int, Decimal] = {
+            category_id: _dec(total)
+            for category_id, total in db.query(Transaction.category_id, func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.type == TransactionType.EXPENSE,
+                Transaction.category_id.in_([b.category_id for b in budgets]),
+                Transaction.date >= start,
+                Transaction.date < end,
+            )
+            .group_by(Transaction.category_id)
+            .all()
+        }
 
         results: List[BudgetStatusResponse] = []
         for b in budgets:
-            actual_spent = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-                Transaction.user_id == user_id,
-                Transaction.category_id == b.category_id,
-                Transaction.type == TransactionType.EXPENSE,
-                extract("year", Transaction.date) == year,
-                extract("month", Transaction.date) == month,
-            ).scalar()
-
-            spent = Decimal(str(actual_spent))
+            spent = spent_by_category.get(b.category_id, ZERO)
             limit = b.limit_amount
             remaining = limit - spent
             pct = round(float((spent / limit) * 100), 2) if limit > 0 else 0.0
@@ -57,57 +87,59 @@ class FinanceService:
     @staticmethod
     def calculate_account_balances(db: Session, user_id: int) -> List[AccountBalanceSummary]:
         accounts = db.query(Account).filter(Account.user_id == user_id).all()
+
+        # Four grouped queries in total (was four queries PER account).
+        income: Dict[int, Decimal] = {}
+        expense: Dict[int, Decimal] = {}
+        for account_id, tx_type, total in (
+            db.query(Transaction.account_id, Transaction.type, func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.account_id.isnot(None),
+                Transaction.type.in_([TransactionType.INCOME, TransactionType.EXPENSE]),
+            )
+            .group_by(Transaction.account_id, Transaction.type)
+            .all()
+        ):
+            (income if tx_type == TransactionType.INCOME else expense)[account_id] = _dec(total)
+
+        transfers_in: Dict[int, Decimal] = {
+            account_id: _dec(total)
+            for account_id, total in db.query(Transaction.to_account_id, func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.type == TransactionType.TRANSFER,
+                Transaction.to_account_id.isnot(None),
+            )
+            .group_by(Transaction.to_account_id)
+            .all()
+        }
+        transfers_out: Dict[int, Decimal] = {
+            account_id: _dec(total)
+            for account_id, total in db.query(Transaction.from_account_id, func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.type == TransactionType.TRANSFER,
+                Transaction.from_account_id.isnot(None),
+            )
+            .group_by(Transaction.from_account_id)
+            .all()
+        }
+
         summaries = []
-
         for acc in accounts:
-            starting = Decimal(str(acc.starting_balance or "0.00"))
+            starting = _dec(acc.starting_balance)
+            income_sum = income.get(acc.id, ZERO)
+            expense_sum = expense.get(acc.id, ZERO)
+            t_in = transfers_in.get(acc.id, ZERO)
+            t_out = transfers_out.get(acc.id, ZERO)
 
-            # 1. Standard income and expense directly on this account
-            income_sum = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-                Transaction.user_id == user_id,
-                Transaction.account_id == acc.id,
-                Transaction.type == TransactionType.INCOME,
-            ).scalar()
-
-            expense_sum = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-                Transaction.user_id == user_id,
-                Transaction.account_id == acc.id,
-                Transaction.type == TransactionType.EXPENSE,
-            ).scalar()
-
-            # 2. Transfers into this account (Inflow)
-            transfers_in = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-                Transaction.user_id == user_id,
-                Transaction.to_account_id == acc.id,
-                Transaction.type == TransactionType.TRANSFER,
-            ).scalar()
-
-            # 3. Transfers out of this account (Outflow)
-            transfers_out = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-                Transaction.user_id == user_id,
-                Transaction.from_account_id == acc.id,
-                Transaction.type == TransactionType.TRANSFER,
-            ).scalar()
-
-            # Calculate reconciled balance
             if acc.type == AccountType.CREDIT_CARD:
                 # Credit cards: starting liability + expenses - payments/inflows + cash advances/outflows
-                current_balance = (
-                    starting
-                    + Decimal(str(expense_sum))
-                    - Decimal(str(income_sum))
-                    - Decimal(str(transfers_in))
-                    + Decimal(str(transfers_out))
-                )
+                current_balance = starting + expense_sum - income_sum - t_in + t_out
             else:
                 # Standard Bank, Cash, Demat, and Investment accounts
-                current_balance = (
-                    starting
-                    + Decimal(str(income_sum))
-                    - Decimal(str(expense_sum))
-                    + Decimal(str(transfers_in))
-                    - Decimal(str(transfers_out))
-                )
+                current_balance = starting + income_sum - expense_sum + t_in - t_out
 
             # For investment accounts, use current_market_value if set, otherwise fallback to current_balance
             market_val = (
@@ -157,35 +189,22 @@ class FinanceService:
 
         net_worth = total_assets - total_liabilities
 
-        # Monthly income and expense figures
-        year = target_date.year
-        month = target_date.month
-
-        monthly_income = Decimal(
-            str(
-                db.query(func.coalesce(func.sum(Transaction.amount), 0))
-                .filter(
-                    Transaction.user_id == user_id,
-                    Transaction.type == TransactionType.INCOME,
-                    extract("year", Transaction.date) == year,
-                    extract("month", Transaction.date) == month,
-                )
-                .scalar()
+        # Monthly income and expense figures: one grouped query over a date range
+        start, end = _month_bounds(target_date.year, target_date.month)
+        totals = {
+            tx_type: _dec(total)
+            for tx_type, total in db.query(Transaction.type, func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.type.in_([TransactionType.INCOME, TransactionType.EXPENSE]),
+                Transaction.date >= start,
+                Transaction.date < end,
             )
-        )
-
-        monthly_expense = Decimal(
-            str(
-                db.query(func.coalesce(func.sum(Transaction.amount), 0))
-                .filter(
-                    Transaction.user_id == user_id,
-                    Transaction.type == TransactionType.EXPENSE,
-                    extract("year", Transaction.date) == year,
-                    extract("month", Transaction.date) == month,
-                )
-                .scalar()
-            )
-        )
+            .group_by(Transaction.type)
+            .all()
+        }
+        monthly_income = totals.get(TransactionType.INCOME, ZERO)
+        monthly_expense = totals.get(TransactionType.EXPENSE, ZERO)
 
         monthly_savings = monthly_income - monthly_expense
         savings_rate = (

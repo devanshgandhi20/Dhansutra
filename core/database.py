@@ -27,3 +27,12 @@ def set_search_path(dbapi_connection, connection_record):
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+def get_db():
+    """FastAPI dependency: one DB session per request. Single shared definition."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
