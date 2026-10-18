@@ -42,7 +42,9 @@
         row('📊', 'Export CSV statement', 'All transactions as a spreadsheet', 'href:/api/finance/imports/export/csv') +
         row('💾', 'Download JSON archive', 'Full copy of your data', 'href:/api/finance/imports/export/json')) +
       group('Preferences',
-        row('🌓', 'Theme', 'Light or dark', 'toggleTheme(); refreshSettings()', 'stThemeDesc')) +
+        row('🌓', 'Theme', 'Light or dark', 'toggleTheme(); refreshSettings()', 'stThemeDesc') +
+        // Fun layer switch (see /static/fun.js). A label row, not row(): a checkbox cannot live inside a button.
+        `<label class="btn btn-secondary st-row" style="cursor:pointer;"><span style="display:flex; gap:10px; align-items:center;"><span aria-hidden="true">🎉</span><span><span class="t">Fun stuff</span><span class="caption-text d">Coin mascot, budget weather, jokes and a few hidden surprises</span></span></span><input type="checkbox" data-fun="enable-toggle" aria-label="Fun stuff" style="width:18px; height:18px; accent-color:var(--palace-teal); flex-shrink:0;"></label>`) +
       group('Security',
         row('🚪', 'Log out', 'End this session on this device', 'href:/auth/logout')));
   }

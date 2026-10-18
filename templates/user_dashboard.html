@@ -891,19 +891,24 @@
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
     </style>
+    <link rel="stylesheet" href="/static/css/fun.css">
 </head>
 
 <body>
     <header>
         <div class="header-top">
-            <div class="brand">
+            <div class="brand" data-fun="logo">
                 <div class="brand-icon" aria-hidden="true">🏛️</div>
                 <div>
                     <h1 class="brand-text" style="color: #ffffff; font-size: 22px;">DHANSUTRA</h1>
                     <p class="subtitle">Heritage Wealth & Money Manager</p>
+                    <p class="subtitle" data-fun="greeting" data-name="{{ user.username }}"
+                        style="color: #ffffff; opacity: 0.85; margin-top: 2px;"></p>
                 </div>
             </div>
             <div class="header-actions">
+                <span data-fun="weather"></span>
+                <span data-fun="theme-toggle"></span>
                 <button class="btn btn-primary" onclick="openTransactionModal()" aria-label="Add Transaction">+ Add
                     Transaction</button>
                 <button class="btn btn-secondary btn-pill" onclick="openSettingsModal()"
@@ -954,6 +959,15 @@
                     <div class="card-value amount-neutral" id="valMonthlySurplus">₹ 0.00</div>
                     <span class="caption-text" id="subMonthlySurplus">Selected month</span>
                 </div>
+            </div>
+            <!-- Fun layer: personality comes from LAST month, the conversion line from the selected month.
+                 Filled by /static/js/fun-bridge.js; hidden when "Fun stuff" is switched off in Settings. -->
+            <div class="card" id="funPersonalityCard" style="padding: 1.15rem;">
+                <div class="card-header">
+                    <h2 class="section-title">Money Mood</h2>
+                </div>
+                <div data-fun="personality"></div>
+                <p class="caption-text" data-fun="conversion" style="margin-top: 0.7rem;"></p>
             </div>
             <h2 class="section-title" style="margin-bottom: 0.75rem;">Accounts & Investment Positions <span
                     id="staleBadgeAccounts"></span></h2>
@@ -4044,6 +4058,9 @@
     <script src="/static/js/insights.js"></script>
     <script src="/static/js/calendar.js"></script>
     <script src="/static/js/settings.js"></script>
+    <!-- Fun layer (optional): remove these two lines, the stylesheet link in <head> and the data-fun hooks to drop it -->
+    <script src="/static/js/fun.js"></script>
+    <script src="/static/js/fun-bridge.js"></script>
 </body>
 
 </html>

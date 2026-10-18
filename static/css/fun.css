@@ -1,0 +1,128 @@
+/* DhanSutra fun layer styles. Pairs with fun.js.
+ * Colours come from the app's own CSS variables (--surface, --text-main, ...) with fallbacks,
+ * and dark mode is the app's own body.dark. Layering: above the mobile nav (1000) and the quick-add
+ * button (1100), below the modals (2000), so nothing floats over a dialog. */
+
+/* ---- toast (sits just above the app's own toast area) ---- */
+.fun-toast {
+  position: fixed; left: 50%; bottom: 96px; z-index: 9990;
+  transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  max-width: min(90vw, 440px); padding: 10px 16px; border-radius: 999px;
+  background: #192028; color: #fff; font-size: 13px; font-weight: 500; line-height: 1.4; text-align: center;
+  border: 1px solid rgba(255, 255, 255, .15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  transition: opacity .25s ease, transform .25s ease;
+}
+.fun-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---- mood mascot ---- */
+.fun-mascot {
+  position: fixed; right: 16px; bottom: 16px; z-index: 1200;
+  width: 60px; height: 60px; padding: 0; border: 0; background: none; cursor: pointer;
+  transition: transform .25s ease;
+}
+.fun-mascot:hover { transform: translateY(-3px) rotate(-5deg); }
+.fun-mascot:focus-visible { outline: 3px solid var(--palace-teal, #6aa7ff); outline-offset: 4px; border-radius: 50%; }
+.fun-mascot svg { display: block; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 60%; }
+.fun-mascot[data-state="smug"] svg { animation: fun-bob 3.2s ease-in-out infinite; }
+.fun-mascot[data-state="nervous"] svg { animation: fun-shake .45s ease-in-out infinite; }
+.fun-mascot[data-state="fainted"] svg { transform: rotate(-78deg) translate(4px, 6px); }
+.fun-mascot .coin { fill: #f5b82e; stroke: #b9801a; stroke-width: 3; }
+.fun-mascot .ring { fill: none; stroke: #e29a12; stroke-width: 1.5; stroke-dasharray: 3 3; }
+.fun-mascot .line { fill: none; stroke: #5a3b00; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.fun-mascot .ink { fill: #5a3b00; }
+.fun-mascot .white { fill: #fff; stroke: #5a3b00; stroke-width: 1.5; }
+.fun-mascot .drop { fill: #6cc3ff; stroke: #2f86c4; stroke-width: 1; }
+.fun-mascot .tongue { fill: #ff7a8a; stroke: #5a3b00; stroke-width: 1.5; }
+.fun-mascot .star { fill: #fff3b0; stroke: #b9801a; stroke-width: .8; }
+
+.fun-bubble {
+  position: fixed; right: 84px; bottom: 34px; z-index: 1200;
+  max-width: min(60vw, 260px); padding: 8px 12px; border-radius: 12px 12px 4px 12px;
+  background: var(--surface, #fff); color: var(--text-main, #222);
+  border: 1px solid var(--border, transparent);
+  font-size: 13px; line-height: 1.35;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+  opacity: 0; transform: translateY(6px) scale(.96); pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.fun-bubble.show { opacity: 1; transform: none; }
+
+/* phones: the bottom-right belongs to the quick-add button, so the coin lives bottom-left above the nav bar */
+@media (max-width: 920px) {
+  .fun-mascot { right: auto; left: 12px; bottom: 76px; width: 52px; height: 52px; }
+  .fun-bubble { right: auto; left: 70px; bottom: 90px; border-radius: 12px 12px 12px 4px; }
+}
+
+@keyframes fun-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes fun-shake { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-2px) rotate(-3deg); } 75% { transform: translateX(2px) rotate(3deg); } }
+
+/* ---- spending weather ---- */
+.fun-weather {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.3;
+  background: rgba(120, 130, 150, .14);
+}
+header .fun-weather { background: rgba(255, 255, 255, .16); color: #fff; }
+/* phones: the header buttons used to overflow the screen by a few pixels; with the weather pill and the
+   theme switch added they need to wrap, and the weather shrinks to its icon */
+@media (max-width: 600px) {
+  header .header-actions { flex-wrap: wrap; }
+  header .fun-weather-label { display: none; }
+}
+.fun-weather.fun-floating {
+  position: fixed; left: 16px; bottom: 16px; z-index: 1200;
+  background: var(--surface, #fff); color: var(--text-main, #222); box-shadow: 0 4px 14px rgba(0, 0, 0, .15);
+}
+.fun-weather-icon { display: inline-block; font-size: 15px; }
+.fun-weather[data-weather="sunny"] .fun-weather-icon { animation: fun-spin-slow 14s linear infinite; }
+.fun-weather[data-weather="cloudy"] .fun-weather-icon { animation: fun-drift 5s ease-in-out infinite; }
+.fun-weather[data-weather="stormy"] .fun-weather-icon { animation: fun-flicker 2.2s steps(1) infinite; }
+@keyframes fun-spin-slow { to { transform: rotate(360deg); } }
+@keyframes fun-drift { 0%, 100% { transform: translateX(-2px); } 50% { transform: translateX(3px); } }
+@keyframes fun-flicker { 0%, 88%, 100% { opacity: 1; } 90% { opacity: .35; } 94% { opacity: 1; } 96% { opacity: .5; } }
+
+/* ---- sun / moon theme toggle (follows the app's body.dark) ---- */
+.fun-theme {
+  position: relative; width: 60px; height: 30px; padding: 0; border: 0; border-radius: 999px;
+  overflow: hidden; cursor: pointer; flex: none;
+  background: linear-gradient(#7cc4ff, #cdeaff);
+  transition: background .5s ease;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .25);
+}
+.fun-theme.fun-floating { position: fixed; top: 14px; right: 16px; z-index: 1200; }
+.fun-theme:focus-visible { outline: 3px solid #6aa7ff; outline-offset: 3px; }
+.fun-theme .sun, .fun-theme .moon {
+  position: absolute; top: 4px; width: 22px; height: 22px; border-radius: 50%;
+  transition: transform .6s cubic-bezier(.5, 0, .2, 1), opacity .6s ease;
+}
+.fun-theme .sun { left: 4px; background: #ffd34d; box-shadow: 0 0 10px #ffd34d; }
+.fun-theme .moon { right: 4px; background: #f1f1e6; box-shadow: inset -5px -2px 0 0 #cfcfc0; transform: translateY(36px); opacity: 0; }
+body.dark .fun-theme { background: linear-gradient(#0f1b3d, #2a3a73); }
+body.dark .fun-theme .sun { transform: translateY(36px); opacity: 0; }
+body.dark .fun-theme .moon { transform: none; opacity: 1; }
+
+/* ---- logo spin ---- */
+.fun-spin { animation: fun-logo-spin .9s cubic-bezier(.4, 0, .2, 1); }
+@keyframes fun-logo-spin { from { transform: rotate(0) scale(1); } 50% { transform: rotate(540deg) scale(1.3); } to { transform: rotate(1080deg) scale(1); } }
+
+/* ---- coin rain ---- */
+.fun-rain { position: fixed; inset: 0; z-index: 9990; overflow: hidden; pointer-events: none; }
+.fun-coin {
+  position: absolute; top: -50px; display: grid; place-items: center; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ffe48a, #f5b82e 60%, #b9801a);
+  border: 2px solid #b9801a; color: #7a5200; font-weight: 700;
+  animation: fun-fall linear forwards;
+}
+@keyframes fun-fall { to { transform: translateY(115vh) rotate(720deg); } }
+
+/* ---- personality card ---- */
+.fun-personality { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: var(--surface-subtle, rgba(120, 130, 150, .12)); }
+.fun-personality-emoji { font-size: 32px; line-height: 1; }
+.fun-personality-text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.35; }
+.fun-personality-text strong { font-size: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fun-mascot svg, .fun-weather-icon, .fun-spin, .fun-coin { animation: none !important; }
+  .fun-theme .sun, .fun-theme .moon, .fun-toast, .fun-bubble { transition: none; }
+}
