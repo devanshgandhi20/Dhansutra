@@ -64,11 +64,34 @@
   background: rgba(120, 130, 150, .14);
 }
 header .fun-weather { background: rgba(255, 255, 255, .16); color: #fff; }
-/* phones: the header buttons used to overflow the screen by a few pixels; with the weather pill and the
-   theme switch added they need to wrap, and the weather shrinks to its icon */
-@media (max-width: 600px) {
-  header .header-actions { flex-wrap: wrap; }
+
+/* ---- header tidy-up: weather pill, theme switch and the three buttons read as one row ----
+   Everything here is scoped to <header>, so the demo page and the floating fallbacks are unaffected.
+   ".hdr-more" is the long part of a button label (" Transaction", " Settings", " Logout"). */
+header .header-actions { gap: .5rem; align-items: center; }
+header .header-actions .btn { height: 36px; padding-top: 0; padding-bottom: 0; }
+header .fun-weather { height: 36px; padding: 0 12px; }
+header .fun-theme { width: 52px; height: 28px; }
+header .fun-theme .sun, header .fun-theme .moon { top: 4px; width: 20px; height: 20px; }
+header [data-fun="theme-toggle"] { display: inline-flex; padding-right: .75rem; margin-right: .25rem; border-right: 1px solid rgba(255, 255, 255, .2); }
+/* phones: one single row. weather + theme on the left, "+ Add", settings and logout (icons) on the right.
+   (This also fixes the header overflowing the screen by 15px before the fun layer existed.) */
+@media (max-width: 720px) {
+  header .header-actions { width: 100%; flex-wrap: nowrap; gap: .4rem; }
+  header .header-actions .btn-primary { margin-left: auto; }
+  header .header-actions .btn { padding-left: .85rem; padding-right: .85rem; }
+  header [data-fun="theme-toggle"] { padding-right: 0; margin-right: 0; border-right: 0; }
+  header .fun-weather { padding: 0 11px; }
   header .fun-weather-label { display: none; }
+  header .hdr-more { display: none; }
+}
+/* very small phones (320-380px): squeeze the spacing so the row still fits */
+@media (max-width: 380px) {
+  header .header-actions { gap: .3rem; }
+  header .header-actions .btn { padding-left: .6rem; padding-right: .6rem; }
+  header .fun-weather { padding: 0 9px; }
+  header .fun-theme { width: 46px; }
+  header .fun-theme .sun, header .fun-theme .moon { top: 5px; width: 18px; height: 18px; }
 }
 .fun-weather.fun-floating {
   position: fixed; left: 16px; bottom: 16px; z-index: 1200;

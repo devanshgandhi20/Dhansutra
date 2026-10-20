@@ -262,8 +262,11 @@
   /* ---------- 7. greeting (changes after midnight) ---------- */
   function displayName(name) {
     if (!name) return '';
-    var n = String(name).split('@')[0].replace(/[._-]+/g, ' ').trim();
-    return n.replace(/(^|\s)(\S)/g, function (m, sp, ch) { return sp + ch.toUpperCase(); });
+    // "dkgandhi246.dg@gmail.com" -> "Dkgandhi": first part of the email name, digits dropped.
+    // Too short or empty after that (e.g. "x1@..."): no name, the greeting just says "Good evening".
+    var first = String(name).split('@')[0].split(/[._\-+\s]+/)[0].replace(/[0-9]+/g, '');
+    if (first.length < 2) return '';
+    return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
   }
   function greeting(name, now) {
     var d = now || new Date();

@@ -891,7 +891,7 @@
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
     </style>
-    <link rel="stylesheet" href="/static/css/fun.css">
+    <link rel="stylesheet" href="/static/fun.css">
 </head>
 
 <body>
@@ -909,12 +909,12 @@
             <div class="header-actions">
                 <span data-fun="weather"></span>
                 <span data-fun="theme-toggle"></span>
-                <button class="btn btn-primary" onclick="openTransactionModal()" aria-label="Add Transaction">+ Add
-                    Transaction</button>
+                <button class="btn btn-primary" onclick="openTransactionModal()" aria-label="Add Transaction">+ Add<span
+                        class="hdr-more"> Transaction</span></button>
                 <button class="btn btn-secondary btn-pill" onclick="openSettingsModal()"
-                    aria-label="Open System Settings">⚙️ Settings</button>
-                <a href="/auth/logout" class="btn btn-ghost btn-pill"
-                    style="color: rgba(255, 255, 255, 0.85); text-decoration: none;">🚪 Logout</a>
+                    aria-label="Open System Settings">⚙️<span class="hdr-more"> Settings</span></button>
+                <a href="/auth/logout" class="btn btn-ghost btn-pill" aria-label="Log out"
+                    style="color: rgba(255, 255, 255, 0.85); text-decoration: none;">🚪<span class="hdr-more"> Logout</span></a>
             </div>
         </div>
         <nav class="desktop-nav" aria-label="Primary Navigation">
@@ -4059,7 +4059,7 @@
     <script src="/static/js/calendar.js"></script>
     <script src="/static/js/settings.js"></script>
     <!-- Fun layer (optional): remove these two lines, the stylesheet link in <head> and the data-fun hooks to drop it -->
-    <script src="/static/js/fun.js"></script>
+    <script src="/static/fun.js"></script>
     <script src="/static/js/fun-bridge.js"></script>
 </body>
 
