@@ -2648,7 +2648,7 @@
                     html += `
                         <div class="ledger-row" role="button" tabindex="0" onclick="inspectTransaction(${t.id})">
                             <div class="row-left">
-                                <div class="row-icon">${icon}</div>
+                                <div class="row-icon">${sanitize(icon)}</div>
                                 <div>
                                     <div style="font-weight:600;">${sanitize(t.description)}</div>
                                     <div class="caption-text">${subtext}</div>
