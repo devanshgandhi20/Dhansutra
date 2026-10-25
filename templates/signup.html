@@ -36,6 +36,7 @@
             <p class="auth-lead">Start tracking your money with DhanSutra.</p>
 
             <form id="validate-form" data-mode="signup" method="post" action="/create_user" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="field">
                 <label for="username">Email</label>
                 <div class="field-box">
