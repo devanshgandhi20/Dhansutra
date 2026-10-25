@@ -36,6 +36,7 @@
             <p class="auth-lead">Sign in to continue to your dashboard.</p>
 
             <form id="validate-form" data-mode="login" method="post" action="/login" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="field">
                 <label for="username">Email or username</label>
                 <div class="field-box">
