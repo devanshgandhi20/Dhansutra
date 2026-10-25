@@ -43,14 +43,17 @@ def refresh_session_api(
     return res
 
 
-@router.get("/logout")
+
+@router.post("/logout")
 def logout(refresh_token: str = Cookie(None)):
     try:
         end_session(refresh_token)
     except RedisError:
-        logger.exception("Redis unavailable during logout; cookies are still cleared")
+        logger.exception(
+            "Redis unavailable during logout; cookies are still cleared"
+        )
 
-    res = RedirectResponse(url="/login", status_code=302)
+    res = JSONResponse(content={"ok": True})
     res.delete_cookie("access_token", path="/")
     res.delete_cookie("refresh_token", path="/")
     return res
