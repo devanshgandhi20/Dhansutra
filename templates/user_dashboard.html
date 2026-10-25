@@ -913,8 +913,13 @@
                         class="hdr-more"> Transaction</span></button>
                 <button class="btn btn-secondary btn-pill" onclick="openSettingsModal()"
                     aria-label="Open System Settings">⚙️<span class="hdr-more"> Settings</span></button>
-                <a href="/auth/logout" class="btn btn-ghost btn-pill" aria-label="Log out"
-                    style="color: rgba(255, 255, 255, 0.85); text-decoration: none;">🚪<span class="hdr-more"> Logout</span></a>
+                <button type="button"
+                    class="btn btn-ghost btn-pill"
+                    aria-label="Log out"
+                    onclick="logoutSafely()"
+                    style="color: rgba(255, 255, 255, 0.85);">
+                    🚪<span class="hdr-more"> Logout</span>
+                </button>
             </div>
         </div>
         <nav class="desktop-nav" aria-label="Primary Navigation">
@@ -4052,6 +4057,38 @@
             container.appendChild(div);
             setTimeout(() => div.remove(), 4000);
         }
+
+        let logoutInProgress = false;
+
+        window.logoutSafely = async function () {
+            if (logoutInProgress) return;
+
+            logoutInProgress = true;
+
+            try {
+                const response = await fetch('/auth/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!response.ok) {
+                    showToast('Could not log out. Please try again.', 'error');
+                    return;
+                }
+
+                window.location.assign('/login');
+
+            } catch (error) {
+                console.error('Logout request failed:', error);
+                showToast('Could not log out. Please try again.', 'error');
+
+            } finally {
+                logoutInProgress = false;
+            }
+        };
     </script>
 
     <!-- Feature Modules Externalized -->

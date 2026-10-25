@@ -126,6 +126,69 @@ class TestCsrfIntegration(unittest.TestCase):
         # rather than the CSRF middleware.
         self.assertEqual(response.status_code, 422)
 
+    def test_logout_get_is_not_allowed(self):
+        response = self.client.get("/auth/logout")
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_logout_post_without_csrf_header_is_blocked(self):
+        with patch("modules.auth.router.end_session") as revoke:
+            response = self.client.post("/auth/logout")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.json()["detail"],
+            "csrf_validation_failed",
+        )
+        revoke.assert_not_called()
+
+    def test_logout_post_cross_site_is_blocked(self):
+        with patch("modules.auth.router.end_session") as revoke:
+            response = self.client.post(
+                "/auth/logout",
+                headers={
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Sec-Fetch-Site": "cross-site",
+                },
+            )
+
+        self.assertEqual(response.status_code, 403)
+        revoke.assert_not_called()
+
+    def test_logout_post_with_valid_headers_clears_cookies(self):
+        with patch("modules.auth.router.end_session") as revoke:
+            response = self.client.post(
+                "/auth/logout",
+                headers={
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Sec-Fetch-Site": "same-origin",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+
+        revoke.assert_called_once_with(None)
+
+        cookies = response.headers.get_list("set-cookie")
+
+        self.assertEqual(len(cookies), 2)
+
+        self.assertTrue(
+            any(
+                cookie.startswith("access_token=")
+                and "max-age=0" in cookie.lower()
+                for cookie in cookies
+            )
+        )
+
+        self.assertTrue(
+            any(
+                cookie.startswith("refresh_token=")
+                and "max-age=0" in cookie.lower()
+                for cookie in cookies
+            )
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -57,7 +57,10 @@ async def csrf_protection(request: Request, call_next):
 
     is_protected = (
         request.method in UNSAFE_METHODS
-        and (is_finance_api or path == "/auth/refresh")
+        and (
+            is_finance_api
+            or path in {"/auth/refresh", "/auth/logout"}
+        )
     )
 
     if is_protected:
