@@ -39,6 +39,48 @@ app.add_middleware(
     same_site="lax",
 )
 
+
+# PH1.2 — CSRF protection for browser-authenticated API writes.
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def csrf_protection(request: Request, call_next):
+    path = request.url.path
+
+    # The Gmail webhook authenticates using its own secret token,
+    # not the user's browser session cookie.
+    is_finance_api = (
+        path.startswith("/api/finance/")
+        and path != "/api/finance/imports/webhook-ingest"
+    )
+
+    is_protected = (
+        request.method in UNSAFE_METHODS
+        and (is_finance_api or path == "/auth/refresh")
+    )
+
+    if is_protected:
+        # Cross-origin HTML forms cannot send this custom header.
+        if request.headers.get("x-requested-with") != "XMLHttpRequest":
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "csrf_validation_failed"},
+            )
+
+        # Reject same-site but cross-origin and fully cross-site
+        # browser requests, including those from sibling subdomains.
+        fetch_site = request.headers.get("sec-fetch-site", "").lower()
+
+        if fetch_site in {"cross-site", "same-site"}:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "csrf_validation_failed"},
+            )
+
+    return await call_next(request)
+
+
 app.include_router(auth_router)
 app.include_router(finance_router)
 app.include_router(imports_router)
