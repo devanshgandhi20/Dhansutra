@@ -1,3 +1,4 @@
+import secrets
 import logging
 from urllib.parse import quote
 
@@ -39,12 +40,94 @@ app.add_middleware(
     same_site="lax",
 )
 
+
+# PH1.2 — CSRF protection for browser-authenticated API writes.
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def csrf_protection(request: Request, call_next):
+    path = request.url.path
+
+    # The Gmail webhook authenticates using its own secret token,
+    # not the user's browser session cookie.
+    is_finance_api = (
+        path.startswith("/api/finance/")
+        and path != "/api/finance/imports/webhook-ingest"
+    )
+
+    is_protected = (
+        request.method in UNSAFE_METHODS
+        and (
+            is_finance_api
+            or path in {"/auth/refresh", "/auth/logout"}
+        )
+    )
+
+    if is_protected:
+        # Cross-origin HTML forms cannot send this custom header.
+        if request.headers.get("x-requested-with") != "XMLHttpRequest":
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "csrf_validation_failed"},
+            )
+
+        # Reject same-site but cross-origin and fully cross-site
+        # browser requests, including those from sibling subdomains.
+        fetch_site = request.headers.get("sec-fetch-site", "").lower()
+
+        if fetch_site in {"cross-site", "same-site"}:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "csrf_validation_failed"},
+            )
+
+    return await call_next(request)
+
+
 app.include_router(auth_router)
 app.include_router(finance_router)
 app.include_router(imports_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 MIN_PASSWORD_LENGTH = 8
+AUTH_CSRF_SESSION_KEY = "auth_form_csrf"
+
+def get_auth_form_csrf_token(request: Request) -> str:
+    """
+    Return a CSRF token associated with the browser session.
+    Reuse it so multiple login/signup tabs remain functional.
+    """
+    token = request.session.get(AUTH_CSRF_SESSION_KEY)
+
+    if not isinstance(token, str) or not token:
+        token = secrets.token_urlsafe(32)
+        request.session[AUTH_CSRF_SESSION_KEY] = token
+
+    return token
+
+
+def is_valid_auth_form_csrf(
+    request: Request,
+    submitted_token: str
+) -> bool:
+    """
+    Validate a submitted form token against the signed session.
+    """
+    expected_token = request.session.get(AUTH_CSRF_SESSION_KEY)
+
+    if (
+        not isinstance(expected_token, str)
+        or not expected_token
+        or not isinstance(submitted_token, str)
+        or not submitted_token
+    ):
+        return False
+
+    return secrets.compare_digest(
+        expected_token.encode("utf-8"),
+        submitted_token.encode("utf-8")
+    )
 
 LOGIN_ERRORS = {
     "1": "Invalid credentials",
@@ -74,8 +157,14 @@ def create_user(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    csrf_token: str = Form(""),
     db: Session = Depends(get_db)
 ):
+    if not is_valid_auth_form_csrf(request, csrf_token):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "csrf_validation_failed"},
+        )
     rate_limit_response = check_rate_limit(key=f"signup:{client_ip(request)}", limit=10, window=3600)
     if rate_limit_response:
         return rate_limit_response
@@ -108,25 +197,40 @@ def create_user(
         # two signups with the same name raced each other
         db.rollback()
         return RedirectResponse(url=f"/signup?error={quote('User already exists')}", status_code=303)
-    return RedirectResponse(url="/login?success=user_created", status_code=303)
+    request.session.pop(AUTH_CSRF_SESSION_KEY, None)
+
+    return RedirectResponse(
+        url="/login?success=user_created",
+        status_code=303
+    )
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, error: str = None, success: str = None):
+def login_page(
+    request: Request,
+    error: str = None,
+    success: str = None
+):
     return templates.TemplateResponse(
         "login.html",
         {
             "request": request,
             "error": LOGIN_ERRORS.get(error) if error else None,
             "success": LOGIN_SUCCESS.get(success) if success else None,
+            "csrf_token": get_auth_form_csrf_token(request),
         }
     )
 
-
 @app.get("/signup", response_class=HTMLResponse)
 def signup_page(request: Request, error: str = None):
-    return templates.TemplateResponse("signup.html", {"request": request, "error": error})
-
+    return templates.TemplateResponse(
+        "signup.html",
+        {
+            "request": request,
+            "error": error,
+            "csrf_token": get_auth_form_csrf_token(request),
+        }
+    )
 
 @app.get("/forgot_password", response_class=HTMLResponse)
 def forgot_password_page(request: Request, error: str = None):
@@ -151,14 +255,19 @@ def forgot_password(
         status_code=302,
     )
 
-
 @app.post("/login")
 def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    csrf_token: str = Form(""),
     db: Session = Depends(get_db)
 ):
+    if not is_valid_auth_form_csrf(request, csrf_token):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "csrf_validation_failed"},
+        )
     username = username.strip()
     rate_limit_response = check_rate_limit(key=f"login:{username}:{client_ip(request)}", limit=5, window=60)
     if rate_limit_response:
@@ -169,12 +278,19 @@ def login(
         return RedirectResponse(url="/login?error=1", status_code=302)
 
     res = RedirectResponse(url="/dashboard", status_code=302)
+
     try:
         start_session(res, user.id)
     except RedisError:
         logger.exception("Redis unavailable during login")
-        return RedirectResponse(url="/login?error=service_unavailable", status_code=302)
+        return RedirectResponse(
+            url="/login?error=service_unavailable",
+            status_code=302
+        )
+
+    request.session.pop(AUTH_CSRF_SESSION_KEY, None)
     return res
+
 
 
 @app.get("/refresh")
