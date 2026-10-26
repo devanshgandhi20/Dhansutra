@@ -322,6 +322,11 @@ def commit_receipts(
         if not acc:
             skipped_count += 1
             continue
+        # PH2.1: Imported transactions must not change
+        # Goal & Reserves balances independently of goals.
+        if acc.type == AccountType.GOAL_RESERVE:
+            skipped_count += 1
+            continue
 
         clean_desc = (item.description or "").strip()[:255]
         if not clean_desc:
@@ -407,15 +412,28 @@ def webhook_ingest_transactions(
 
     sync_user = _resolve_sync_user(db)
 
-    # Primary Axis Bank account of THIS user (name contains "axis"), else their first bank account.
-    # This used to search every user's accounts and could book mails into someone else's.
+    # PH2.1: Gmail transactions must use a BANK account only.
+    # Prefer the user's Axis Bank account, otherwise use
+    # another BANK account belonging to the same user.
     axis_account = (
         db.query(Account)
-        .filter(Account.user_id == sync_user.id, Account.name.ilike("%axis%"))
+        .filter(
+            Account.user_id == sync_user.id,
+            Account.type == AccountType.BANK,
+            Account.name.ilike("%axis%"),
+        )
         .first()
     )
+
     if not axis_account:
-        axis_account = db.query(Account).filter(Account.user_id == sync_user.id, Account.type == AccountType.BANK).first()
+        axis_account = (
+            db.query(Account)
+            .filter(
+                Account.user_id == sync_user.id,
+                Account.type == AccountType.BANK,
+            )
+            .first()
+        )
     if not axis_account:
         raise HTTPException(status_code=400, detail="No active bank account found to credit/debit")
 

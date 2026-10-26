@@ -141,19 +141,52 @@ class FinancialGoal(Base):
     user = relationship("User", back_populates="goals")
     contributions = relationship("GoalContribution", back_populates="goal", cascade="all, delete-orphan")
 
-
 class GoalContribution(Base):
     __tablename__ = "goal_contributions"
 
+    __table_args__ = (
+        UniqueConstraint(
+            "transaction_id",
+            name="uq_goal_contributions_transaction_id"
+        ),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    goal_id = Column(Integer, ForeignKey("financial_goals.id", ondelete="CASCADE"), nullable=False, index=True)
-    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+
+    goal_id = Column(
+        Integer,
+        ForeignKey("financial_goals.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    account_id = Column(
+        Integer,
+        ForeignKey("accounts.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    transaction_id = Column(
+        Integer,
+        ForeignKey("transactions.id", ondelete="RESTRICT"),
+        nullable=True
+    )
+
     amount = Column(Numeric(14, 2), nullable=False)
     date = Column(Date, nullable=False)
     note = Column(String(255), nullable=True)
 
-    goal = relationship("FinancialGoal", back_populates="contributions")
+    goal = relationship(
+        "FinancialGoal",
+        back_populates="contributions"
+    )
+
     account = relationship("Account")
+
+    transaction = relationship(
+        "Transaction",
+        foreign_keys=[transaction_id]
+    )
 
 # Add Frequency Enum
 class RecurringFrequency(str, enum.Enum):

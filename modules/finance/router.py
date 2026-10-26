@@ -68,6 +68,58 @@ def _shift_investment_value(from_acc: Optional[Account], to_acc: Optional[Accoun
     if from_acc is not None and from_acc.type == AccountType.INVESTMENT and from_acc.current_market_value is not None:
         from_acc.current_market_value = max(Decimal("0"), from_acc.current_market_value - sign * amount)
 
+def reject_goal_reserve_account(
+    account: Account,
+    label: str = "Selected account",
+) -> None:
+    """
+    Ordinary financial operations must not change
+    Goal & Reserves balances.
+
+    Goal contributions use their dedicated endpoint.
+    """
+    if account.type == AccountType.GOAL_RESERVE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{label} cannot be a Goal & Reserves account "
+                "for ordinary financial operations. "
+                "Use the goal contribution workflow."
+            ),
+        )
+
+def is_goal_reserve_transaction(
+    db: Session,
+    tx: Transaction,
+    user_id: int,
+) -> bool:
+    """
+    Protect any existing transaction involving a Goal & Reserves
+    account, including historical income, expense and transfers.
+    """
+    account_ids = {
+        account_id
+        for account_id in (
+            tx.account_id,
+            tx.from_account_id,
+            tx.to_account_id,
+        )
+        if account_id is not None
+    }
+
+    if not account_ids:
+        return False
+
+    return (
+        db.query(Account.id)
+        .filter(
+            Account.user_id == user_id,
+            Account.id.in_(account_ids),
+            Account.type == AccountType.GOAL_RESERVE,
+        )
+        .first()
+        is not None
+    )
 
 # -------------------------------------------------------------
 # ACCOUNTS
@@ -86,6 +138,19 @@ def create_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # PH2.1: Reserve accounts must start at zero.
+    # Their balances must come from recorded goal contributions.
+    if (
+        data.type == AccountType.GOAL_RESERVE
+        and Decimal(str(data.starting_balance)) != Decimal("0")
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A Goal & Reserves account must start "
+                "with a zero balance."
+            ),
+        )
     account = Account(**data.model_dump(), user_id=current_user.id)
     db.add(account)
     db.commit()
@@ -102,9 +167,53 @@ def update_account(
 ):
     account = get_owned_account(db, current_user.id, account_id)
 
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    # PH2.1: An existing ordinary account cannot become
+    # a Goal & Reserves account.
+    if (
+        account.type != AccountType.GOAL_RESERVE
+        and update_data.get("type") == AccountType.GOAL_RESERVE
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "An existing account cannot be converted "
+                "into a Goal & Reserves account."
+            ),
+        )
+
+    # PH2.1: Preserve reserve-account identity and initial balance.
+    # Changing either can invalidate goal accounting and
+    # historical-transfer protection.
+    if account.type == AccountType.GOAL_RESERVE:
+
+        new_type = update_data.get("type")
+
+        if new_type is not None and new_type != account.type:
+            raise HTTPException(
+                status_code=409,
+                detail="The Goal & Reserves account type cannot be changed."
+            )
+
+        new_balance = update_data.get("starting_balance")
+
+        if (
+            new_balance is not None
+            and Decimal(str(new_balance))
+            != Decimal(str(account.starting_balance))
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "The Goal & Reserves starting balance cannot "
+                    "be changed directly."
+                )
+            )
+
+    for key, value in update_data.items():
         if value is None and key in ("name", "type", "starting_balance"):
-            continue  # these columns are NOT NULL; ignore an explicit null instead of crashing
+            continue
+
         setattr(account, key, value)
 
     db.commit()
@@ -119,6 +228,36 @@ def delete_account(
     db: Session = Depends(get_db),
 ):
     account = get_owned_account(db, current_user.id, account_id)
+    # PH2.1: Protect Goal & Reserves accounts.
+    # Even historical reserve balances may not have complete
+    # transaction-to-contribution relationships.
+    if account.type == AccountType.GOAL_RESERVE:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "The Goal & Reserves account cannot be deleted "
+                "directly. Its balances and goal allocations "
+                "must be reconciled first."
+            ),
+        )
+
+    # PH2.1: An account may have historical goal contributions
+    # even when its original financial transfer is missing.
+    has_goal_contributions = (
+        db.query(GoalContribution.id)
+        .filter(GoalContribution.account_id == account_id)
+        .first()
+        is not None
+    )
+
+    if has_goal_contributions:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This account is referenced by financial goal "
+                "contributions and cannot be deleted."
+            )
+        )
 
     # Deleting an account used to silently delete every transaction on it, and left
     # transfers pointing at nothing. Refuse instead, so history is never lost by accident.
@@ -298,9 +437,18 @@ def create_transaction(
 ):
     if data.type == TransactionType.TRANSFER:
         raise HTTPException(status_code=400, detail="Transfers must be created via /api/finance/transfers")
+    if data.account_id is not None:
+        account = get_owned_account(
+            db,
+            current_user.id,
+            data.account_id,
+            "Selected account",
+        )
 
-    if data.account_id:
-        get_owned_account(db, current_user.id, data.account_id, "Selected account")
+        reject_goal_reserve_account(
+            account,
+            "Selected account",
+        )
 
     if data.category_id:
         get_usable_category(db, current_user.id, data.category_id)
@@ -339,6 +487,25 @@ def update_transaction(
     if not tx:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
+    # PH2.1: Goal-funded transfers must not be edited independently.
+    # The contribution's saved amount would otherwise become inconsistent.
+    linked_contribution = (
+        db.query(GoalContribution.id)
+        .filter(GoalContribution.transaction_id == tx.id)
+        .first()
+    )
+    if (
+        linked_contribution is not None
+        or is_goal_reserve_transaction(db, tx, current_user.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This transfer belongs to a financial goal contribution "
+                "and cannot be edited directly."
+            )
+        )
+
     update_data = data.model_dump(exclude_unset=True)
 
     for required in ("amount", "date", "type"):
@@ -356,7 +523,17 @@ def update_transaction(
     # (This used to be unchecked, so another user's ids could be attached.)
     for field in ("account_id", "from_account_id", "to_account_id"):
         if update_data.get(field) is not None:
-            get_owned_account(db, current_user.id, update_data[field], "Selected account")
+            account = get_owned_account(
+                db,
+                current_user.id,
+                update_data[field],
+                "Selected account",
+            )
+
+            reject_goal_reserve_account(
+                account,
+                field,
+            )
     if update_data.get("category_id") is not None:
         get_usable_category(db, current_user.id, update_data["category_id"])
 
@@ -389,9 +566,23 @@ def create_transfer(
 
     from_acc = db.query(Account).filter(Account.id == data.from_account_id, Account.user_id == current_user.id).first()
     to_acc = db.query(Account).filter(Account.id == data.to_account_id, Account.user_id == current_user.id).first()
-
+    # Step 1: Confirm both accounts exist
     if not from_acc or not to_acc:
-        raise HTTPException(status_code=404, detail="Source or destination account not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Source or destination account not found",
+        )
+    # PH2.1: Ordinary transfers cannot move money
+    # into or out of Goal & Reserves.
+    reject_goal_reserve_account(
+        from_acc,
+        "Source account",
+    )
+
+    reject_goal_reserve_account(
+        to_acc,
+        "Destination account",
+    )
 
     tx_amount = Decimal(str(data.amount))
 
@@ -429,6 +620,24 @@ def delete_transaction(
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # PH2.1: Do not allow deleting a transfer that funds a goal.
+    linked_contribution = (
+        db.query(GoalContribution.id)
+        .filter(GoalContribution.transaction_id == tx.id)
+        .first()
+    )
+    if (
+        linked_contribution is not None
+        or is_goal_reserve_transaction(db, tx, current_user.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This transfer belongs to a financial goal contribution "
+                "and cannot be deleted directly."
+            )
+        )
 
     # Balances are derived from the ledger, so deleting the row corrects them automatically.
     # Only a hand-entered investment market value needs undoing for transfers.
@@ -563,6 +772,26 @@ def delete_goal(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The Emergency Fund target is required and cannot be deleted."
         )
+    # PH2.1: Prevent deleting funded goals.
+    # Contributions and their ledger transfers must remain consistent.
+    has_contributions = (
+        db.query(GoalContribution.id)
+        .filter(GoalContribution.goal_id == goal.id)
+        .first()
+        is not None
+    )
+
+    saved_amount = Decimal(str(goal.saved_amount or "0.00"))
+
+    if has_contributions or saved_amount != Decimal("0.00"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This goal contains saved funds or contribution history "
+                "and cannot be deleted directly. "
+                "Goal fund reversal is required before deletion."
+            )
+        )
 
     # 1. Clean up associated GoalContribution records
     db.query(GoalContribution).filter(GoalContribution.goal_id == goal.id).delete()
@@ -588,6 +817,18 @@ def contribute_to_goal(
         raise HTTPException(status_code=404, detail="Goal not found")
 
     account = get_owned_account(db, current_user.id, data.account_id, "Source account")
+
+    # PH2.1: A goal contribution must be funded from
+    # a non-reserve account.
+    if account.type == AccountType.GOAL_RESERVE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "A Goal & Reserves account cannot fund "
+                "another goal contribution. "
+                "Select a bank, cash, or other permitted source account."
+            ),
+        )
 
     if account.type == AccountType.CREDIT_CARD:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot contribute to goals using a Credit Card")
@@ -621,7 +862,6 @@ def contribute_to_goal(
         db.flush()
     if reserve.id == account.id:
         raise HTTPException(status_code=400, detail="Choose a source account other than the Goal & Reserves account")
-
     tx = Transaction(
         user_id=current_user.id,
         account_id=account.id,
@@ -633,12 +873,22 @@ def contribute_to_goal(
         description=f"Goal Reserve: {goal.name} - {data.note or ''}".strip(),
         source="MANUAL",
     )
+
     db.add(tx)
 
+    # Flush both pending records so SQLAlchemy assigns a transaction ID.
+    # This does not commit the database transaction.
+    db.flush()
+
+    # Establish the permanent link between the contribution
+    # and the exact transfer that funded it.
+    contribution.transaction_id = tx.id
+
+    # Commit the contribution, transfer, and link together.
     db.commit()
+
     db.refresh(contribution)
     return contribution
-
 
 # -------------------------------------------------------------
 # DASHBOARD SUMMARY
@@ -684,14 +934,34 @@ def validate_recurring_refs(
     category_id: Optional[int],
 ) -> None:
     """Shared by create and update: every referenced account/category must belong to the user."""
-    get_owned_account(db, user_id, account_id, "Selected account")
+    source_account = get_owned_account(
+        db,
+        user_id,
+        account_id,
+        "Selected account",
+    )
+
+    reject_goal_reserve_account(
+        source_account,
+        "Selected account",
+    )
 
     if tx_type == TransactionType.TRANSFER:
         if not to_account_id:
             raise HTTPException(status_code=400, detail="Destination account required for recurring transfers")
         if account_id == to_account_id:
             raise HTTPException(status_code=400, detail="Source and destination cannot be identical")
-        get_owned_account(db, user_id, to_account_id, "Destination account")
+        destination_account = get_owned_account(
+            db,
+            user_id,
+            to_account_id,
+            "Destination account",
+        )
+
+        reject_goal_reserve_account(
+            destination_account,
+            "Destination account",
+        )
     else:
         if not category_id:
             raise HTTPException(status_code=400, detail="Category required for income or expense recurring items")
@@ -784,6 +1054,16 @@ def execute_recurring(
 
     if expected_date is not None and expected_date != rec.next_date:
         raise HTTPException(status_code=409, detail="This recurring item was already posted for that date")
+    # PH2.1: Revalidate accounts before execution.
+    # Existing recurring schedules may predate reserve protections.
+    validate_recurring_refs(
+        db,
+        current_user.id,
+        rec.type,
+        rec.account_id,
+        rec.to_account_id,
+        rec.category_id,
+    )
 
     if rec.type == TransactionType.TRANSFER:
         from_acc = get_owned_account(db, current_user.id, rec.account_id, "Source account")
