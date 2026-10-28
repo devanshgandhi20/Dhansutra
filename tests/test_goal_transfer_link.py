@@ -56,9 +56,76 @@ class TestGoalTransferLink(unittest.TestCase):
 
     def make_db(self, *query_results):
         db = MagicMock()
-        db.query.return_value.filter.return_value.first.side_effect = (
-            list(query_results)
-        )
+
+        # Share one sequence of query results between ordinary
+        # queries and queries using SELECT ... FOR UPDATE.
+        results = iter(query_results)
+
+        def next_result(*args, **kwargs):
+            return next(results)
+
+        query = db.query.return_value.filter.return_value
+
+        # Ordinary query:
+        # db.query(...).filter(...).first()
+        query.first.side_effect = next_result
+
+        # Row-locking query:
+        # db.query(...).filter(...).with_for_update().first()
+        query.with_for_update.return_value.first.side_effect = next_result
+
+        return db
+    def make_reversal_link_db(self, tx):
+        """
+        Simulate a reversal transfer linked to a goal contribution,
+        even when the reserve-account lookup finds nothing.
+        """
+        db = MagicMock()
+
+        # First query: retrieve the transaction.
+        transaction_query = MagicMock()
+        transaction_query.filter.return_value = transaction_query
+        transaction_query.first.return_value = tx
+
+        # Second query: find a linked contribution.
+        contribution_query = MagicMock()
+
+        def match_contribution(*conditions):
+            query = MagicMock()
+
+            # The reversal is linked through reversal_transaction_id,
+            # not through the original transaction_id.
+            checks_reversal = any(
+                "reversal_transaction_id" in str(condition)
+                for condition in conditions
+            )
+
+            query.first.return_value = (
+                (77,) if checks_reversal else None
+            )
+
+            return query
+
+        contribution_query.filter.side_effect = match_contribution
+
+        # Reserve-account lookup deliberately fails.
+        reserve_query = MagicMock()
+        reserve_query.filter.return_value = reserve_query
+        reserve_query.first.return_value = None
+
+        # Additional account lookups used by ordinary deletion.
+        account_query = MagicMock()
+        account_query.filter.return_value = account_query
+        account_query.first.return_value = None
+
+        db.query.side_effect = [
+            transaction_query,
+            contribution_query,
+            reserve_query,
+            account_query,
+            account_query,
+        ]
+
         return db
 
     def make_goal(self, saved="0.00"):
@@ -67,6 +134,7 @@ class TestGoalTransferLink(unittest.TestCase):
             user_id=self.user.id,
             name="Vacation Savings",
             saved_amount=Decimal(saved),
+            closed_at=None,
         )
 
     def make_transaction(self, tx_type=TransactionType.TRANSFER):
@@ -86,6 +154,51 @@ class TestGoalTransferLink(unittest.TestCase):
             action()
 
         self.assertEqual(ctx.exception.status_code, 409)
+    def test_cannot_edit_goal_reversal_when_reserve_lookup_fails(self):
+        # PH2.2 reversal: Goal & Reserves -> Bank.
+        tx = self.make_transaction()
+        tx.id = 101
+        tx.account_id = 22
+        tx.from_account_id = 22
+        tx.to_account_id = 21
+
+        db = self.make_reversal_link_db(tx)
+
+        update = MagicMock()
+        update.model_dump.return_value = {
+            "description": "Unauthorized reversal edit"
+        }
+
+        self.assert_conflict(
+            lambda: update_transaction(
+                transaction_id=tx.id,
+                data=update,
+                current_user=self.user,
+                db=db,
+            )
+        )
+
+        db.commit.assert_not_called()
+    def test_cannot_delete_goal_reversal_when_reserve_lookup_fails(self):
+        # PH2.2 reversal: Goal & Reserves -> Bank.
+        tx = self.make_transaction()
+        tx.id = 101
+        tx.account_id = 22
+        tx.from_account_id = 22
+        tx.to_account_id = 21
+
+        db = self.make_reversal_link_db(tx)
+
+        self.assert_conflict(
+            lambda: delete_transaction(
+                transaction_id=tx.id,
+                current_user=self.user,
+                db=db,
+            )
+        )
+
+        db.delete.assert_not_called()
+        db.commit.assert_not_called()
 
     # ---------------------------------------------------------
     # Model relationship

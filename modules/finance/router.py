@@ -23,7 +23,7 @@ from modules.finance.schemas import (
     TransferCreate, BudgetCreate, BudgetResponse, BudgetStatusResponse,
     GoalCreate, GoalResponse, GoalContributionCreate, GoalContributionResponse,
     DashboardSummaryResponse,
-    RecurringCreate, RecurringUpdate, RecurringResponse
+    RecurringCreate, RecurringUpdate, RecurringResponse, GoalContributionReversalCreate,
 )
 from modules.finance.services import FinanceService
 from modules.users.models import User
@@ -489,9 +489,15 @@ def update_transaction(
 
     # PH2.1: Goal-funded transfers must not be edited independently.
     # The contribution's saved amount would otherwise become inconsistent.
+    # PH2.2: Protect both original funding and reversal transfers.
     linked_contribution = (
         db.query(GoalContribution.id)
-        .filter(GoalContribution.transaction_id == tx.id)
+        .filter(
+            or_(
+                GoalContribution.transaction_id == tx.id,
+                GoalContribution.reversal_transaction_id == tx.id,
+            )
+        )
         .first()
     )
     if (
@@ -622,9 +628,15 @@ def delete_transaction(
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     # PH2.1: Do not allow deleting a transfer that funds a goal.
+    # PH2.2: Preserve original and reversal ledger transactions.
     linked_contribution = (
         db.query(GoalContribution.id)
-        .filter(GoalContribution.transaction_id == tx.id)
+        .filter(
+            or_(
+                GoalContribution.transaction_id == tx.id,
+                GoalContribution.reversal_transaction_id == tx.id,
+            )
+        )
         .first()
     )
     if (
@@ -727,14 +739,23 @@ def get_budget_status(
 def get_goals(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    include_archived: bool = False,
 ):
-    return (
+    query = (
         db.query(FinancialGoal)
         .options(selectinload(FinancialGoal.contributions))
         .filter(FinancialGoal.user_id == current_user.id)
-        .all()
     )
 
+    # PH2.2: The normal dashboard should display only
+    # active goals. Historical goals remain accessible
+    # through ?include_archived=true.
+    if not include_archived:
+        query = query.filter(
+            FinancialGoal.closed_at.is_(None)
+        )
+
+    return query.all()
 
 @router.post("/goals", response_model=GoalResponse, status_code=status.HTTP_201_CREATED)
 def create_goal(
@@ -759,13 +780,24 @@ def delete_goal(
         db.query(FinancialGoal)
         .filter(
             FinancialGoal.id == goal_id,
-            FinancialGoal.user_id == current_user.id
+            FinancialGoal.user_id == current_user.id,
         )
+        .with_for_update()
         .first()
     )
-    if not goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
 
+    if not goal:
+        raise HTTPException(
+            status_code=404,
+            detail="Goal not found",
+        )
+    # PH2.2: Archived goals retain their financial history.
+    # They must not be physically deleted through this endpoint.
+    if goal.closed_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This goal is archived and cannot be deleted.",
+        )
     # Protection: Never allow deleting the primary Emergency Fund
     if "emergency" in (goal.name or "").lower():
         raise HTTPException(
@@ -787,9 +819,9 @@ def delete_goal(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "This goal contains saved funds or contribution history "
-                "and cannot be deleted directly. "
-                "Goal fund reversal is required before deletion."
+                "This goal has saved funds or contribution history "
+                "and cannot be deleted. Reverse active contributions, "
+                "then archive the goal."
             )
         )
 
@@ -800,7 +832,230 @@ def delete_goal(
     db.delete(goal)
     db.commit()
     return {"status": "success", "deleted_goal_id": goal_id}
+# -------------------------------------------------------------
+# PH2.2: SAFE GOAL ARCHIVAL
+# -------------------------------------------------------------
+@router.post(
+    "/goals/{goal_id}/archive",
+    status_code=status.HTTP_200_OK,
+)
+def archive_goal(
+    goal_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Lock the goal to serialize archival with
+    # contribution creation and reversal.
+    goal = (
+        db.query(FinancialGoal)
+        .filter(
+            FinancialGoal.id == goal_id,
+            FinancialGoal.user_id == current_user.id,
+        )
+        .with_for_update()
+        .first()
+    )
 
+    if goal is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Goal not found",
+        )
+
+    if goal.closed_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This goal is already archived.",
+        )
+
+    # Preserve the existing Emergency Fund protection.
+    if "emergency" in (goal.name or "").lower():
+        raise HTTPException(
+            status_code=400,
+            detail="The Emergency Fund target cannot be archived.",
+        )
+
+    saved_amount = Decimal(str(goal.saved_amount or "0.00"))
+
+    if saved_amount != Decimal("0.00"):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Goal cannot be archived while saved funds remain. "
+                "Reverse all active contributions first."
+            ),
+        )
+
+    # Use the same lock order as contribution reversal:
+    # goal first, then its contribution records.
+    contributions = (
+        db.query(GoalContribution)
+        .filter(GoalContribution.goal_id == goal.id)
+        .order_by(GoalContribution.id.asc())
+        .with_for_update()
+        .all()
+    )
+
+    # Goals without contribution history can use the
+    # existing DELETE endpoint instead.
+    if not contributions:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This goal has no contribution history. "
+                "Use the normal delete operation."
+            ),
+        )
+
+    for contribution in contributions:
+        has_reversal_tx = (
+            contribution.reversal_transaction_id is not None
+        )
+        has_reversal_time = (
+            contribution.reversed_at is not None
+        )
+
+        # Both reversal fields must be populated together.
+        if has_reversal_tx != has_reversal_time:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Goal contains an incomplete reversal record. "
+                    "Reconciliation is required."
+                ),
+            )
+
+        if not has_reversal_tx:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Goal contains contributions that have "
+                    "not been reversed."
+                ),
+            )
+
+        # Every reversed contribution must still retain
+        # the original PH2.1 funding-transfer reference.
+        if contribution.transaction_id is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Goal contains legacy contribution records "
+                    "requiring reconciliation."
+                ),
+            )
+
+        # PH2.2: Verify the actual original funding transfer.
+        original_tx = (
+            db.query(Transaction)
+            .filter(
+                Transaction.id == contribution.transaction_id,
+                Transaction.user_id == current_user.id,
+            )
+            .first()
+        )
+
+        # Verify the actual compensating reversal transfer.
+        reversal_tx = (
+            db.query(Transaction)
+            .filter(
+                Transaction.id == contribution.reversal_transaction_id,
+                Transaction.user_id == current_user.id,
+            )
+            .first()
+        )
+
+        if original_tx is None or reversal_tx is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Goal contains missing or inaccessible "
+                    "ledger transactions. Reconciliation is required."
+                ),
+            )
+
+        amount = Decimal(str(contribution.amount))
+
+        # Validate the original contribution:
+        # original source -> Goal & Reserves.
+        if (
+            amount <= Decimal("0.00")
+            or original_tx.id != contribution.transaction_id
+            or original_tx.user_id != current_user.id
+            or original_tx.type != TransactionType.TRANSFER
+            or original_tx.account_id != contribution.account_id
+            or original_tx.from_account_id != contribution.account_id
+            or original_tx.to_account_id is None
+            or original_tx.to_account_id == contribution.account_id
+            or Decimal(str(original_tx.amount)) != amount
+            or original_tx.date != contribution.date
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Original contribution and funding transfer "
+                    "are inconsistent. Reconciliation is required."
+                ),
+            )
+
+        # Validate the reversal:
+        # Goal & Reserves -> original funding source.
+        if (
+            reversal_tx.id != contribution.reversal_transaction_id
+            or reversal_tx.user_id != current_user.id
+            or reversal_tx.type != TransactionType.TRANSFER
+            or reversal_tx.account_id != original_tx.to_account_id
+            or reversal_tx.from_account_id != original_tx.to_account_id
+            or reversal_tx.to_account_id != contribution.account_id
+            or Decimal(str(reversal_tx.amount)) != amount
+            or reversal_tx.date < contribution.date
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Contribution reversal does not match "
+                    "the original funding transfer. "
+                    "Reconciliation is required."
+                ),
+            )
+        # PH2.2: Verify that the original transfer
+        # actually funded a Goal & Reserves account.
+        reserve = (
+            db.query(Account)
+            .filter(
+                Account.id == original_tx.to_account_id,
+                Account.user_id == current_user.id,
+                Account.type == AccountType.GOAL_RESERVE,
+            )
+            .first()
+        )
+
+        # Explicit validation is retained so that
+        # inconsistent records cannot pass reconciliation.
+        if (
+            reserve is None
+            or reserve.id != original_tx.to_account_id
+            or reserve.user_id != current_user.id
+            or reserve.type != AccountType.GOAL_RESERVE
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Original contribution does not reference "
+                    "a valid Goal & Reserves account owned "
+                    "by this user. Reconciliation is required."
+                ),
+            )
+
+    # Archive without deleting any historical records.
+    goal.closed_at = datetime.utcnow()
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "archived_goal_id": goal.id,
+    }
 
 @router.post("/goals/{goal_id}/contribute", response_model=GoalContributionResponse, status_code=status.HTTP_201_CREATED)
 def contribute_to_goal(
@@ -815,6 +1070,13 @@ def contribute_to_goal(
     ).with_for_update().first()  # lock the goal so two simultaneous contributions both count
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
+    # PH2.2: Closed goals are read-only.
+    # Do not allow new contributions after archival.
+    if goal.closed_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This goal is archived and cannot receive new contributions.",
+        )
 
     account = get_owned_account(db, current_user.id, data.account_id, "Source account")
 
@@ -888,6 +1150,214 @@ def contribute_to_goal(
     db.commit()
 
     db.refresh(contribution)
+    return contribution
+
+# -------------------------------------------------------------
+# PH2.2: GOAL CONTRIBUTION REVERSAL
+# -------------------------------------------------------------
+@router.post(
+    "/goals/{goal_id}/contributions/{contribution_id}/reverse",
+    response_model=GoalContributionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def reverse_goal_contribution(
+    goal_id: int,
+    contribution_id: int,
+    data: GoalContributionReversalCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Lock the goal first. All contribution and reversal
+    # operations for this goal must use the same lock order.
+    goal = (
+        db.query(FinancialGoal)
+        .filter(
+            FinancialGoal.id == goal_id,
+            FinancialGoal.user_id == current_user.id,
+        )
+        .with_for_update()
+        .first()
+    )
+
+    if goal is None:
+        raise HTTPException(404, "Goal not found")
+
+    if goal.closed_at is not None:
+        raise HTTPException(
+            409, "Closed goals cannot have contributions reversed."
+        )
+
+    contribution = (
+        db.query(GoalContribution)
+        .filter(
+            GoalContribution.id == contribution_id,
+            GoalContribution.goal_id == goal.id,
+        )
+        .with_for_update()
+        .first()
+    )
+
+    if contribution is None:
+        raise HTTPException(404, "Goal contribution not found")
+
+    # Reject completed or inconsistently recorded reversals.
+    if (
+        contribution.reversal_transaction_id is not None
+        or contribution.reversed_at is not None
+    ):
+        raise HTTPException(
+            409, "This contribution has already been reversed."
+        )
+
+    # PH2.1 legacy contributions may lack transaction links.
+    # They cannot be reversed automatically.
+    if contribution.transaction_id is None:
+        raise HTTPException(
+            409,
+            "This contribution has no linked funding transfer. "
+            "Manual reconciliation is required.",
+        )
+
+    amount = Decimal(str(contribution.amount))
+
+    if amount <= Decimal("0.00"):
+        raise HTTPException(
+            409, "Contribution amount is invalid."
+        )
+
+    if data.date < contribution.date:
+        raise HTTPException(
+            400, "Reversal date cannot precede contribution date."
+        )
+
+    if data.date > date.today():
+        raise HTTPException(
+            400, "Reversal date cannot be in the future."
+        )
+
+    # Verify the original transaction belongs to the user.
+    original_tx = (
+        db.query(Transaction)
+        .filter(
+            Transaction.id == contribution.transaction_id,
+            Transaction.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if original_tx is None:
+        raise HTTPException(
+            409, "Original funding transfer was not found."
+        )
+
+    # Verify the original source still belongs to the user.
+    source = get_owned_account(
+        db,
+        current_user.id,
+        contribution.account_id,
+        "Original funding account",
+    )
+
+    # Ensure the stored contribution-to-transfer link
+    # actually represents the expected movement of funds.
+    if (
+        original_tx.type != TransactionType.TRANSFER
+        or original_tx.account_id != source.id
+        or original_tx.from_account_id != source.id
+        or Decimal(str(original_tx.amount)) != amount
+        or original_tx.date != contribution.date
+    ):
+        raise HTTPException(
+            409,
+            "Original contribution and funding transfer do not match.",
+        )
+
+    # Identify and lock the exact reserve account that
+    # received the original contribution.
+    #
+    # Locking this account serializes reversals across
+    # different goals sharing the same reserve.
+    reserve = (
+        db.query(Account)
+        .filter(
+            Account.id == original_tx.to_account_id,
+            Account.user_id == current_user.id,
+            Account.type == AccountType.GOAL_RESERVE,
+        )
+        .with_for_update()
+        .first()
+    )
+
+    if reserve is None or reserve.id == source.id:
+        raise HTTPException(
+            409, "Original Goal & Reserves account is invalid."
+        )
+
+    saved_amount = Decimal(str(goal.saved_amount or "0.00"))
+
+    if saved_amount < amount:
+        raise HTTPException(
+            409,
+            "Goal saved amount is insufficient for this reversal.",
+        )
+
+    # Account balances are ledger-derived, so check the
+    # available reserve funds before creating the transfer.
+    balances = FinanceService.calculate_account_balances(
+        db, current_user.id
+    )
+
+    reserve_balance = next(
+        (
+            Decimal(str(account.current_balance))
+            for account in balances
+            if account.id == reserve.id
+        ),
+        None,
+    )
+
+    if reserve_balance is None or reserve_balance < amount:
+        raise HTTPException(
+            409,
+            "Goal & Reserves has insufficient funds "
+            "for this reversal.",
+        )
+
+    description = (
+        f"Goal reversal #{contribution.id}: {goal.name}"
+    )
+
+    if data.note:
+        description += f" - {data.note}"
+
+    # The reverse transfer restores the original source's
+    # ledger balance and decreases the reserve balance.
+    reversal_tx = Transaction(
+        user_id=current_user.id,
+        account_id=reserve.id,
+        from_account_id=reserve.id,
+        to_account_id=source.id,
+        type=TransactionType.TRANSFER,
+        amount=amount,
+        date=data.date,
+        description=description[:255],
+        source="MANUAL",
+    )
+
+    db.add(reversal_tx)
+    db.flush()
+
+    # Record both parts of the reversal in one transaction.
+    goal.saved_amount = saved_amount - amount
+    contribution.reversal_transaction_id = reversal_tx.id
+    contribution.reversed_at = datetime.utcnow()
+
+    # No separate investment valuation adjustment:
+    # the original goal contribution did not apply one.
+    # Investment valuation corrections belong to PH2.4.
+    db.commit()
+    db.refresh(contribution)
+
     return contribution
 
 # -------------------------------------------------------------
