@@ -50,6 +50,9 @@ class GoalContributionCreate(BaseModel):
     date: _dt.date
     note: Optional[str] = Field(None, max_length=255)
 
+class GoalContributionReversalCreate(BaseModel):
+    date: _dt.date
+    note: Optional[str] = Field(None, max_length=255)
 
 class GoalContributionResponse(BaseModel):
     id: int
@@ -59,18 +62,29 @@ class GoalContributionResponse(BaseModel):
     date: _dt.date
     note: Optional[str]
 
-    model_config = ConfigDict(from_attributes=True)
+    # Original PH2.1 funding transfer.
+    # May be NULL for legacy contributions.
+    transaction_id: Optional[int] = None
 
+    # PH2.2 reversal information.
+    reversal_transaction_id: Optional[int] = None
+    reversed_at: Optional[_dt.datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class GoalResponse(GoalBase):
     id: int
     user_id: int
     saved_amount: Decimal
     created_at: _dt.datetime
+
+    # NULL = active goal.
+    # Non-NULL = archived goal.
+    closed_at: Optional[_dt.datetime] = None
+
     contributions: List[GoalContributionResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
-
 
 # ---------------- DASHBOARD AGGREGATIONS ----------------
 class AccountBalanceSummary(BaseModel):

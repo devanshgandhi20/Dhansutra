@@ -137,6 +137,8 @@ class FinancialGoal(Base):
     saved_amount = Column(Numeric(14, 2), default=0.00, nullable=False)
     target_date = Column(Date, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # PH2.2: Archive a reconciled goal without deleting history.
+    closed_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="goals")
     contributions = relationship("GoalContribution", back_populates="goal", cascade="all, delete-orphan")
@@ -147,10 +149,13 @@ class GoalContribution(Base):
     __table_args__ = (
         UniqueConstraint(
             "transaction_id",
-            name="uq_goal_contributions_transaction_id"
+            name="uq_goal_contributions_transaction_id",
+        ),
+        UniqueConstraint(
+            "reversal_transaction_id",
+            name="uq_goal_contributions_reversal_transaction_id",
         ),
     )
-
     id = Column(Integer, primary_key=True, index=True)
 
     goal_id = Column(
@@ -172,6 +177,15 @@ class GoalContribution(Base):
         nullable=True
     )
 
+    # PH2.2: Link to the compensating transfer.
+    # NULL indicates the contribution has not been reversed.
+    reversal_transaction_id = Column(
+        Integer,
+        ForeignKey("transactions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+
+    reversed_at = Column(DateTime, nullable=True)
     amount = Column(Numeric(14, 2), nullable=False)
     date = Column(Date, nullable=False)
     note = Column(String(255), nullable=True)
@@ -186,6 +200,10 @@ class GoalContribution(Base):
     transaction = relationship(
         "Transaction",
         foreign_keys=[transaction_id]
+    )
+    reversal_transaction = relationship(
+        "Transaction",
+        foreign_keys=[reversal_transaction_id],
     )
 
 # Add Frequency Enum

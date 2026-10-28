@@ -913,10 +913,7 @@
                         class="hdr-more"> Transaction</span></button>
                 <button class="btn btn-secondary btn-pill" onclick="openSettingsModal()"
                     aria-label="Open System Settings">⚙️<span class="hdr-more"> Settings</span></button>
-                <button type="button"
-                    class="btn btn-ghost btn-pill"
-                    aria-label="Log out"
-                    onclick="logoutSafely()"
+                <button type="button" class="btn btn-ghost btn-pill" aria-label="Log out" onclick="logoutSafely()"
                     style="color: rgba(255, 255, 255, 0.85);">
                     🚪<span class="hdr-more"> Logout</span>
                 </button>
@@ -1146,6 +1143,27 @@
                     <h2 class="section-title">Savings Targets & Portfolios <span id="staleBadgeGoals"></span></h2>
                 </div>
                 <div id="goalsContainer"></div>
+                <details
+                    id="archivedGoalsSection"
+                    style="margin-top:1rem;padding:0.85rem;border:1px solid var(--border);border-radius:12px;"
+                    ontoggle="if (this.open) loadArchivedGoalsHistory()">
+
+                    <summary
+                        style="cursor:pointer;font-size:13px;font-weight:600;">
+                        📁 Archived Savings Targets
+                    </summary>
+
+                    <div
+                        id="archivedGoalsContainer"
+                        aria-live="polite"
+                        style="margin-top:0.85rem;">
+
+                        <p class="caption-text">
+                            Open this section to view archived savings targets.
+                        </p>
+
+                    </div>
+                </details>
                 <form id="formNewGoal"
                     style="margin-top: 1.5rem; border-top: 1px dashed var(--border); padding-top: 1.25rem;">
                     <h3 class="section-title" style="font-size: 14px; margin-bottom: 0.75rem;">Create New Target</h3>
@@ -1689,7 +1707,13 @@
                     body: JSON.stringify(payload)
                 });
             },
-            async getGoals() { return await this.getJson('/api/finance/goals'); },
+            async getGoals(includeArchived = false) {
+                const url = includeArchived
+                    ? '/api/finance/goals?include_archived=true'
+                    : '/api/finance/goals';
+
+                return await this.getJson(url);
+            },
             async createGoal(payload) {
                 return await this.req('/api/finance/goals', {
                     method: 'POST',
@@ -1702,6 +1726,21 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
+                });
+            },
+            async reverseGoalContribution(goalId, contributionId, payload) {
+                return await this.req(
+                    `/api/finance/goals/${goalId}/contributions/${contributionId}/reverse`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }
+                );
+            },
+            async archiveGoal(id) {
+                return await this.req(`/api/finance/goals/${id}/archive`, {
+                    method: 'POST'
                 });
             },
             async getDashboardSummary(dateStr) {
@@ -1735,6 +1774,9 @@
         let categories = [];
         let transactions = [];
         let goals = [];
+        // PH2.2: Archived history is separate from active goals.
+        let archivedGoalsLoaded = false;
+        let archivedGoalsLoading = false;
         let budgets = [];
         let dashboardData = null;
         let currentFormType = 'expense';
@@ -1822,7 +1864,196 @@
             }
             return toDateStr(date);
         }
+        // PH2.2: Prevent overlapping reversal submissions.
+        let goalReversalBusy = false;
 
+        function requestGoalReversal(goalId, contributionId) {
+            if (goalReversalBusy) return;
+
+            const goal = goals.find(
+                g => String(g.id) === String(goalId)
+            );
+
+            const contribution = goal?.contributions?.find(
+                c => String(c.id) === String(contributionId)
+            );
+
+            if (!goal || !contribution) {
+                showToast('Goal contribution not found.', 'error');
+                return;
+            }
+
+            if (goal.closed_at) {
+                showToast('Archived goals cannot be modified.', 'error');
+                return;
+            }
+
+            if (
+                contribution.reversal_transaction_id != null ||
+                contribution.reversed_at != null
+            ) {
+                showToast('This contribution has already been reversed.', 'error');
+                return;
+            }
+
+            if (contribution.transaction_id == null) {
+                showToast(
+                    'This contribution requires reconciliation before reversal.',
+                    'error'
+                );
+                return;
+            }
+
+            if (contribution.date > todayStr()) {
+                showToast(
+                    'A contribution cannot be reversed before its date.',
+                    'error'
+                );
+                return;
+            }
+
+            const source = accounts.find(
+                a => String(a.id) === String(contribution.account_id)
+            );
+
+            const sourceName = source?.name || 'the original funding account';
+            const amountText = formatINR(contribution.amount);
+
+            const message =
+                `Reverse ${amountText} from "${goal.name}" ` +
+                `back to "${sourceName}"? ` +
+                `This records a new transfer dated ${todayStr()}. ` +
+                `The original contribution remains in your financial history.`;
+
+            confirmAction('Reverse Goal Contribution', message, async () => {
+                if (goalReversalBusy) return;
+
+                goalReversalBusy = true;
+
+                try {
+                    const res = await API.reverseGoalContribution(
+                        goalId,
+                        contributionId,
+                        {
+                            date: todayStr(),
+                            note: 'Goal contribution reversed by user'
+                        }
+                    );
+
+                    if (!res || !res.ok) {
+                        showToast(
+                            await readError(res, 'Failed to reverse contribution'),
+                            'error'
+                        );
+                        return;
+                    }
+
+                    await refreshData();
+                    showToast('✓ Contribution reversed successfully');
+
+                } catch (err) {
+                    console.error('Goal reversal could not be confirmed:', err);
+                    showToast(
+                        'Could not confirm the result. Refresh the page before trying again.',
+                        'error'
+                    );
+                } finally {
+                    goalReversalBusy = false;
+                }
+            });
+        }
+        // PH2.2: Prevent overlapping archive requests.
+        let goalArchiveBusy = false;
+
+        function requestGoalArchive(goalId) {
+            if (goalArchiveBusy || goalReversalBusy) return;
+
+            const goal = goals.find(
+                g => String(g.id) === String(goalId)
+            );
+
+            if (!goal) {
+                showToast('Goal not found.', 'error');
+                return;
+            }
+
+            if (goal.closed_at) {
+                showToast('This goal is already archived.', 'error');
+                return;
+            }
+
+            if ((goal.name || '').toLowerCase().includes('emergency')) {
+                showToast('The Emergency Fund cannot be archived.', 'error');
+                return;
+            }
+
+            const contributions = Array.isArray(goal.contributions)
+                ? goal.contributions
+                : [];
+
+            const saved = Number(goal.saved_amount);
+
+            const allReversed =
+                contributions.length > 0 &&
+                contributions.every(c =>
+                    c.transaction_id != null &&
+                    c.reversal_transaction_id != null &&
+                    c.reversed_at != null
+                );
+
+            if (!Number.isFinite(saved) || saved !== 0 || !allReversed) {
+                showToast(
+                    'Reverse all contributions and clear the saved balance before archiving.',
+                    'error'
+                );
+                return;
+            }
+
+            const message =
+                `Archive "${goal.name}"? ` +
+                `The target will be removed from your active goals. ` +
+                `Its original contributions and reversal transactions ` +
+                `will remain preserved in your financial history.`;
+
+            confirmAction('Archive Savings Target', message, async () => {
+                if (goalArchiveBusy || goalReversalBusy) return;
+
+                goalArchiveBusy = true;
+
+                try {
+                    const res = await API.archiveGoal(goal.id);
+
+                    if (!res || !res.ok) {
+                        showToast(
+                            await readError(res, 'Failed to archive goal'),
+                            'error'
+                        );
+                        return;
+                    }
+                    await refreshData();
+
+                    // Invalidate archived history after successfully archiving.
+                    archivedGoalsLoaded = false;
+
+                    // Reload immediately if the archived section is open.
+                    const historySection = document.getElementById('archivedGoalsSection');
+
+                    if (historySection?.open) {
+                        await loadArchivedGoalsHistory();
+                    }
+
+                    showToast('Goal archived successfully.');
+                } catch (err) {
+                    console.error('Goal archival could not be confirmed:', err);
+                    showToast(
+                        'Could not confirm the result. Refresh the page before trying again.',
+                        'error'
+                    );
+                } finally {
+                    goalArchiveBusy = false;
+                }
+            });
+        }
         function removeGoal(id) {
             const g = goals.find(x => String(x.id) === String(id));
             if (!g) return;
@@ -2926,36 +3157,399 @@
             await refreshData();
             showToast('✓ Budget limits saved');
         }
-
         function renderGoals() {
             const container = document.getElementById('goalsContainer');
+
             if (!goals.length) {
-                container.innerHTML = `<div class="empty-state"><p class="body-text">No savings targets created yet.</p></div>`;
+                container.innerHTML = `
+            <div class="empty-state">
+                <p class="body-text">
+                    No savings targets created yet.
+                </p>
+            </div>`;
                 return;
             }
-            const staleCls = dataFreshness.goals ? '' : 'is-stale-value';
+
+            const staleCls = dataFreshness.goals
+                ? ''
+                : 'is-stale-value';
+
             container.innerHTML = goals.map(g => {
-                const isEmergency = (g.name || '').toLowerCase().includes('emergency');
-                const pct = Math.min(Math.round((Number(g.saved_amount || 0) / (Number(g.target_amount) || 1)) * 100), 100);
+                const goalId = Number(g.id);
+                const validGoalId = Number.isSafeInteger(goalId) && goalId > 0;
+
+                const isEmergency = (g.name || '')
+                    .toLowerCase()
+                    .includes('emergency');
+
+                const savedAmount = Number(g.saved_amount || 0);
+
+                const pct = Math.min(
+                    Math.round(
+                        (savedAmount / (Number(g.target_amount) || 1)) * 100
+                    ),
+                    100
+                );
+
+                const contributions = Array.isArray(g.contributions)
+                    ? [...g.contributions].sort(
+                        (a, b) => String(b.date).localeCompare(String(a.date))
+                    )
+                    : [];
+
+                // Only completely empty goals can be physically deleted.
+                // Goals with contribution history must be archived instead.
+                const canDelete =
+                    validGoalId &&
+                    !isEmergency &&
+                    savedAmount === 0 &&
+                    contributions.length === 0;
+
+                const allReversed =
+                    contributions.length > 0 &&
+                    contributions.every(c =>
+                        c.reversal_transaction_id != null &&
+                        c.reversed_at != null
+                    );
+
+                const readyForArchive =
+                    validGoalId &&
+                    !isEmergency &&
+                    !g.closed_at &&
+                    savedAmount === 0 &&
+                    allReversed &&
+                    contributions.every(c => c.transaction_id != null);
+
+                // Build contribution history.
+                const contributionRows = contributions.map(c => {
+                    const contributionId = Number(c.id);
+
+                    const validContributionId =
+                        Number.isSafeInteger(contributionId) &&
+                        contributionId > 0;
+
+                    const hasReversalTx =
+                        c.reversal_transaction_id != null;
+
+                    const hasReversalTime =
+                        c.reversed_at != null;
+
+                    const isReversed =
+                        hasReversalTx && hasReversalTime;
+
+                    const inconsistentReversal =
+                        hasReversalTx !== hasReversalTime;
+
+                    const isLegacy =
+                        c.transaction_id == null;
+
+                    const futureDated =
+                        String(c.date || '') > todayStr();
+
+                    const source = accounts.find(
+                        a => String(a.id) === String(c.account_id)
+                    );
+
+                    const sourceName = source?.name || 'Unknown account';
+
+                    const canReverse =
+                        validGoalId &&
+                        validContributionId &&
+                        !g.closed_at &&
+                        !isReversed &&
+                        !inconsistentReversal &&
+                        !isLegacy &&
+                        !futureDated &&
+                        Number(c.amount) > 0;
+
+                    let statusText = 'Active';
+
+                    if (inconsistentReversal || isLegacy) {
+                        statusText = 'Needs reconciliation';
+                    } else if (isReversed) {
+                        statusText = 'Reversed';
+                    } else if (futureDated) {
+                        statusText = 'Future contribution';
+                    }
+
+                    const reverseButton = canReverse
+                        ? `
+                    <button
+                        type="button"
+                        class="btn btn-ghost btn-pill"
+                        style="padding:0.25rem 0.65rem;font-size:11px;color:var(--terracotta);"
+                        onclick="requestGoalReversal(${goalId}, ${contributionId})">
+                        Reverse
+                    </button>`
+                        : '';
+
+                    return `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;padding:0.65rem 0;border-bottom:1px solid var(--border-color, #ddd);">
+                    <div style="min-width:0;">
+                        <div style="font-weight:600;">
+                            ${formatINR(c.amount)}
+                        </div>
+
+                        <div class="caption-text">
+                            ${sanitize(sourceName)}
+                            · ${sanitize(String(c.date || 'Unknown date'))}
+                        </div>
+
+                        <div class="caption-text">
+                            ${sanitize(statusText)}
+                        </div>
+                    </div>
+
+                    ${reverseButton}
+                </div>
+            `;
+                }).join('');
+
+                const historyHtml = contributions.length
+                    ? `
+                <details style="margin-top:0.75rem;">
+                    <summary
+                        style="cursor:pointer;font-size:12px;font-weight:600;">
+                        Contribution History (${contributions.length})
+                    </summary>
+
+                    <div style="margin-top:0.5rem;">
+                        ${contributionRows}
+                    </div>
+                </details>`
+                    : '';
+                const archiveButton = readyForArchive
+                    ? `
+                        <button
+                            type="button"
+                            class="btn btn-ghost btn-pill"
+                            style="padding:0.25rem 0.65rem;font-size:11px;"
+                            onclick="requestGoalArchive(${goalId})">
+                            Archive Goal
+                        </button>`
+                    : '';
+                const removeButton = canDelete
+                    ? `
+                <button
+                    type="button"
+                    class="btn btn-ghost btn-pill"
+                    style="padding:0.25rem 0.65rem;font-size:11px;color:var(--terracotta);"
+                    onclick="removeGoal(${goalId})">
+                    Remove
+                </button>`
+                    : '';
+
+                // Archive action will be connected in the next checkpoint.
+                const archiveNotice = readyForArchive
+                    ? `
+                <div class="caption-text"
+                     style="margin-top:0.5rem;">
+                    All contributions reversed.
+                    This goal is ready to archive.
+                </div>`
+                    : '';
+
+                const addFundsButton = validGoalId
+                    ? `
+                <button
+                    type="button"
+                    class="btn btn-secondary btn-pill"
+                    style="padding:0.25rem 0.65rem;font-size:11px;"
+                    onclick="openGoalContributionModal(${goalId})">
+                    + Add Funds
+                </button>`
+                    : '';
+
                 return `
-            <div class="card" style="padding: 1rem; margin-bottom: 0.75rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-weight:700;">${sanitize(g.name)}</span>
+            <div class="card"
+                 style="padding:1rem;margin-bottom:0.75rem;">
+
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:700;">
+                        ${sanitize(g.name)}
+                    </span>
                     <span class="pill">${pct}%</span>
                 </div>
-                <div class="caption-text ${staleCls}" style="margin: 4px 0;">
-                    ${formatINR(g.saved_amount)} saved of ${formatINR(g.target_amount)}
+
+                <div class="caption-text ${staleCls}"
+                     style="margin:4px 0;">
+                    ${formatINR(g.saved_amount)} saved of
+                    ${formatINR(g.target_amount)}
                 </div>
-                <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
-                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
-                    ${!isEmergency ? `<button class="btn btn-ghost btn-pill" style="padding:0.25rem 0.65rem; font-size:11px; color:var(--terracotta);" onclick="removeGoal('${sanitize(g.id)}')">🗑️ Remove</button>` : ''}
-                    <button class="btn btn-secondary btn-pill" style="padding:0.25rem 0.65rem; font-size:11px;" onclick="openGoalContributionModal('${sanitize(g.id)}')">+ Add Funds</button>
+
+                <div class="progress-track">
+                    <div class="progress-fill"
+                         style="width:${pct}%;"></div>
+                </div>
+
+                ${historyHtml}
+                ${archiveNotice}
+
+                <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.75rem;">
+                    ${removeButton}
+                    ${archiveButton}
+                    ${addFundsButton}
                 </div>
             </div>
         `;
             }).join('');
         }
+        // PH2.2: Load archived goals only when their section is opened.
+        async function loadArchivedGoalsHistory() {
+            const section = document.getElementById('archivedGoalsSection');
+            const container = document.getElementById('archivedGoalsContainer');
 
+            if (!section || !container || !section.open) return;
+            if (archivedGoalsLoading || archivedGoalsLoaded) return;
+
+            archivedGoalsLoading = true;
+            container.textContent = 'Loading archived savings targets...';
+
+            try {
+                // This endpoint returns active AND archived goals.
+                const allGoals = await API.getGoals(true);
+
+                if (!Array.isArray(allGoals)) {
+                    throw new Error('Invalid archived goals response');
+                }
+
+                // Never mix archived goals into the active goals array.
+                const archived = allGoals.filter(g => g.closed_at != null);
+
+                if (!archived.length) {
+                    container.innerHTML = `
+                        <p class="caption-text">
+                            No archived savings targets yet.
+                        </p>`;
+                    archivedGoalsLoaded = true;
+                    return;
+                }
+
+                container.innerHTML = archived.map(g => {
+                    const contributions = Array.isArray(g.contributions)
+                        ? [...g.contributions].sort(
+                            (a, b) => String(b.date || '').localeCompare(
+                                String(a.date || '')
+                            )
+                        )
+                        : [];
+
+                    const contributed = contributions.reduce(
+                        (sum, c) => sum + (Number(c.amount) || 0),
+                        0
+                    );
+
+                    const reversed = contributions
+                        .filter(c =>
+                            c.reversal_transaction_id != null &&
+                            c.reversed_at != null
+                        )
+                        .reduce(
+                            (sum, c) => sum + (Number(c.amount) || 0),
+                            0
+                        );
+
+                    const rows = contributions.map(c => {
+                        const source = accounts.find(
+                            a => String(a.id) === String(c.account_id)
+                        );
+
+                        const sourceName = source?.name ||
+                            'Original account unavailable';
+
+                        const isReversed =
+                            c.reversal_transaction_id != null &&
+                            c.reversed_at != null;
+
+                        const statusText = isReversed
+                            ? 'Reversed'
+                            : 'Requires reconciliation';
+
+                        return `
+                            <div style="padding:0.65rem 0;border-bottom:1px solid var(--border);">
+                                <div style="display:flex;justify-content:space-between;gap:0.5rem;">
+                                    <strong>${formatINR(c.amount)}</strong>
+                                    <span class="caption-text">
+                                        ${sanitize(statusText)}
+                                    </span>
+                                </div>
+
+                                <div class="caption-text" style="margin-top:0.3rem;">
+                                    From: ${sanitize(sourceName)}
+                                </div>
+
+                                <div class="caption-text">
+                                    Contribution date:
+                                    ${sanitize(String(c.date || 'Unknown'))}
+                                </div>
+
+                                <div class="caption-text">
+                                    Original transfer:
+                                    #${sanitize(String(c.transaction_id ?? 'Unavailable'))}
+                                </div>
+
+                                <div class="caption-text">
+                                    Reversal transfer:
+                                    #${sanitize(String(c.reversal_transaction_id ?? 'Unavailable'))}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `
+                        <div class="card"
+                             style="padding:1rem;margin-bottom:0.75rem;">
+
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+                                <strong>${sanitize(g.name)}</strong>
+                                <span class="pill">Archived</span>
+                            </div>
+
+                            <div class="caption-text"
+                                 style="margin-top:0.4rem;">
+                                Archived:
+                                ${sanitize(String(g.closed_at).slice(0, 10))}
+                            </div>
+
+                            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-top:0.75rem;">
+                                <div>
+                                    <div class="caption-text">Total contributed</div>
+                                    <strong>${formatINR(contributed)}</strong>
+                                </div>
+
+                                <div>
+                                    <div class="caption-text">Total reversed</div>
+                                    <strong>${formatINR(reversed)}</strong>
+                                </div>
+                            </div>
+
+                            <details style="margin-top:0.85rem;">
+                                <summary style="cursor:pointer;font-size:12px;font-weight:600;">
+                                    Contribution History (${contributions.length})
+                                </summary>
+
+                                <div style="margin-top:0.5rem;">
+                                    ${rows || '<p class="caption-text">No contribution records.</p>'}
+                                </div>
+                            </details>
+                        </div>
+                    `;
+                }).join('');
+
+                archivedGoalsLoaded = true;
+
+            } catch (err) {
+                console.error('Archived goals could not be loaded:', err);
+
+                container.textContent =
+                    'Could not load archived goals. Close and reopen to retry.';
+
+                showToast('Could not load archived savings targets.', 'error');
+
+            } finally {
+                archivedGoalsLoading = false;
+            }
+        }
         let goalFundBusy = false;
         function openGoalContributionModal(id = null) {
             const goal = id ? goals.find(x => String(x.id) === String(id)) : (goals.find(g => (g.name || '').toLowerCase().includes('emergency')) || goals[0]);
@@ -3000,7 +3594,7 @@
             }
             closeModal('modalGoalFund');
             await refreshData();
-            showToast('✓ Funds allocated to goal');
+            showToast('Funds added to goal successfully.');
         }
 
         async function handleGoalSubmit(e) {
