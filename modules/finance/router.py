@@ -346,6 +346,21 @@ def delete_category(
             detail="Category not found or is a protected system category"
         )
 
+    # PH2.3: Deleting a category must not cascade-delete budgets.
+    has_budgets = (
+        db.query(Budget.id)
+        .filter(
+            Budget.user_id == current_user.id,
+            Budget.category_id == category_id,
+        )
+        .first()
+    )
+    if has_budgets is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This category has budgets and cannot be deleted.",
+        )
+
     if payload and payload.move_to_category_id:
         if payload.move_to_category_id == category_id:
             raise HTTPException(status_code=400, detail="Choose a different category to move transactions to")
@@ -359,6 +374,61 @@ def delete_category(
             raise HTTPException(
                 status_code=400,
                 detail=f"Move them to another {cat.type.value.lower()} category so income and expenses are not mixed up."
+            )
+
+        # PH2.3: Do not indirectly edit goal-linked ledger history.
+        linked_goal_transaction = (
+            db.query(GoalContribution.id)
+            .join(
+                Transaction,
+                or_(
+                    GoalContribution.transaction_id == Transaction.id,
+                    GoalContribution.reversal_transaction_id == Transaction.id,
+                ),
+            )
+            .filter(
+                Transaction.user_id == current_user.id,
+                Transaction.category_id == category_id,
+            )
+            .first()
+        )
+
+        if linked_goal_transaction is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This category contains goal contribution transactions "
+                    "and cannot be deleted or reassigned."
+                ),
+            )
+
+        # Also protect historical, unlinked Goal & Reserves activity.
+        reserve_transaction = (
+            db.query(Transaction.id)
+            .join(
+                Account,
+                or_(
+                    Account.id == Transaction.account_id,
+                    Account.id == Transaction.from_account_id,
+                    Account.id == Transaction.to_account_id,
+                ),
+            )
+            .filter(
+                Transaction.user_id == current_user.id,
+                Transaction.category_id == category_id,
+                Account.user_id == current_user.id,
+                Account.type == AccountType.GOAL_RESERVE,
+            )
+            .first()
+        )
+
+        if reserve_transaction is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This category contains Goal & Reserves transactions "
+                    "and cannot be deleted or reassigned."
+                ),
             )
 
         db.query(Transaction).filter(
