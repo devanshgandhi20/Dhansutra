@@ -119,7 +119,7 @@ class Budget(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False)
     month = Column(String(7), nullable=False)  # Format: YYYY-MM
     limit_amount = Column(Numeric(14, 2), nullable=False)
 
