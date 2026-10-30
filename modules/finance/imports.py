@@ -546,6 +546,7 @@ def export_json(current_user: User = Depends(get_current_user), db: Session = De
                 "type": t.type.value,
                 "amount": float(t.amount),
                 "date": t.date.isoformat(),
+                "income_period": t.income_period,
                 "description": t.description,
                 "category_id": t.category_id,
                 "account_id": t.account_id,
@@ -622,7 +623,7 @@ def export_csv(current_user: User = Depends(get_current_user), db: Session = Dep
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Date", "Type", "Amount", "Description", "Category", "Account", "Source"])
+    writer.writerow(["ID", "Date", "Type", "Amount", "Description", "Category", "Account", "Source", "Income Period"])
 
     for t in transactions:
         cat_name = t.category.name if t.category else ""
@@ -630,6 +631,7 @@ def export_csv(current_user: User = Depends(get_current_user), db: Session = Dep
         writer.writerow([
             t.id, t.date, t.type.value, t.amount,
             _csv_safe(t.description), _csv_safe(cat_name), _csv_safe(acc_name), _csv_safe(t.source),
+            t.income_period or "",
         ])
 
     return Response(

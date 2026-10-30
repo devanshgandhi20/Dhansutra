@@ -141,40 +141,147 @@
     }
 
     // ---------- Monthly review ----------
-    function stats(d) {
+    // Reporting totals use attributed months; expense categories use actual dates.
+    function expenseCategories(d) {
         const k = formatMonthStr(d);
-        const s = { inc: 0, exp: 0, cats: {} };
+        const cats = {};
+
         T().forEach(t => {
-            if (!String(t.date).startsWith(k)) return;
-            const ty = (t.type || '').toUpperCase(), a = Number(t.amount) || 0;
-            if (ty === 'INCOME') s.inc += a;
-            else if (ty === 'EXPENSE') {
-                s.exp += a;
-                const c = categories.find(c => c.id === t.category_id);
-                const n = c ? c.name : 'Uncategorized';
-                s.cats[n] = (s.cats[n] || 0) + a;
-            }
+            if ((t.type || '').toUpperCase() !== 'EXPENSE' ||
+                !String(t.date).startsWith(k)) return;
+
+            const a = Number(t.amount) || 0;
+            const c = categories.find(c => c.id === t.category_id);
+            const n = c ? c.name : 'Uncategorized';
+            cats[n] = (cats[n] || 0) + a;
         });
-        s.saved = s.inc - s.exp;
-        s.rate = s.inc > 0 ? (s.saved / s.inc) * 100 : 0;
-        return s;
+
+        return cats;
+    }
+
+    function reportingStats(d, summary, summaryMonth) {
+        if (summaryMonth !== formatMonthStr(d) ||
+            !isValidDashboardSummary(summary)) return null;
+
+        return {
+            inc: Number(summary.monthly_income),
+            exp: Number(summary.monthly_expense),
+            saved: Number(summary.monthly_savings),
+            rate: Number(summary.savings_rate)
+        };
     }
 
     function renderReview() {
-        const c = stats(selectedMonth), p = stats(mo(-1));
-        $('insReviewTitle').textContent = selectedMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' }) + ' Review';
-        if (!c.inc && !c.exp) { $('insReview').innerHTML = empty('No transactions in this month yet.'); return; }
-        const topCat = Object.entries(c.cats).sort((a, b) => b[1] - a[1])[0];
-        const rises = Object.entries(c.cats).map(([n, v]) => [n, v - (p.cats[n] || 0), p.cats[n] || 0, v]).filter(x => x[1] > 0 && x[2] > 0).sort((a, b) => b[1] - a[1]);
+        const c = reportingStats(
+            selectedMonth, dashboardData, dashboardSummaryMonth
+        );
+
+        const p = reportingStats(
+            mo(-1), previousReportingSummary, previousReportingMonth
+        );
+
+        $('insReviewTitle').textContent =
+            selectedMonth.toLocaleString('en-IN', {
+                month: 'long',
+                year: 'numeric'
+            }) + ' Review';
+
+        if (!c) {
+            $('insReview').innerHTML =
+                empty('Monthly reporting unavailable for the selected month.');
+            return;
+        }
+
+        if (!c.inc && !c.exp) {
+            $('insReview').innerHTML =
+                empty('No income or expenses reported for this month.');
+            return;
+        }
+
+        const currentCats = dataFreshness.transactions
+            ? expenseCategories(selectedMonth)
+            : {};
+
+        const previousCats = dataFreshness.prevTransactions
+            ? expenseCategories(mo(-1))
+            : {};
+
+        const topCat = Object.entries(currentCats)
+            .sort((a, b) => b[1] - a[1])[0];
+
+        const rises =
+            dataFreshness.transactions && dataFreshness.prevTransactions
+                ? Object.entries(currentCats)
+                    .map(([n, v]) => [
+                        n,
+                        v - (previousCats[n] || 0),
+                        previousCats[n] || 0,
+                        v
+                    ])
+                    .filter(x => x[1] > 0 && x[2] > 0)
+                    .sort((a, b) => b[1] - a[1])
+                : [];
+
         const lines = [];
-        if (topCat) lines.push(`Biggest category: ${sanitize(topCat[0])} (${formatINR(topCat[1])}).`);
-        if (rises[0]) lines.push(`${sanitize(rises[0][0])} rose ${formatINR(rises[0][1])} (${pctTxt(rises[0][3], rises[0][2])}) vs last month.`);
-        if (p.inc > 0 && c.inc > 0) lines.push(`Savings rate ${c.rate >= p.rate ? 'improved' : 'fell'} from ${p.rate.toFixed(1)}% to ${c.rate.toFixed(1)}%.`);
+
+        if (topCat) {
+            lines.push(
+                `Biggest category: ${sanitize(topCat[0])} ` +
+                `(${formatINR(topCat[1])}).`
+            );
+        }
+
+        if (rises[0]) {
+            lines.push(
+                `${sanitize(rises[0][0])} rose ` +
+                `${formatINR(rises[0][1])} ` +
+                `(${pctTxt(rises[0][3], rises[0][2])}) vs last month.`
+            );
+        }
+
+        if (p && p.inc > 0 && c.inc > 0) {
+            lines.push(
+                `Savings rate ${c.rate >= p.rate ? 'improved' : 'fell'} ` +
+                `from ${p.rate.toFixed(1)}% to ${c.rate.toFixed(1)}%.`
+            );
+        }
+
+        if (!dataFreshness.summary) {
+            lines.push(
+                'Current reporting figures are stale (last known values).'
+            );
+        }
+
+        if (!p) {
+            lines.push(
+                'Previous month reporting unavailable; comparisons omitted.'
+            );
+        } else if (!dataFreshness.previousSummary) {
+            lines.push(
+                'Previous month reporting figures are stale (last known values).'
+            );
+        }
+
+        if (!dataFreshness.transactions) {
+            lines.push(
+                'Expense-category detail unavailable because the transaction list did not refresh.'
+            );
+        }
+
         $('insReview').innerHTML =
-            row('Income', formatINR(c.inc), 'amount-pos') + row('Expenses', formatINR(c.exp), 'amount-neg') +
-            row('Saved', formatINR(c.saved), c.saved >= 0 ? 'amount-pos' : 'amount-neg') + row('Savings rate', c.rate.toFixed(1) + '%') +
-            row('Expenses vs last month', pctTxt(c.exp, p.exp)) +
-            lines.map(l => note('• ' + l)).join('');
+            row('Income', formatINR(c.inc), 'amount-pos') +
+            row('Expenses', formatINR(c.exp), 'amount-neg') +
+            row(
+                'Saved',
+                formatINR(c.saved),
+                c.saved >= 0 ? 'amount-pos' : 'amount-neg'
+            ) +
+            row('Savings rate', c.rate.toFixed(1) + '%') +
+            row(
+                'Expenses vs last month',
+                p ? pctTxt(c.exp, p.exp) : '-'
+            ) +
+            lines.map(l => note(' - ' + l)).join('');
     }
 
     function renderInsights() {
