@@ -507,6 +507,13 @@ def create_transaction(
 ):
     if data.type == TransactionType.TRANSFER:
         raise HTTPException(status_code=400, detail="Transfers must be created via /api/finance/transfers")
+    # PH2.4: Only income may have a reporting-month override.
+    if data.income_period is not None and data.type != TransactionType.INCOME:
+        raise HTTPException(
+            status_code=422,
+            detail="income_period is only allowed for income transactions",
+        )
+
     if data.account_id is not None:
         account = get_owned_account(
             db,
@@ -594,6 +601,27 @@ def update_transaction(
             raise HTTPException(status_code=400, detail="Transfers must be created via /api/finance/transfers")
         if tx.type == TransactionType.TRANSFER and new_type != TransactionType.TRANSFER:
             raise HTTPException(status_code=400, detail="A transfer cannot be changed into income or expense")
+
+    # PH2.4: Validate attribution against the resulting type.
+    final_type = update_data.get("type", tx.type)
+    requested_period = update_data.get("income_period", tx.income_period)
+
+    if final_type != TransactionType.INCOME:
+        if update_data.get("income_period") is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="income_period is only allowed for income transactions",
+            )
+
+        # Clear existing attribution when changing income to expense.
+        if requested_period is not None:
+            if tx.type == TransactionType.INCOME and final_type != tx.type:
+                update_data["income_period"] = None
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Non-income transaction has invalid income attribution",
+                )
 
     # Every account / category id the client sends must belong to this user.
     # (This used to be unchecked, so another user's ids could be attached.)
