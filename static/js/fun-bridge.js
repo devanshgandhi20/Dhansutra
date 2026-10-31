@@ -44,18 +44,50 @@
   // Personality uses the month BEFORE the selected one: it is complete, so the label does not flip around
   // while the current month fills up.
   function lastMonthStats() {
-    if (typeof prevTransactions === 'undefined' || !Array.isArray(prevTransactions)) return null;
-    const s = { income: 0, expense: 0, txCount: 0, categories: {} };
+    const prev = new Date(
+      selectedMonth.getFullYear(),
+      selectedMonth.getMonth() - 1,
+      1
+    );
+
+    const expectedMonth = formatMonthStr(prev);
+
+    // Monthly income and expenses must use the matching
+    // authoritative reporting summary, not ledger totals.
+    if (
+      typeof previousReportingSummary === 'undefined' ||
+      typeof previousReportingMonth === 'undefined' ||
+      typeof isValidDashboardSummary !== 'function' ||
+      typeof dataFreshness === 'undefined' ||
+      !dataFreshness.previousSummary ||
+      !dataFreshness.prevTransactions ||
+      previousReportingMonth !== expectedMonth ||
+      !isValidDashboardSummary(previousReportingSummary) ||
+      typeof prevTransactions === 'undefined' ||
+      !Array.isArray(prevTransactions)
+    ) {
+      return null;
+    }
+
+    const s = {
+      income: Number(previousReportingSummary.monthly_income),
+      expense: Number(previousReportingSummary.monthly_expense),
+      txCount: 0,
+      categories: {}
+    };
+
+    // Expense categories and transaction counts remain
+    // tied to actual transaction dates.
     prevTransactions.forEach(t => {
-      const ty = (t.type || '').toUpperCase(), a = Number(t.amount) || 0;
-      if (ty === 'INCOME') s.income += a;
-      else if (ty === 'EXPENSE') {
-        s.expense += a;
-        s.txCount++;
-        const n = catName(t.category_id);
-        s.categories[n] = (s.categories[n] || 0) + a;
-      }
+      if ((t.type || '').toUpperCase() !== 'EXPENSE') return;
+
+      const value = Number(t.amount) || 0;
+      const name = catName(t.category_id);
+
+      s.txCount++;
+      s.categories[name] = (s.categories[name] || 0) + value;
     });
+
     return s;
   }
 
@@ -88,7 +120,23 @@
     if (card) card.style.display = on ? '' : 'none';
     if (on) {
       const prev = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
-      Fun.renderPersonality(lastMonthStats(), prev.toLocaleString('en-IN', { month: 'long' }));
+      const stats = lastMonthStats();
+
+      if (stats) {
+        Fun.renderPersonality(
+          stats,
+          prev.toLocaleString('en-IN', { month: 'long' })
+        );
+      } else {
+        const target = document.querySelector(
+          '[data-fun="personality"]'
+        );
+
+        if (target) {
+          target.textContent =
+            'Previous-month reporting is unavailable.';
+        }
+      }
     }
     jokeEmpties();
   }

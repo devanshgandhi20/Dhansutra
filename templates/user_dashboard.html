@@ -945,19 +945,19 @@
             <div class="metrics-triad">
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Income <span
-                            class="stale-tx-slot"></span></span>
+                            class="stale-summary-slot"></span></span>
                     <div class="card-value amount-pos" id="valMonthlyIncome">₹ 0.00</div>
                     <span class="caption-text" id="subMonthlyIncome">Selected month</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Expenses <span
-                            class="stale-tx-slot"></span></span>
+                            class="stale-summary-slot"></span></span>
                     <div class="card-value amount-neg" id="valMonthlyExpense">₹ 0.00</div>
                     <span class="caption-text" id="subMonthlyExpense">Selected month</span>
                 </div>
                 <div class="card" style="margin: 0; padding: 1.15rem;">
                     <span class="caption-text" style="font-weight: 600; text-transform: uppercase;">Saved <span
-                            class="stale-tx-slot"></span></span>
+                            class="stale-summary-slot"></span></span>
                     <div class="card-value amount-neutral" id="valMonthlySurplus">₹ 0.00</div>
                     <span class="caption-text" id="subMonthlySurplus">Selected month</span>
                 </div>
@@ -1241,6 +1241,15 @@
                             <label for="txAccount">Account</label>
                             <select id="txAccount" class="form-control"></select>
                         </div>
+                    </div>
+                </div>
+                <div class="form-group" id="groupIncomePeriod" style="display: none;">
+                    <label for="txIncomePeriod">Income Reporting Month (Optional)</label>
+                    <input type="month" id="txIncomePeriod" class="form-control">
+                    <div class="caption-text" style="margin-top: 0.35rem;">
+                        Leave blank to use the transaction date's month.
+                        Changing this only affects monthly income and savings reports;
+                        the actual transaction date and account balance remain unchanged.
                     </div>
                 </div>
                 <div id="groupTransferFields" style="display: none;">
@@ -1779,6 +1788,9 @@
         let archivedGoalsLoading = false;
         let budgets = [];
         let dashboardData = null;
+        let dashboardSummaryMonth = null;
+        let previousReportingSummary = null;
+        let previousReportingMonth = null;
         let currentFormType = 'expense';
         let selectedMonth = startOfMonth(new Date());
         let selectedGoalId = null;
@@ -2212,6 +2224,25 @@
             await processDueRecurringAutomatically();
         }
 
+        function isValidDashboardSummary(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+
+            const fields = [
+                'monthly_income',
+                'monthly_expense',
+                'monthly_savings',
+                'savings_rate'
+            ];
+
+            return fields.every(key => {
+                const v = value[key];
+                return v !== null && v !== undefined
+                    && (typeof v === 'number' || typeof v === 'string')
+                    && String(v).trim() !== ''
+                    && Number.isFinite(Number(v));
+            });
+        }
+
         async function refreshData(keepTrend = false) {
             if (!keepTrend) { trendCache = {}; trendGen++; }
             const seq = ++refreshSeq;
@@ -2226,10 +2257,11 @@
                 API.getGoals(),
                 API.getBudgetStatus(mStr),
                 API.getBudgets(mStr),
-                API.getDashboardSummary(todayStr()),
+                API.getDashboardSummary(`${mStr}-01`),
                 API.getTransactions({ month: prevMoStr }),
                 API.getRecurring(),
-                ...burnFetches
+                ...burnFetches,
+                API.getDashboardSummary(`${prevMoStr}-01`)
             ]);
             if (seq !== refreshSeq) return false;
 
@@ -2246,8 +2278,9 @@
             const val = (i, check) => (results[i].status === 'fulfilled' && check(results[i].value)) ? results[i].value : undefined;
             const isArr = Array.isArray;
             const accs = val(0, isArr), txs = val(1, isArr), g = val(2, isArr), bStatus = val(3, isArr),
-                bList = val(4, isArr), summary = val(5, v => v && typeof v === 'object'),
+                bList = val(4, isArr), summary = val(5, isValidDashboardSummary),
                 prevTx = val(6, isArr), recs = val(7, isArr);
+            const previousSummary = val(11, isValidDashboardSummary);
 
             // Track freshness per section
             dataFreshness.accounts = accs !== undefined;
@@ -2256,6 +2289,7 @@
             dataFreshness.budgets = bStatus !== undefined;
             dataFreshness.budgetList = bList !== undefined;
             dataFreshness.summary = summary !== undefined;
+            dataFreshness.previousSummary = previousSummary !== undefined;
             dataFreshness.prevTransactions = prevTx !== undefined;
             dataFreshness.recurring = recs !== undefined;
 
@@ -2276,7 +2310,14 @@
             if (g !== undefined) goals = g;
             if (bStatus !== undefined) budgets = bStatus;
             if (bList !== undefined) lastBudgetList = bList;
-            if (summary !== undefined) dashboardData = summary;
+            if (summary !== undefined) {
+                dashboardData = summary;
+                dashboardSummaryMonth = mStr;
+            }
+            if (previousSummary !== undefined) {
+                previousReportingSummary = previousSummary;
+                previousReportingMonth = prevMoStr;
+            }
             if (recs !== undefined) recurringList = recs;
             if (prevTx !== undefined) prevTransactions = prevTx;
 
@@ -2311,12 +2352,18 @@
             setBadge('staleBadgeRecurring', dataFreshness.recurring);
             setBadge('staleBadgeMoM', dataFreshness.transactions && dataFreshness.prevTransactions);
             setBadge('staleBadgeEmergency', dataFreshness.goals && dataFreshness.burn);
-            setBadge('staleBadgeHealth', dataFreshness.transactions && dataFreshness.budgets && dataFreshness.goals);
+            setBadge('staleBadgeHealth', dataFreshness.summary && dataFreshness.budgets && dataFreshness.goals);
             setBadge('staleBadgeBudgets', dataFreshness.budgets && dataFreshness.budgetList);
             setBadge('staleBadgeGoals', dataFreshness.goals);
 
             document.querySelectorAll('.stale-tx-slot').forEach(el => {
                 el.innerHTML = dataFreshness.transactions ? '' : badgeHtml;
+            });
+
+            // PH2.4: Reporting cards follow summary freshness,
+            // independently of the transaction ledger.
+            document.querySelectorAll('.stale-summary-slot').forEach(el => {
+                el.innerHTML = dataFreshness.summary ? '' : badgeHtml;
             });
 
             const toggleStaleVal = (id, isFresh) => {
@@ -2325,11 +2372,11 @@
             };
 
             toggleStaleVal('heroNetWorth', dataFreshness.summary);
-            toggleStaleVal('valMonthlyIncome', dataFreshness.transactions);
-            toggleStaleVal('valMonthlyExpense', dataFreshness.transactions);
-            toggleStaleVal('valMonthlySurplus', dataFreshness.transactions);
+            toggleStaleVal('valMonthlyIncome', dataFreshness.summary);
+            toggleStaleVal('valMonthlyExpense', dataFreshness.summary);
+            toggleStaleVal('valMonthlySurplus', dataFreshness.summary);
             toggleStaleVal('efCurrentTotal', dataFreshness.goals);
-            toggleStaleVal('healthScoreDisplay', dataFreshness.transactions && dataFreshness.budgets && dataFreshness.goals);
+            toggleStaleVal('healthScoreDisplay', dataFreshness.summary && dataFreshness.budgets && dataFreshness.goals);
             toggleStaleVal('budgetTotalLimit', dataFreshness.budgets);
             toggleStaleVal('budgetTotalSpent', dataFreshness.budgets);
             toggleStaleVal('budgetTotalRemaining', dataFreshness.budgets);
@@ -2342,7 +2389,14 @@
                     : 'Liquid Assets + Investments − Outstanding Liabilities · <strong style="color:var(--saffron);">last known value — refresh failed</strong>';
             }
 
-            const subLabel = dataFreshness.transactions ? 'Selected month' : 'Selected month (stale)';
+            const hasSelectedMonthSummary = Boolean(dashboardData)
+                && dashboardSummaryMonth === formatMonthStr(selectedMonth);
+
+            const subLabel = !hasSelectedMonthSummary
+                ? 'Selected reporting month (unavailable)'
+                : dataFreshness.summary
+                    ? 'Selected reporting month'
+                    : 'Selected reporting month (stale)';
             ['subMonthlyIncome', 'subMonthlyExpense', 'subMonthlySurplus'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.textContent = subLabel;
@@ -2561,6 +2615,10 @@
             });
             document.getElementById('groupStandardFields').style.display = (currentFormType === 'transfer') ? 'none' : 'block';
             document.getElementById('groupTransferFields').style.display = (currentFormType === 'transfer') ? 'block' : 'none';
+            document.getElementById('groupIncomePeriod').style.display = (currentFormType === 'income') ? 'block' : 'none';
+            if (currentFormType !== 'income') {
+                document.getElementById('txIncomePeriod').value = '';
+            }
             updateCategoryDropdown();
         }
 
@@ -2596,14 +2654,18 @@
         }
 
         function monthStats() {
-            let income = 0, expense = 0;
-            transactions.forEach(t => {
-                const ty = (t.type || '').toUpperCase();
-                if (ty === 'INCOME') income += Number(t.amount) || 0;
-                else if (ty === 'EXPENSE') expense += Number(t.amount) || 0;
-            });
-            const savings = income - expense;
-            return { income, expense, savings, rate: income > 0 ? (savings / income) * 100 : 0 };
+            // Never show another month's cached summary as the selected month.
+            if (!dashboardData ||
+                dashboardSummaryMonth !== formatMonthStr(selectedMonth)) {
+                return null;
+            }
+
+            return {
+                income: Number(dashboardData.monthly_income),
+                expense: Number(dashboardData.monthly_expense),
+                savings: Number(dashboardData.monthly_savings),
+                rate: Number(dashboardData.savings_rate)
+            };
         }
 
         function renderUI(rawBudgets = []) {
@@ -2612,11 +2674,43 @@
                 renderAccountCards(dashboardData.accounts || []);
             }
             const ms = monthStats();
-            document.getElementById('valMonthlyIncome').textContent = formatINR(ms.income);
-            document.getElementById('valMonthlyExpense').textContent = formatINR(ms.expense);
-            document.getElementById('valMonthlySurplus').textContent = formatINR(ms.savings);
+
+            document.getElementById('valMonthlyIncome').textContent =
+                ms ? formatINR(ms.income) : '?';
+
+            document.getElementById('valMonthlyExpense').textContent =
+                ms ? formatINR(ms.expense) : '?';
+
+            document.getElementById('valMonthlySurplus').textContent =
+                ms ? formatINR(ms.savings) : '?';
+
             renderFreshnessIndicators();
-            renderHealthScore(ms.rate, ms.income, ms.expense);
+
+            if (ms) {
+                renderHealthScore(ms.rate, ms.income, ms.expense);
+            } else {
+                // Do not carry another month's health score forward.
+                const score = document.getElementById('healthScoreDisplay');
+                if (score) score.textContent = '?';
+
+                const rate = document.getElementById('lblSavingsRate');
+                if (rate) rate.textContent = '?';
+
+                const bar = document.getElementById('barSavingsRate');
+                if (bar) bar.style.width = '0%';
+
+                const insights = document.getElementById('healthInsightsContainer');
+                if (insights) {
+                    insights.textContent =
+                        'Reporting data unavailable for the selected month.';
+                }
+
+                const grade = document.getElementById('healthGradePill');
+                if (grade) {
+                    grade.textContent = 'Unavailable';
+                    grade.className = 'pill warning';
+                }
+            }
             renderNetWorthTrend();
             renderNetWorthDelta();
             renderAssetsLiabilities();
@@ -2985,6 +3079,9 @@
                 document.getElementById('txAmount').value = editingTx.amount;
                 document.getElementById('txDate').value = editingTx.date;
                 document.getElementById('txDescription').value = editingTx.description || '';
+                if (txType === 'income') {
+                    document.getElementById('txIncomePeriod').value = editingTx.income_period || '';
+                }
                 if (txType === 'transfer') {
                     if (editingTx.from_account_id) document.getElementById('txFromAccount').value = editingTx.from_account_id;
                     if (editingTx.to_account_id) document.getElementById('txToAccount').value = editingTx.to_account_id;
@@ -3042,6 +3139,21 @@
                     return;
                 }
                 payload = { type: currentFormType.toUpperCase(), amount, date, description, account_id, category_id };
+
+                if (currentFormType === 'income') {
+                    const incomePeriod = document.getElementById('txIncomePeriod').value;
+
+                    if (incomePeriod &&
+                        !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(incomePeriod)) {
+                        showToast('Select a valid income reporting month.', 'error');
+                        return;
+                    }
+
+                    // Null means use the transaction date's month.
+                    // On edit, null explicitly clears a saved override.
+                    payload.income_period = incomePeriod || null;
+                }
+
                 failMsg = 'Failed to save transaction';
             }
 

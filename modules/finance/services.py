@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Dict, List, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from modules.finance.models import (
@@ -189,22 +189,39 @@ class FinanceService:
 
         net_worth = total_assets - total_liabilities
 
-        # Monthly income and expense figures: one grouped query over a date range
+        # PH2.4: Income uses its attributed reporting month.
+        # Unattributed income uses the actual transaction month.
+        # Expenses always use their actual transaction dates.
         start, end = _month_bounds(target_date.year, target_date.month)
-        totals = {
-            tx_type: _dec(total)
-            for tx_type, total in db.query(Transaction.type, func.coalesce(func.sum(Transaction.amount), 0))
+        month_str = f"{target_date.year:04d}-{target_date.month:02d}"
+
+        monthly_income = _dec(
+            db.query(func.coalesce(func.sum(Transaction.amount), 0))
             .filter(
                 Transaction.user_id == user_id,
-                Transaction.type.in_([TransactionType.INCOME, TransactionType.EXPENSE]),
+                Transaction.type == TransactionType.INCOME,
+                or_(
+                    Transaction.income_period == month_str,
+                    and_(
+                        Transaction.income_period.is_(None),
+                        Transaction.date >= start,
+                        Transaction.date < end,
+                    ),
+                ),
+            )
+            .scalar()
+        )
+
+        monthly_expense = _dec(
+            db.query(func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.type == TransactionType.EXPENSE,
                 Transaction.date >= start,
                 Transaction.date < end,
             )
-            .group_by(Transaction.type)
-            .all()
-        }
-        monthly_income = totals.get(TransactionType.INCOME, ZERO)
-        monthly_expense = totals.get(TransactionType.EXPENSE, ZERO)
+            .scalar()
+        )
 
         monthly_savings = monthly_income - monthly_expense
         savings_rate = (

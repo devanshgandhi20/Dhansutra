@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime as _dt
+import re
 from decimal import Decimal
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -159,6 +160,29 @@ class CategoryResponse(CategoryBase):
 
 
 # ---------------- TRANSACTIONS ----------------
+
+_INCOME_PERIOD_RE = re.compile(
+    r"^[0-9]{4}-(0[1-9]|1[0-2])$"
+)
+
+
+def validate_income_period(value):
+    if value is None:
+        return None
+
+    if not isinstance(value, str):
+        raise ValueError(
+            "income_period must be YYYY-MM or null"
+        )
+
+    if not _INCOME_PERIOD_RE.fullmatch(value):
+        raise ValueError(
+            "income_period must be a valid YYYY-MM month"
+        )
+
+    return value
+
+
 class TransactionBase(BaseModel):
     type: TransactionType
     amount: Decimal = Field(..., gt=0)
@@ -168,6 +192,13 @@ class TransactionBase(BaseModel):
     account_id: Optional[int] = None
     source: Optional[str] = Field(default="MANUAL", max_length=50)
     source_id: Optional[str] = Field(None, max_length=255)
+    income_period: Optional[str] = None
+
+    @field_validator("income_period", mode="before")
+    @classmethod
+    def _validate_income_period(cls, value):
+        return validate_income_period(value)
+
 
 
 class TransactionCreate(TransactionBase):
@@ -196,6 +227,7 @@ class TransactionResponse(BaseModel):
     source: str
     source_id: Optional[str]
     created_at: _dt.datetime
+    income_period: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -209,6 +241,13 @@ class TransactionUpdate(BaseModel):
     from_account_id: Optional[int] = None
     to_account_id: Optional[int] = None
     source_id: Optional[str] = Field(None, max_length=255)
+    income_period: Optional[str] = None
+
+    @field_validator("income_period", mode="before")
+    @classmethod
+    def _validate_income_period(cls, value):
+        return validate_income_period(value)
+
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
 def _date_only(value):

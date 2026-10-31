@@ -10,6 +10,7 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     Index,
+    CheckConstraint,
     UniqueConstraint,
     Enum as SAEnum,
     func,
@@ -84,6 +85,10 @@ class Transaction(Base):
             unique=True, postgresql_where=text("source_id IS NOT NULL"),
         ),
         Index("ix_transactions_user_date", "user_id", "date"),
+        CheckConstraint(
+            "income_period IS NULL OR (type = 'INCOME' AND income_period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$')",
+            name="ck_transactions_income_period_valid",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -91,6 +96,7 @@ class Transaction(Base):
     type = Column(SAEnum(TransactionType, name="transaction_type_enum"), nullable=False)
     amount = Column(Numeric(14, 2), nullable=False)
     date = Column(Date, nullable=False, index=True)
+    income_period = Column(String(7), nullable=True)
     description = Column(String(255), nullable=True)
 
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
