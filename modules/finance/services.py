@@ -18,6 +18,8 @@ from modules.finance.schemas import (
     DashboardSummaryResponse,
 )
 
+from modules.finance.valuation import effective_investment_value
+
 ZERO = Decimal("0.00")
 
 
@@ -141,10 +143,15 @@ class FinanceService:
                 # Standard Bank, Cash, Demat, and Investment accounts
                 current_balance = starting + income_sum - expense_sum + t_in - t_out
 
-            # For investment accounts, use current_market_value if set, otherwise fallback to current_balance
+            # PH2.5: Snapshot plus ledger movement since the anchor.
+            # Legacy NULL/zero valuations retain ledger fallback.
             market_val = (
-                Decimal(str(acc.current_market_value))
-                if acc.current_market_value is not None and acc.current_market_value > 0
+                effective_investment_value(
+                    current_balance,
+                    acc.current_market_value,
+                    acc.valuation_ledger_anchor,
+                )
+                if acc.type == AccountType.INVESTMENT
                 else current_balance
             )
 
@@ -177,13 +184,9 @@ class FinanceService:
                 else:
                     total_assets += abs(acc.current_balance)
             elif acc.type == AccountType.INVESTMENT:
-                if (
-                    acc.current_market_value is not None
-                    and acc.current_market_value > 0
-                ):
-                    total_assets += acc.current_market_value
-                else:
-                    total_assets += acc.current_balance
+                # The balance summary already contains effective value,
+                # including an intentionally recorded zero.
+                total_assets += acc.current_market_value
             else:
                 total_assets += acc.current_balance
 

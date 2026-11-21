@@ -23,6 +23,8 @@ from starlette.concurrency import run_in_threadpool
 from core.config import INSECURE_SYNC_TOKEN, settings
 from modules.auth.userverification import get_current_user, get_db
 from modules.finance.automate import WebhookPayload, resolve_category
+from modules.finance.transaction_integrity import lock_owned_accounts, validate_postwrite_investments
+from modules.finance.models import InvestmentValuationMember
 from modules.finance.models import (
     Account, AccountType, Budget, Category, FinancialGoal, GoalContribution, IgnoredSourceId,
     RecurringTransaction, Transaction, TransactionType,
@@ -289,7 +291,26 @@ def commit_receipts(
         if category_ids - usable:
             raise HTTPException(status_code=404, detail="Selected category not found")
 
-    accounts: Dict[int, Optional[Account]] = {}
+    # PH2.5: Resolve eligible owned accounts first, then lock ALL of them
+    # in stable order before the first savepoint or ledger write.
+    # Invalid/foreign/Goal Reserve accounts remain per-row skips.
+    candidate_ids = {
+        item.account_id for item in payload.transactions
+        if item.account_id is not None
+    }
+    eligible_accounts = (
+        db.query(Account).filter(
+            Account.id.in_(candidate_ids),
+            Account.user_id == current_user.id,
+        ).all()
+        if candidate_ids else []
+    )
+    eligible_ids = (
+        account.id for account in eligible_accounts
+        if account.type != AccountType.GOAL_RESERVE
+    )
+    locked_accounts = lock_owned_accounts(db, current_user.id, eligible_ids)
+    accounts = {account.id: account for account in locked_accounts}
     seen_ids = set()
     committed_count = 0
     skipped_count = 0
@@ -312,13 +333,8 @@ def commit_receipts(
                 skipped_count += 1
                 continue
 
-        # Validate account ownership (each account looked up once)
-        if item.account_id not in accounts:
-            accounts[item.account_id] = db.query(Account).filter(
-                Account.id == item.account_id,
-                Account.user_id == current_user.id
-            ).first() if item.account_id else None
-        acc = accounts[item.account_id]
+        # The locked map excludes missing, foreign, and Goal Reserve accounts.
+        acc = accounts.get(item.account_id)
         if not acc:
             skipped_count += 1
             continue
@@ -359,20 +375,40 @@ def commit_receipts(
             source="GMAIL",
             source_id=sid,
         )
-        # Account balances are derived from the ledger, so adding the row is all that is needed.
+        # PH2.5: Each row is an independent savepoint. A failed investment
+        # guard discards only that row; successful rows retain batch semantics.
         try:
-            with db.begin_nested():  # savepoint: a duplicate only drops this row
+            with db.begin_nested():
                 db.add(tx)
+                db.flush()
+                validate_postwrite_investments(
+                    db, current_user.id, (acc,),
+                )
         except IntegrityError:
             skipped_count += 1
             continue
+        except HTTPException as exc:
+            # This guarded section only raises HTTP 409 for an invalid
+            # investment post-write value. Other failures abort the batch.
+            if exc.status_code != 409 or acc.type != AccountType.INVESTMENT:
+                db.rollback()
+                raise
+            skipped_count += 1
+            continue
+        except Exception:
+            db.rollback()
+            raise
 
         committed_count += 1
         if sid:
             seen_ids.add(sid)
             committed_ids.append(sid)
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return {
         "committed_count": committed_count,
         "skipped_count": skipped_count,
@@ -437,60 +473,74 @@ def webhook_ingest_transactions(
     if not axis_account:
         raise HTTPException(status_code=400, detail="No active bank account found to credit/debit")
 
+    # PH2.5: Share the account-row locking protocol with every ledger writer.
+    # The bank-only rule must be checked AGAIN after acquiring its row lock.
+    locked_accounts = lock_owned_accounts(db, sync_user.id, (axis_account.id,))
+    axis_account = locked_accounts[0]
+    if axis_account.type != AccountType.BANK:
+        raise HTTPException(status_code=409, detail="Webhook target is no longer a bank account")
+
     added_count = 0
     seen_ids = set()
-    for item in payload.transactions:
-        sid = item.source_id.strip() if item.source_id else None
+    try:
+        for item in payload.transactions:
+            sid = item.source_id.strip() if item.source_id else None
 
-        # Deduplication: check if source_id (Gmail messageId) was already recorded for this user
-        if sid:
-            if sid in seen_ids:
+            # Deduplication: check if source_id (Gmail messageId) was already recorded for this user
+            if sid:
+                if sid in seen_ids:
+                    continue
+                existing = (
+                    db.query(Transaction.id)
+                    .filter(Transaction.user_id == sync_user.id, Transaction.source_id == sid)
+                    .first()
+                )
+                if existing or _is_ignored(db, sync_user.id, sid):
+                    continue
+
+            amount = _positive_amount(abs(item.amount))
+            if amount is None:
                 continue
-            existing = (
-                db.query(Transaction.id)
-                .filter(Transaction.user_id == sync_user.id, Transaction.source_id == sid)
-                .first()
+            try:
+                parsed_date = datetime.strptime(item.date.split("T")[0], "%Y-%m-%d").date()
+            except ValueError:
+                continue
+
+            tx_type = TransactionType.INCOME if item.type.strip().upper() == "INCOME" else TransactionType.EXPENSE
+            description = item.description.strip()[:255]
+
+            # Auto-resolve category. (The old call left out the user id argument, so every
+            # request to this endpoint crashed with a TypeError.)
+            category_id = resolve_category(description, tx_type.value, sync_user.id, db)
+
+            new_tx = Transaction(
+                user_id=sync_user.id,
+                type=tx_type,
+                amount=amount,
+                date=parsed_date,
+                description=description,
+                account_id=axis_account.id,
+                category_id=category_id,
+                source_id=sid,
+                source="GMAIL",
             )
-            if existing or _is_ignored(db, sync_user.id, sid):
+            try:
+                with db.begin_nested():
+                    db.add(new_tx)
+                    db.flush()
+                    validate_postwrite_investments(db, sync_user.id, locked_accounts)
+            except IntegrityError:
+                # Preserve the webhook's original partial-success duplicate policy.
                 continue
 
-        amount = _positive_amount(abs(item.amount))
-        if amount is None:
-            continue
-        try:
-            parsed_date = datetime.strptime(item.date.split("T")[0], "%Y-%m-%d").date()
-        except ValueError:
-            continue
+            if sid:
+                seen_ids.add(sid)
+            added_count += 1
 
-        tx_type = TransactionType.INCOME if item.type.strip().upper() == "INCOME" else TransactionType.EXPENSE
-        description = item.description.strip()[:255]
-
-        # Auto-resolve category. (The old call left out the user id argument, so every
-        # request to this endpoint crashed with a TypeError.)
-        category_id = resolve_category(description, tx_type.value, sync_user.id, db)
-
-        new_tx = Transaction(
-            user_id=sync_user.id,
-            type=tx_type,
-            amount=amount,
-            date=parsed_date,
-            description=description,
-            account_id=axis_account.id,
-            category_id=category_id,
-            source_id=sid,
-            source="GMAIL",
-        )
-        try:
-            with db.begin_nested():
-                db.add(new_tx)
-        except IntegrityError:
-            continue
-
-        if sid:
-            seen_ids.add(sid)
-        added_count += 1
-
-    db.commit()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return {"status": "success", "imported": added_count}
 
 
@@ -523,7 +573,22 @@ def export_json(current_user: User = Depends(get_current_user), db: Session = De
         .all()
     )
 
+    # Export frozen membership, including tombstones for deleted transactions.
+    # Never join on Transaction: deleted transaction IDs must remain in the backup.
+    valuation_members = (
+        db.query(InvestmentValuationMember)
+        .join(Account, InvestmentValuationMember.account_id == Account.id)
+        .filter(Account.user_id == current_user.id)
+        .order_by(
+            InvestmentValuationMember.account_id.asc(),
+            InvestmentValuationMember.transaction_id.asc(),
+        )
+        .all()
+    )
+
     archive = {
+        # PH2.5: Additive backup format; no restore endpoint is implied.
+        "backup_schema_version": 2,
         "export_date": datetime.utcnow().isoformat(),
         "accounts": [
             {
@@ -531,10 +596,25 @@ def export_json(current_user: User = Depends(get_current_user), db: Session = De
                 "name": a.name,
                 "type": a.type.value,
                 "starting_balance": float(a.starting_balance),
-                "current_market_value": float(a.current_market_value) if a.current_market_value else None,
+                "current_market_value": (
+                    float(a.current_market_value) if a.current_market_value is not None else None
+                ),
+                # Decimal as text: retain exact two-decimal ledger anchor for restore tooling.
+                "valuation_ledger_anchor": (
+                    str(a.valuation_ledger_anchor) if a.valuation_ledger_anchor is not None else None
+                ),
                 "anchor_date": a.anchor_date.isoformat() if a.anchor_date else None,
             }
             for a in accounts
+        ],
+        "investment_valuation_members": [
+            {
+                "account_id": m.account_id,
+                "transaction_id": m.transaction_id,
+                # Preserve signed baseline exactly, even for deleted transactions.
+                "baseline_contribution": str(m.baseline_contribution),
+            }
+            for m in valuation_members
         ],
         "categories": [
             {"id": c.id, "name": c.name, "type": c.type.value, "icon": c.icon, "is_system": c.is_system}
