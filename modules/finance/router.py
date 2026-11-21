@@ -26,6 +26,16 @@ from modules.finance.schemas import (
     RecurringCreate, RecurringUpdate, RecurringResponse, GoalContributionReversalCreate,
 )
 from modules.finance.services import FinanceService
+from modules.finance.valuation import set_valuation_snapshot
+from modules.finance.valuation_membership_store import replace_investment_valuation_members
+from modules.finance.valuation_transaction_reconciliation import (
+    reconcile_valuation_transaction_change,
+)
+from modules.finance.snapshot_provenance import transaction_contributions
+from modules.finance.transaction_integrity import (
+    lock_owned_accounts,
+    validate_postwrite_investments,
+)
 from modules.users.models import User
 
 router = APIRouter(prefix="/api/finance", tags=["Finance"])
@@ -151,7 +161,30 @@ def create_account(
                 "with a zero balance."
             ),
         )
+    # PH2.5: A stored market valuation is investment-only.
+    if (
+        data.current_market_value is not None
+        and data.type != AccountType.INVESTMENT
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Market valuation is investment-only",
+        )
+
     account = Account(**data.model_dump(), user_id=current_user.id)
+
+    if data.type == AccountType.INVESTMENT:
+        try:
+            snapshot, anchor = set_valuation_snapshot(
+                data.current_market_value,
+                data.starting_balance,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        account.current_market_value = snapshot
+        account.valuation_ledger_anchor = anchor
+
     db.add(account)
     db.commit()
     db.refresh(account)
@@ -165,7 +198,11 @@ def update_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    account = get_owned_account(db, current_user.id, account_id)
+    # PH2.5: Lock before reading the ledger or changing its snapshot.
+    # The same lock must be respected by all financial writers.
+    account = lock_owned_accounts(
+        db, current_user.id, (account_id,)
+    )[0]
 
     update_data = data.model_dump(exclude_unset=True)
     # PH2.1: An existing ordinary account cannot become
@@ -210,13 +247,125 @@ def update_account(
                 )
             )
 
-    for key, value in update_data.items():
-        if value is None and key in ("name", "type", "starting_balance"):
-            continue
+    # PH2.5: Investment account conversions require
+    # explicit ledger reconciliation.
+    target_type = update_data.get("type") or account.type
 
-        setattr(account, key, value)
+    if (
+        target_type != account.type
+        and AccountType.INVESTMENT in (account.type, target_type)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Investment account conversion requires reconciliation",
+        )
 
-    db.commit()
+    # PH2.5: An opening-balance correction must not reprice an existing
+    # authoritative investment valuation. The ledger and its frozen anchor
+    # move together by the same signed delta (unless explicitly revaluing).
+    requested_start = update_data.get("starting_balance")
+    starting_balance_changed = (
+        requested_start is not None
+        and Decimal(str(requested_start)) != Decimal(str(account.starting_balance))
+    )
+    opening_delta = (
+        Decimal(str(requested_start)) - Decimal(str(account.starting_balance))
+        if starting_balance_changed
+        else Decimal("0")
+    )
+    explicit_revaluation = "current_market_value" in update_data
+    anchored_opening_correction = (
+        account.type == AccountType.INVESTMENT
+        and starting_balance_changed
+        and not explicit_revaluation
+        and account.valuation_ledger_anchor is not None
+    )
+    if anchored_opening_correction and account.current_market_value is None:
+        raise HTTPException(status_code=409, detail="Orphan valuation anchor")
+
+    if "current_market_value" in update_data:
+        requested = update_data["current_market_value"]
+
+        if (
+            requested is not None
+            and target_type != AccountType.INVESTMENT
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Market valuation is investment-only",
+            )
+
+        if requested is None:
+            account.valuation_ledger_anchor = None
+        else:
+            # TODO PH2.5: Apply the shared account-row
+            # locking protocol with all transfer writes.
+            balances = FinanceService.calculate_account_balances(
+                db, current_user.id
+            )
+
+            ledger = next(
+                (
+                    item.current_balance
+                    for item in balances
+                    if item.id == account.id
+                ),
+                None,
+            )
+
+            if ledger is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Investment ledger balance unavailable",
+                )
+
+            new_start = update_data.get("starting_balance")
+
+            if new_start is not None:
+                ledger = (
+                    ledger
+                    + Decimal(str(new_start))
+                    - Decimal(str(account.starting_balance))
+                )
+
+            try:
+                snapshot, anchor = set_valuation_snapshot(
+                    requested, ledger
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=str(exc),
+                )
+
+            update_data["current_market_value"] = snapshot
+            account.valuation_ledger_anchor = anchor
+
+    # PH2.5: Commit the starting balance, anchor and membership as one unit.
+    try:
+        if anchored_opening_correction:
+            account.valuation_ledger_anchor = (
+                Decimal(str(account.valuation_ledger_anchor)) + opening_delta
+            )
+
+        for key, value in update_data.items():
+            if value is None and key in ("name", "type", "starting_balance"):
+                continue
+
+            setattr(account, key, value)
+
+        if account.type == AccountType.INVESTMENT and (
+            starting_balance_changed or explicit_revaluation
+        ):
+            db.flush()
+            if explicit_revaluation:
+                replace_investment_valuation_members(db, current_user.id, account)
+            # Guard effective valuation after the opening balance/anchor changes.
+            validate_postwrite_investments(db, current_user.id, (account,))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(account)
     return account
 
@@ -227,7 +376,10 @@ def delete_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    account = get_owned_account(db, current_user.id, account_id)
+    # PH2.5: Serialize deletion with the same account-row lock used by
+    # transfers, imports, revaluation, recurring and goal writers.
+    # Reference checks must run AFTER acquiring the lock.
+    account = lock_owned_accounts(db, current_user.id, (account_id,))[0]
     # PH2.1: Protect Goal & Reserves accounts.
     # Even historical reserve balances may not have complete
     # transaction-to-contribution relationships.
@@ -287,8 +439,27 @@ def delete_account(
             detail="This account is used by a recurring item. Delete or change that item first.",
         )
 
-    db.delete(account)
-    db.commit()
+    # A valued investment can retain signed valuation membership even
+    # after its transactions are deleted. Do not silently cascade-delete
+    # the tombstones that explain its historical market snapshot.
+    if account.type == AccountType.INVESTMENT and account.valuation_members:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This investment account has valuation history. "
+                "Reconcile its investment provenance before deleting."
+            ),
+        )
+
+    # Deletion, related DB cascades and membership cleanup are one unit.
+    # Flush before commit to surface FK/constraint conflicts here.
+    try:
+        db.delete(account)
+        db.flush()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return None
 
 
@@ -514,16 +685,15 @@ def create_transaction(
             detail="income_period is only allowed for income transactions",
         )
 
-    if data.account_id is not None:
-        account = get_owned_account(
-            db,
-            current_user.id,
-            data.account_id,
-            "Selected account",
-        )
-
+    # PH2.5: Guard ordinary ledger writes with the same account-row lock
+    # used for investment revaluation and transfers.
+    locked_accounts = lock_owned_accounts(
+        db, current_user.id,
+        (data.account_id,) if data.account_id is not None else (),
+    )
+    if locked_accounts:
         reject_goal_reserve_account(
-            account,
+            locked_accounts[0],
             "Selected account",
         )
 
@@ -539,13 +709,20 @@ def create_transaction(
             raise HTTPException(status_code=409, detail="Transaction with this source_id already exists")
 
     tx = Transaction(**data.model_dump(), user_id=current_user.id)
-    db.add(tx)
     try:
+        db.add(tx)
+        db.flush()
+        validate_postwrite_investments(
+            db, current_user.id, locked_accounts
+        )
         db.commit()
     except IntegrityError:
-        # lost a race against another request carrying the same source_id
+        # PH2.4: Source IDs stay unique across competing requests.
         db.rollback()
         raise HTTPException(status_code=409, detail="Transaction with this source_id already exists")
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(tx)
     return tx
 
@@ -587,6 +764,12 @@ def update_transaction(
                 "This transfer belongs to a financial goal contribution "
                 "and cannot be edited directly."
             )
+        )
+
+    if tx.type == TransactionType.TRANSFER and tx.from_account_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Historical transfer missing source; reconcile it before editing",
         )
 
     update_data = data.model_dump(exclude_unset=True)
@@ -641,23 +824,166 @@ def update_transaction(
     if update_data.get("category_id") is not None:
         get_usable_category(db, current_user.id, update_data["category_id"])
 
-    if tx.type == TransactionType.TRANSFER:
-        from_id = update_data.get("from_account_id", tx.from_account_id)
-        to_id = update_data.get("to_account_id", tx.to_account_id)
-        if from_id and to_id and from_id == to_id:
-            raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
+    if tx.type != TransactionType.TRANSFER and any(
+        name in update_data for name in ("from_account_id", "to_account_id")
+    ):
+        raise HTTPException(status_code=422, detail="Transfer accounts require a transfer")
 
-    for field, value in update_data.items():
-        setattr(tx, field, value)
+    if tx.type == TransactionType.TRANSFER:
+        # Historical transfers may have a missing from_account_id.
+        from_id = update_data.get(
+            "from_account_id",
+            tx.from_account_id or tx.account_id,
+        )
+        to_id = update_data.get(
+            "to_account_id",
+            tx.to_account_id,
+        )
+
+        if from_id is None or to_id is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Transfer requires source and destination accounts",
+            )
+
+        if from_id == to_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot transfer to the same account",
+            )
+
+        # Validate both resulting references, not only fields
+        # explicitly changed by the client.
+        for account_id, label in (
+            (from_id, "Source account"),
+            (to_id, "Destination account"),
+        ):
+            selected_account = get_owned_account(
+                db, current_user.id, account_id, label
+            )
+            reject_goal_reserve_account(
+                selected_account, label
+            )
+
+        # account_id is the ledger's source-account reference.
+        if (
+            "account_id" in update_data
+            and update_data["account_id"] != from_id
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Transfer account_id must match its source account",
+            )
+
+        update_data["account_id"] = from_id
+        update_data["from_account_id"] = from_id
+
+    # PH2.5: Preserve the exact pre-edit ledger state for snapshot membership.
+    fields = (
+        "id", "user_id", "type", "amount", "account_id",
+        "from_account_id", "to_account_id",
+    )
+    before_state = {field: getattr(tx, field) for field in fields}
+    # Record the validated old ledger state BEFORE waiting on account locks.
+    # If another request edits this transaction meanwhile, do not use stale
+    # validation or account identifiers: fail closed and require a fresh edit.
+    observed_state = {
+        field: getattr(tx, field, None)
+        for field in (
+            "id", "user_id", "type", "amount", "account_id",
+            "from_account_id", "to_account_id", "income_period",
+            "date", "description", "category_id", "source_id", "source",
+        )
+    }
+    after_state = dict(before_state)
+    after_state.update({
+        field: update_data[field]
+        for field in ("type", "amount", "account_id", "from_account_id", "to_account_id")
+        if field in update_data
+    })
+
+    # Refuse silent reassignment of old, incomplete transfer source references.
+    # Other legacy fields retain their existing behavior.
+    try:
+        old_contrib = transaction_contributions(
+            before_state["type"], before_state["amount"],
+            account_id=before_state["account_id"],
+            from_account_id=before_state["from_account_id"],
+            to_account_id=before_state["to_account_id"],
+        )
+        new_contrib = transaction_contributions(
+            after_state["type"], after_state["amount"],
+            account_id=after_state["account_id"],
+            from_account_id=after_state["from_account_id"],
+            to_account_id=after_state["to_account_id"],
+        )
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=409, detail="Invalid transaction ledger state") from exc
+
+    # Include every old and requested account reference, even for a zero-net
+    # same-account legacy transfer whose signed contribution map is empty.
+    account_ids = set(old_contrib) | set(new_contrib)
+    account_ids.update(
+        account_id for account_id in (
+            before_state["account_id"], before_state["from_account_id"],
+            before_state["to_account_id"],
+            update_data.get("account_id"), update_data.get("from_account_id"),
+            update_data.get("to_account_id"),
+        ) if account_id is not None
+    )
+    locked_accounts = lock_owned_accounts(
+        db, current_user.id, sorted(account_ids)
+    )
+
+    # All old and requested accounts are locked in ascending ID order first.
+    # Only now lock and refresh the transaction row. A concurrent edit may
+    # have changed it while this request waited for one of those accounts.
+    tx = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id,
+    ).populate_existing().with_for_update().first()
+    if tx is None:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if any(getattr(tx, field, None) != value for field, value in observed_state.items()):
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Transaction changed concurrently; reload it before editing",
+        )
+    # Preserve goal protections if a goal link appeared after the first read.
+    if (
+        db.query(GoalContribution.id).filter(
+            or_(
+                GoalContribution.transaction_id == tx.id,
+                GoalContribution.reversal_transaction_id == tx.id,
+            )
+        ).first() is not None
+        or is_goal_reserve_transaction(db, tx, current_user.id)
+    ):
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Goal-linked transaction cannot be edited directly",
+        )
 
     try:
+        reconcile_valuation_transaction_change(
+            db, current_user.id, tx.id, before_state, after_state, locked_accounts
+        )
+        for field, value in update_data.items():
+            setattr(tx, field, value)
+        db.flush()
+        validate_postwrite_investments(db, current_user.id, locked_accounts)
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Transaction with this source_id already exists")
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(tx)
     return tx
-
 
 @router.post("/transfers", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_transfer(
@@ -668,14 +994,18 @@ def create_transfer(
     if data.from_account_id == data.to_account_id:
         raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
 
-    from_acc = db.query(Account).filter(Account.id == data.from_account_id, Account.user_id == current_user.id).first()
-    to_acc = db.query(Account).filter(Account.id == data.to_account_id, Account.user_id == current_user.id).first()
-    # Step 1: Confirm both accounts exist
-    if not from_acc or not to_acc:
-        raise HTTPException(
-            status_code=404,
-            detail="Source or destination account not found",
-        )
+    # PH2.5: Lock transfer participants in ascending account ID order.
+    locked_accounts = lock_owned_accounts(
+        db,
+        current_user.id,
+        (data.from_account_id, data.to_account_id),
+    )
+    accounts_by_id = {
+        account.id: account
+        for account in locked_accounts
+    }
+    from_acc = accounts_by_id[data.from_account_id]
+    to_acc = accounts_by_id[data.to_account_id]
     # PH2.1: Ordinary transfers cannot move money
     # into or out of Goal & Reserves.
     reject_goal_reserve_account(
@@ -702,12 +1032,21 @@ def create_transfer(
         description=data.description,
         source="MANUAL",
     )
-    db.add(transfer_tx)
+    # PH2.5: Ledger movement changes effective value.
+    # Stored market snapshots must remain unchanged.
+    try:
+        db.add(transfer_tx)
+        db.flush()
+        validate_postwrite_investments(
+            db,
+            current_user.id,
+            locked_accounts,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
-    # Keep hand-entered market values of INVESTMENT accounts in step with the money moved
-    _shift_investment_value(from_acc, to_acc, tx_amount)
-
-    db.commit()
     db.refresh(transfer_tx)
     return transfer_tx
 
@@ -749,27 +1088,100 @@ def delete_transaction(
             )
         )
 
-    # Balances are derived from the ledger, so deleting the row corrects them automatically.
-    # Only a hand-entered investment market value needs undoing for transfers.
-    if tx.type == TransactionType.TRANSFER:
-        from_id = tx.from_account_id or tx.account_id
-        from_acc = db.query(Account).filter(Account.id == from_id, Account.user_id == current_user.id).first() if from_id else None
-        to_acc = db.query(Account).filter(Account.id == tx.to_account_id, Account.user_id == current_user.id).first() if tx.to_account_id else None
-        _shift_investment_value(from_acc, to_acc, Decimal(str(tx.amount)), reverse=True)
+    # PH2.5: Deleting the ledger entry automatically reverses
+    # its contribution to the effective investment value.
+    # Stored market-valuation snapshots remain unchanged.
 
-    # A transaction imported from Gmail is remembered as deleted, so the next sync does not bring it back.
-    if tx.source_id:
-        already = db.query(IgnoredSourceId.id).filter(
-            IgnoredSourceId.user_id == current_user.id,
-            IgnoredSourceId.source_id == tx.source_id,
-        ).first()
-        if not already:
-            db.add(IgnoredSourceId(user_id=current_user.id, source_id=tx.source_id))
+    # PH2.5: Rebase historical members before removing the ledger row.
+    fields = (
+        "id", "user_id", "type", "amount", "account_id",
+        "from_account_id", "to_account_id",
+    )
+    before_state = {field: getattr(tx, field) for field in fields}
+    # Record the validated old ledger state BEFORE waiting on account locks.
+    # If another request edits this transaction meanwhile, do not use stale
+    # validation or account identifiers: fail closed and require a fresh edit.
+    observed_state = {
+        field: getattr(tx, field, None)
+        for field in (
+            "id", "user_id", "type", "amount", "account_id",
+            "from_account_id", "to_account_id", "income_period",
+            "date", "description", "category_id", "source_id", "source",
+        )
+    }
+    try:
+        affected = transaction_contributions(
+            before_state["type"], before_state["amount"],
+            account_id=before_state["account_id"],
+            from_account_id=before_state["from_account_id"],
+            to_account_id=before_state["to_account_id"],
+        )
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=409, detail="Invalid transaction ledger state") from exc
 
-    db.delete(tx)
-    db.commit()
+    # Protect references even when a legacy same-account transfer nets zero.
+    account_ids = set(affected)
+    account_ids.update(
+        account_id for account_id in (
+            before_state["account_id"], before_state["from_account_id"],
+            before_state["to_account_id"],
+        ) if account_id is not None
+    )
+    locked_accounts = lock_owned_accounts(db, current_user.id, sorted(account_ids))
+
+    # Re-read only after taking the complete sorted account lock set.
+    tx = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id,
+    ).populate_existing().with_for_update().first()
+    if tx is None:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if any(getattr(tx, field, None) != value for field, value in observed_state.items()):
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Transaction changed concurrently; reload it before deleting",
+        )
+    # Recheck goal linkage after the row lock; the preview may be outdated.
+    if (
+        db.query(GoalContribution.id).filter(
+            or_(
+                GoalContribution.transaction_id == tx.id,
+                GoalContribution.reversal_transaction_id == tx.id,
+            )
+        ).first() is not None
+        or is_goal_reserve_transaction(db, tx, current_user.id)
+    ):
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Goal-linked transaction cannot be deleted directly",
+        )
+    try:
+        reconcile_valuation_transaction_change(
+            db, current_user.id, tx.id, before_state, None, locked_accounts
+        )
+        # A transaction imported from Gmail is remembered as deleted, so the next sync does not bring it back.
+        if tx.source_id:
+            already = db.query(IgnoredSourceId.id).filter(
+                IgnoredSourceId.user_id == current_user.id,
+                IgnoredSourceId.source_id == tx.source_id,
+            ).first()
+            if not already:
+                db.add(IgnoredSourceId(user_id=current_user.id, source_id=tx.source_id))
+
+        db.delete(tx)
+        db.flush()
+        validate_postwrite_investments(db, current_user.id, locked_accounts)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Transaction deletion conflict")
+    except Exception:
+        db.rollback()
+        raise
     return None
-
 
 # -------------------------------------------------------------
 # BUDGETS
@@ -1193,59 +1605,77 @@ def contribute_to_goal(
     if account.type == AccountType.CREDIT_CARD:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot contribute to goals using a Credit Card")
 
-    contribution = GoalContribution(
-        goal_id=goal.id,
-        account_id=account.id,
-        amount=data.amount,
-        date=data.date,
-        note=data.note,
-    )
-    db.add(contribution)
-    goal.saved_amount = (goal.saved_amount or Decimal("0.00")) + data.amount
-
-    # Money moves from the source account into the user's Goal & Reserves account (a transfer, not an expense),
-    # so net worth is unchanged and the reserve account's balance shows what is set aside.
+    # PH2.5: Preserve goal-first lock order. Discover the existing reserve
+    # before taking shared, ascending account locks. No financial writes yet.
     reserve = (
         db.query(Account)
         .filter(Account.user_id == current_user.id, Account.type == AccountType.GOAL_RESERVE)
         .order_by(Account.id.asc())
         .first()
     )
-    if reserve is None:
-        reserve = Account(
-            user_id=current_user.id,
-            name="Goal & Reserves",
-            type=AccountType.GOAL_RESERVE,
-            starting_balance=Decimal("0.00"),
-        )
-        db.add(reserve)
-        db.flush()
-    if reserve.id == account.id:
-        raise HTTPException(status_code=400, detail="Choose a source account other than the Goal & Reserves account")
-    tx = Transaction(
-        user_id=current_user.id,
-        account_id=account.id,
-        from_account_id=account.id,
-        to_account_id=reserve.id,
-        type=TransactionType.TRANSFER,
-        amount=data.amount,
-        date=data.date,
-        description=f"Goal Reserve: {goal.name} - {data.note or ''}".strip(),
-        source="MANUAL",
+    locked_accounts = lock_owned_accounts(
+        db, current_user.id,
+        (account.id, reserve.id) if reserve is not None else (account.id,),
     )
+    locked_by_id = {item.id: item for item in locked_accounts}
+    account = locked_by_id[account.id]
+    if account.type == AccountType.GOAL_RESERVE:
+        raise HTTPException(status_code=409, detail="Goal & Reserves cannot fund a contribution")
+    if account.type == AccountType.CREDIT_CARD:
+        raise HTTPException(status_code=400, detail="Cannot contribute to goals using a Credit Card")
+    if reserve is not None:
+        reserve = locked_by_id[reserve.id]
+        if reserve.type != AccountType.GOAL_RESERVE:
+            raise HTTPException(status_code=409, detail="Goal reserve account changed")
+    if reserve is not None and reserve.id == account.id:
+        raise HTTPException(status_code=400, detail="Choose a source account other than the Goal & Reserves account")
 
-    db.add(tx)
+    # PH2.5: A new reserve is still created on first use, as before.
+    # Concurrent first-use reserve creation needs PostgreSQL verification.
+    try:
+        if reserve is None:
+            reserve = Account(
+                user_id=current_user.id,
+                name="Goal & Reserves",
+                type=AccountType.GOAL_RESERVE,
+                starting_balance=Decimal("0.00"),
+            )
+            db.add(reserve)
+            db.flush()
 
-    # Flush both pending records so SQLAlchemy assigns a transaction ID.
-    # This does not commit the database transaction.
-    db.flush()
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            account_id=account.id,
+            amount=data.amount,
+            date=data.date,
+            note=data.note,
+        )
+        db.add(contribution)
+        goal.saved_amount = (goal.saved_amount or Decimal("0.00")) + data.amount
 
-    # Establish the permanent link between the contribution
-    # and the exact transfer that funded it.
-    contribution.transaction_id = tx.id
+        # A goal contribution is a transfer, not an expense.
+        tx = Transaction(
+            user_id=current_user.id,
+            account_id=account.id,
+            from_account_id=account.id,
+            to_account_id=reserve.id,
+            type=TransactionType.TRANSFER,
+            amount=data.amount,
+            date=data.date,
+            description=f"Goal Reserve: {goal.name} - {data.note or ''}".strip(),
+            source="MANUAL",
+        )
 
-    # Commit the contribution, transfer, and link together.
-    db.commit()
+        db.add(tx)
+
+        # The ledger transfer is visible to investment validation before commit.
+        db.flush()
+        contribution.transaction_id = tx.id
+        validate_postwrite_investments(db, current_user.id, locked_accounts)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     db.refresh(contribution)
     return contribution
@@ -1370,11 +1800,9 @@ def reverse_goal_contribution(
             "Original contribution and funding transfer do not match.",
         )
 
-    # Identify and lock the exact reserve account that
-    # received the original contribution.
-    #
-    # Locking this account serializes reversals across
-    # different goals sharing the same reserve.
+    # PH2.5: Discover the reserve without taking an out-of-order
+    # account lock. Then lock both ledger participants in ascending ID
+    # order, after the goal and contribution locks already held above.
     reserve = (
         db.query(Account)
         .filter(
@@ -1382,13 +1810,27 @@ def reverse_goal_contribution(
             Account.user_id == current_user.id,
             Account.type == AccountType.GOAL_RESERVE,
         )
-        .with_for_update()
         .first()
     )
 
     if reserve is None or reserve.id == source.id:
         raise HTTPException(
             409, "Original Goal & Reserves account is invalid."
+        )
+
+    locked_accounts = lock_owned_accounts(
+        db, current_user.id, (source.id, reserve.id)
+    )
+    locked_by_id = {account.id: account for account in locked_accounts}
+    source = locked_by_id.get(source.id)
+    reserve = locked_by_id.get(reserve.id)
+    if (
+        source is None or reserve is None
+        or source.type == AccountType.GOAL_RESERVE
+        or reserve.type != AccountType.GOAL_RESERVE
+    ):
+        raise HTTPException(
+            409, "Original contribution account types changed."
         )
 
     saved_amount = Decimal(str(goal.saved_amount or "0.00"))
@@ -1442,18 +1884,22 @@ def reverse_goal_contribution(
         source="MANUAL",
     )
 
-    db.add(reversal_tx)
-    db.flush()
-
-    # Record both parts of the reversal in one transaction.
-    goal.saved_amount = saved_amount - amount
-    contribution.reversal_transaction_id = reversal_tx.id
-    contribution.reversed_at = datetime.utcnow()
-
-    # No separate investment valuation adjustment:
-    # the original goal contribution did not apply one.
-    # Investment valuation corrections belong to PH2.4.
-    db.commit()
+    # PH2.5: Flush the ledger change while the accounts remain locked,
+    # then reject invalid effective investment values before committing.
+    # The goal balance and reversal link are in the same DB transaction.
+    try:
+        db.add(reversal_tx)
+        db.flush()
+        validate_postwrite_investments(
+            db, current_user.id, locked_accounts
+        )
+        goal.saved_amount = saved_amount - amount
+        contribution.reversal_transaction_id = reversal_tx.id
+        contribution.reversed_at = datetime.utcnow()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(contribution)
 
     return contribution
@@ -1633,9 +2079,16 @@ def execute_recurring(
         rec.category_id,
     )
 
+    # PH2.5: Lock ledger participants after the recurring schedule row.
+    affected_ids = (
+        (rec.account_id, rec.to_account_id)
+        if rec.type == TransactionType.TRANSFER
+        else (rec.account_id,)
+    )
+    locked_accounts = lock_owned_accounts(
+        db, current_user.id, affected_ids,
+    )
     if rec.type == TransactionType.TRANSFER:
-        from_acc = get_owned_account(db, current_user.id, rec.account_id, "Source account")
-        to_acc = get_owned_account(db, current_user.id, rec.to_account_id, "Destination account") if rec.to_account_id else None
         new_tx = Transaction(
             user_id=current_user.id,
             account_id=rec.account_id,
@@ -1647,8 +2100,8 @@ def execute_recurring(
             to_account_id=rec.to_account_id,
             source="RECURRING",
         )
-        # same market-value handling as a manual transfer
-        _shift_investment_value(from_acc, to_acc, Decimal(str(rec.amount)))
+        # PH2.5: The ledger entry changes effective value.
+        # Do not mutate investment valuation snapshots.
     else:
         new_tx = Transaction(
             user_id=current_user.id,
@@ -1661,9 +2114,18 @@ def execute_recurring(
             source="RECURRING",
         )
 
-    db.add(new_tx)
-    rec.next_date = calculate_next_date(rec.next_date, rec.frequency)
-    db.commit()
+    # PH2.5: Posting and advancing the due date must be atomic.
+    try:
+        db.add(new_tx)
+        db.flush()
+        validate_postwrite_investments(
+            db, current_user.id, locked_accounts,
+        )
+        rec.next_date = calculate_next_date(rec.next_date, rec.frequency)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(new_tx)
     return new_tx
 

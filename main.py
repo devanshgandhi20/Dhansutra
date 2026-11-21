@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from redis.exceptions import RedisError
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
@@ -397,3 +397,20 @@ async def auth_exception_handler(request: Request, exc):
         return RedirectResponse(url="/refresh", status_code=302)
 
     return RedirectResponse(url=f"/login?error={quote(str(exc.detail))}", status_code=302)
+
+
+@app.exception_handler(DBAPIError)
+async def ph25_dbapi_lock_exception_handler(request: Request, exc: DBAPIError):
+    original = getattr(exc, "orig", None)
+    sqlstate = getattr(original, "pgcode", None) or getattr(original, "sqlstate", None)
+    if sqlstate in ("55P03", "40P01"):
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "This account is temporarily busy. Please retry."},
+            headers={"Retry-After": "1"},
+        )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+    )
+

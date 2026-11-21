@@ -42,6 +42,8 @@ class Account(Base):
     type = Column(SAEnum(AccountType, name="account_type_enum"), nullable=False)
     starting_balance = Column(Numeric(14, 2), default=0.00, nullable=False)
     current_market_value = Column(Numeric(14, 2), nullable=True)  # Used for investments
+    # PH2.5: Ledger balance at the last explicit valuation.
+    valuation_ledger_anchor = Column(Numeric(14, 2), nullable=True)
     anchor_date = Column(Date, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -58,6 +60,30 @@ class Account(Base):
         back_populates="account",
         cascade="all, delete-orphan",
     )
+    valuation_members = relationship(
+        "InvestmentValuationMember",
+        back_populates="account",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class InvestmentValuationMember(Base):
+    """Frozen signed ledger contributions in the latest investment snapshot.
+
+    No transaction FK: deleting a transaction must not silently delete the
+    historical membership that determines anchor rebasing.
+    """
+    __tablename__ = "investment_valuation_members"
+    __table_args__ = (
+        UniqueConstraint("account_id", "transaction_id", name="uq_ivm_account_transaction"),
+        Index("ix_ivm_transaction_id", "transaction_id"),
+    )
+    id = Column(Integer, primary_key=True)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    transaction_id = Column(Integer, nullable=False)
+    baseline_contribution = Column(Numeric(14, 2), nullable=False)
+    account = relationship("Account", back_populates="valuation_members")
 
 
 class Category(Base):
