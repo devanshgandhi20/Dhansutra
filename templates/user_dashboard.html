@@ -2123,7 +2123,7 @@
             btn.disabled = true;
             try {
                 const payload = { name, type, starting_balance };
-                if (type === 'INVESTMENT') payload.current_market_value = starting_balance;
+                // PH2.5: Keep investment market value unset until explicitly entered.
 
                 const res = await API.createAccount(payload);
                 if (!(await okOrToast(res, 'Failed to create account'))) return;
@@ -2189,7 +2189,7 @@
                     { name: 'Axis Bank', type: 'BANK', starting_balance: 0 },
                     { name: 'Cash in Hand', type: 'CASH', starting_balance: 0 },
                     { name: 'Credit Card', type: 'CREDIT_CARD', starting_balance: 0 },
-                    { name: 'Mutual Funds', type: 'INVESTMENT', starting_balance: 0, current_market_value: 0 },
+                    { name: 'Mutual Funds', type: 'INVESTMENT', starting_balance: 0 },
                     { name: 'Goal & Reserves', type: 'GOAL_RESERVE', starting_balance: 0 }
                 ];
                 for (const a of seedAccounts) { await API.createAccount(a); }
@@ -4429,7 +4429,7 @@
             c.innerHTML = invs.map(a => `
                 <div class="form-group">
                     <label>${sanitize(a.name)} Market Value (₹)</label>
-                    <input type="number" step="any" min="0" class="form-control" data-vid="${a.id}" value="${a.current_market_value ?? a.starting_balance}">
+                    <input type="number" step="any" min="0" class="form-control" data-vid="${a.id}" value="${a.current_market_value ?? ''}">
                 </div>
             `).join('');
             openModal('modalValuations');
@@ -4437,11 +4437,51 @@
 
         async function saveValuations() {
             const inputs = document.querySelectorAll('#valuationsInputsContainer input');
+            const updates = [];
+
             for (const inp of inputs) {
-                const vid = parseInt(inp.dataset.vid);
-                const current_market_value = round2(inp.value);
-                if (!(await okOrToast(await API.updateAccount(vid, { current_market_value }), 'Failed to update valuations'))) return;
+                const vid = Number(inp.dataset.vid);
+                const account = accounts.find(
+                    a => Number(a.id) === vid && a.type === 'INVESTMENT'
+                );
+
+                if (!account) {
+                    showToast('Investment account unavailable. Refresh and retry.', 'error');
+                    return;
+                }
+
+                const raw = inp.value.trim();
+                const newValue = raw === '' ? null : Number(raw);
+
+                if (newValue !== null &&
+                    (!Number.isFinite(newValue) || newValue < 0)) {
+                    showToast('Enter a valid non-negative market value.', 'error');
+                    return;
+                }
+
+                const normalized = newValue === null ? null : round2(newValue);
+
+                const existing = account.current_market_value == null
+                    ? null
+                    : round2(account.current_market_value);
+
+                if (existing === normalized) continue;
+
+                updates.push({
+                    vid,
+                    current_market_value: normalized
+                });
             }
+
+            for (const update of updates) {
+                if (!(await okOrToast(
+                    await API.updateAccount(update.vid, {
+                        current_market_value: update.current_market_value
+                    }),
+                    'Failed to update valuations'
+                ))) return;
+            }
+
             accounts = await safeLoad(() => API.getAccounts(), accounts);
             closeModal('modalValuations');
             await refreshData();

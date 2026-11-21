@@ -115,7 +115,7 @@ class AccountBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     type: AccountType
     starting_balance: Decimal = Field(default=Decimal("0.00"))
-    current_market_value: Optional[Decimal] = None
+    current_market_value: Optional[Decimal] = Field(default=None, ge=0, allow_inf_nan=False)
     anchor_date: Optional[_dt.date] = None
 
 
@@ -127,11 +127,12 @@ class AccountUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     type: Optional[AccountType] = None
     starting_balance: Optional[Decimal] = None
-    current_market_value: Optional[Decimal] = None
+    current_market_value: Optional[Decimal] = Field(default=None, ge=0, allow_inf_nan=False)
     anchor_date: Optional[_dt.date] = None
 
 
 class AccountResponse(AccountBase):
+    valuation_ledger_anchor: Optional[Decimal] = None
     id: int
     user_id: int
     created_at: _dt.datetime
